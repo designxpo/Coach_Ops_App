@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="food_scan_cache"    path="food_scans/" />
+    <cache-path name="progress_photos_tmp" path="progress_photos/" />
+    <files-path name="progress_photos"    path="progress_photos/" />
+</paths>

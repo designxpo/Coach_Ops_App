@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the requester the CoachBase admin?
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'priyeshmishraofficial@gmail.com';
+    }
+
+    // Admin config — admin writes, any authenticated user reads
+    // (coaches read maintenance mode, announcement, remote config on app start)
+    match /admin_config/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Notification history — admin only
+    match /notifications/{document} {
+      allow read, write: if isAdmin();
+    }
+
+    // Notification templates — admin only
+    match /notification_templates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    // User records — each user reads/writes their own, admin reads+writes all
+    match /user_records/{userId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Coach data — each coach reads/writes only their own tree
+    match /coaches/{coachId} {
+      allow read, write: if request.auth != null && request.auth.uid == coachId;
+
+      match /clients/{clientId}           { allow read, write: if request.auth.uid == coachId; }
+      match /programs/{programId}         { allow read, write: if request.auth.uid == coachId; }
+      match /payments/{paymentId}         { allow read, write: if request.auth.uid == coachId; }
+      match /workout_logs/{logId}         { allow read, write: if request.auth.uid == coachId; }
+      match /measurements/{measurementId} { allow read, write: if request.auth.uid == coachId; }
+      match /notes/{noteId}               { allow read, write: if request.auth.uid == coachId; }
+      match /revenue_snapshots/{snapId}   { allow read, write: if request.auth.uid == coachId; }
+    }
+
+    // Trainer public profiles — any authenticated user reads, only owner writes
+    match /trainers/{trainerId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == trainerId;
+    }
+
+    // Bookings — any auth user creates; only the coach or client involved can read/update
+    match /bookings/{bookingId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null
+        && (resource.data.coachId == request.auth.uid
+            || resource.data.clientId == request.auth.uid);
+    }
+
+    // Client fitness data — only the owner can read/write
+    match /client_fitness/{clientId} {
+      allow read, write: if request.auth != null && request.auth.uid == clientId;
+
+      match /goals/{goalId}  { allow read, write: if request.auth.uid == clientId; }
+      match /logs/{logId}    { allow read, write: if request.auth.uid == clientId; }
+    }
+
+    // Direct chat between coach and member
+    // chatId = {coachId}_{memberId} — deterministic, not publicly enumerable
+    match /chats/{chatId} {
+      // Any authenticated user can read/create (chatId is not guessable)
+      // Update restricted to participants once doc exists
+      allow read, create: if request.auth != null;
+      allow update: if request.auth != null &&
+        (resource.data.coachId == request.auth.uid ||
+         resource.data.memberId == request.auth.uid);
+
+      match /messages/{messageId} {
+        allow read, create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if false;
+      }
+    }
+
+    // Member health records — member owns, any authenticated user reads (coaches need this)
+    // Write is member-only; read is open to authenticated users (coach context enforced in UI)
+    match /member_health/{memberId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == memberId;
+
+      match /records/{recordId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == memberId;
+      }
+    }
+
+    // Exercise library — any authenticated user reads, admin-only writes
+    match /exercises/{exerciseId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

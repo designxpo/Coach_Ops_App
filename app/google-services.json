@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "566108244280",
+    "project_id": "coachops-27a73",
+    "storage_bucket": "coachops-27a73.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:566108244280:android:a4c420490b7810bb6899cd",
+        "android_client_info": {
+          "package_name": "com.aistudio.coachops.abxyzm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "566108244280-5khaerig8fdi3ahmhcsqnlqkhp72ecdc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.coachops.abxyzm",
+            "certificate_hash": "e006b2128b880713171f5ddca7f324f78f6cb21c"
+          }
+        },
+        {
+          "client_id": "566108244280-96bfdnavlg63qt000gr6p0k611f3tqbo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.coachops.abxyzm",
+            "certificate_hash": "4fad1766522174b9ae2bdf738caa72493f52dc76"
+          }
+        },
+        {
+          "client_id": "566108244280-npl53hil8beahuj6i75hi0h80lgaatc0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJuuZoZsHI_8DV4i5lREbWRVrIMHY3iBM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "566108244280-npl53hil8beahuj6i75hi0h80lgaatc0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
