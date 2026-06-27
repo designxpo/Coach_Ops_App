@@ -26,15 +26,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberDanger
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +63,6 @@ import com.example.data.WorkoutLogEntry
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
-import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberBgPrimary
 import com.example.ui.theme.CyberTextMuted
 import com.example.ui.theme.CyberTextPrimary
@@ -481,6 +490,8 @@ fun FitnessHubScreen(
             item {
                 val log by healthViewModel.todayLog.collectAsState()
                 val score = healthViewModel.weeklyHealthScore()
+                var showStepsDialog by remember { mutableStateOf(false) }
+                var stepsInput      by remember { mutableStateOf("") }
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -493,16 +504,25 @@ fun FitnessHubScreen(
 
                     // Steps + Water
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Steps card
+                        // Steps card — tap to enter count
                         Column(
                             modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
                                 .background(CyberBgCard)
-                                .border(1.dp, Color.White.copy(0.07f), RoundedCornerShape(16.dp))
+                                .border(1.dp, Color(0xFF3B82F6).copy(0.2f), RoundedCornerShape(16.dp))
+                                .clickable { stepsInput = if (log.stepsCount > 0) log.stepsCount.toString() else ""; showStepsDialog = true }
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("🏃 Steps", fontSize = 12.sp, color = CyberTextMuted)
-                            Text("${log.stepsCount}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("🏃 Steps", fontSize = 12.sp, color = CyberTextMuted)
+                                Text("✏️", fontSize = 11.sp)
+                            }
+                            Text(
+                                if (log.stepsCount == 0) "Tap to log" else "${log.stepsCount}",
+                                fontSize = if (log.stepsCount == 0) 14.sp else 22.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (log.stepsCount == 0) CyberTextMuted else CyberTextPrimary
+                            )
                             LinearProgressIndicator(
                                 progress = { (log.stepsCount / 10_000f).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
@@ -602,6 +622,52 @@ fun FitnessHubScreen(
                     }
                 }
                 Spacer(Modifier.height(20.dp))
+
+                // Steps input dialog
+                if (showStepsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showStepsDialog = false },
+                        containerColor = CyberBgCard,
+                        title = {
+                            Text("Log Steps", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("How many steps did you walk today?", fontSize = 13.sp, color = CyberTextMuted)
+                                OutlinedTextField(
+                                    value = stepsInput,
+                                    onValueChange = { stepsInput = it.filter { c -> c.isDigit() }.take(6) },
+                                    placeholder = { Text("e.g. 8500", color = CyberTextMuted) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor   = Color(0xFF3B82F6),
+                                        unfocusedBorderColor = Color.White.copy(0.15f),
+                                        focusedTextColor     = CyberTextPrimary,
+                                        unfocusedTextColor   = CyberTextPrimary
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    val steps = stepsInput.toIntOrNull() ?: 0
+                                    healthViewModel.setSteps(steps)
+                                    showStepsDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text("Save", color = Color.White, fontWeight = FontWeight.Bold) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStepsDialog = false }) {
+                                Text("Cancel", color = CyberTextMuted)
+                            }
+                        }
+                    )
+                }
             }
 
             // ── Body & Tracking ───────────────────────────────────────────────
