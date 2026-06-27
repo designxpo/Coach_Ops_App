@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,12 +58,15 @@ import com.example.data.AuthRepository
 import com.example.data.AuthResult
 import com.example.data.ProfileSync
 import com.example.data.UserPreferences
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
 import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberBgPrimary
 import com.example.ui.theme.CyberDanger
+import com.example.ui.theme.CyberSuccess
 import com.example.ui.theme.CyberTextMuted
 import com.example.ui.theme.CyberTextPrimary
 import kotlinx.coroutines.launch
@@ -87,6 +89,7 @@ fun LoginScreen(
     var showForgotPassword by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
     var resetSent by remember { mutableStateOf(false) }
+    var resetError by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     val googleLauncher = rememberLauncherForActivityResult(
@@ -126,6 +129,7 @@ fun LoginScreen(
                                 // Restore full profile from Firestore so any device gets all data
                                 ProfileSync.restoreProfile(uid, role, userPreferences)
                                 viewModel.refreshProfileFromPrefs()
+                                isGoogleLoading = false
                                 onLoginSuccess()
                             }
                         }
@@ -145,15 +149,21 @@ fun LoginScreen(
     if (showForgotPassword) {
         ForgotPasswordDialog(
             email = resetEmail,
-            onEmailChange = { resetEmail = it; resetSent = false },
+            onEmailChange = { resetEmail = it; resetSent = false; resetError = "" },
             sent = resetSent,
+            resetError = resetError,
             onSend = {
                 scope.launch {
-                    AuthRepository.sendPasswordReset(resetEmail)
-                    resetSent = true
+                    try {
+                        AuthRepository.sendPasswordReset(resetEmail)
+                        resetSent = true
+                        resetError = ""
+                    } catch (e: Exception) {
+                        resetError = e.message ?: "Failed to send reset link. Try again."
+                    }
                 }
             },
-            onDismiss = { showForgotPassword = false; resetEmail = ""; resetSent = false }
+            onDismiss = { showForgotPassword = false; resetEmail = ""; resetSent = false; resetError = "" }
         )
     }
 
@@ -267,6 +277,7 @@ fun LoginScreen(
             onValueChange = { email = it; errorMessage = "" },
             label = "Email address",
             keyboardType = KeyboardType.Email,
+            imeAction = ImeAction.Next,
             enabled = !isLoading && !isGoogleLoading
         )
 
@@ -277,6 +288,39 @@ fun LoginScreen(
             onValueChange = { password = it; errorMessage = "" },
             label = "Password",
             keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+            keyboardActions = KeyboardActions(onDone = {
+                if (email.isNotBlank() && password.isNotBlank() && !isLoading && !isGoogleLoading) {
+                    isLoading = true
+                    scope.launch {
+                        when (val result = AuthRepository.signIn(email, password)) {
+                            is AuthResult.Success -> {
+                                val uid = result.user.uid
+                                userPreferences.bindToUser(uid)
+                                com.example.data.FirestoreSync.restoreOnboardingIfNeeded(uid, userPreferences)
+                                val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
+                                if (storedRole != null && storedRole != selectedRole) {
+                                    com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                                    errorMessage = if (storedRole == "client")
+                                        "This is a Member account. Please select \"I'm a Member\" to sign in."
+                                    else
+                                        "This is a Coach account. Please select \"I'm a Coach\" to sign in."
+                                    isLoading = false
+                                } else {
+                                    val role = storedRole ?: selectedRole
+                                    userPreferences.coachEmail = result.user.email ?: email
+                                    userPreferences.userRole = role
+                                    userPreferences.onboardingComplete = storedRole != null
+                                    ProfileSync.restoreProfile(uid, role, userPreferences)
+                                    isLoading = false
+                                    onLoginSuccess()
+                                }
+                            }
+                            is AuthResult.Error -> { errorMessage = result.message; isLoading = false }
+                        }
+                    }
+                }
+            }),
             enabled = !isLoading && !isGoogleLoading,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
@@ -293,7 +337,7 @@ fun LoginScreen(
         Text(
             "Forgot password?",
             fontSize = 13.sp, color = CyberAccent, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.align(Alignment.End).clickable { showForgotPassword = true }
+            modifier = Modifier.align(Alignment.End).padding(vertical = 8.dp).clickable { showForgotPassword = true }
         )
 
         if (errorMessage.isNotEmpty()) {
@@ -338,6 +382,7 @@ fun LoginScreen(
                                     userPreferences.onboardingComplete = storedRole != null
                                     // Pull all profile data (name, specialty, health etc.) from cloud
                                     ProfileSync.restoreProfile(uid, role, userPreferences)
+                                    isLoading = false
                                     onLoginSuccess()
                                 }
                             }
@@ -414,6 +459,7 @@ private fun ForgotPasswordDialog(
     email: String,
     onEmailChange: (String) -> Unit,
     sent: Boolean,
+    resetError: String = "",
     onSend: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -431,7 +477,11 @@ private fun ForgotPasswordDialog(
             AuthTextField(value = email, onValueChange = onEmailChange, label = "Email address", keyboardType = KeyboardType.Email)
             if (sent) {
                 Spacer(Modifier.height(10.dp))
-                Text("Reset link sent! Check your inbox.", fontSize = 13.sp, color = Color(0xFF4CAF50))
+                Text("Reset link sent! Check your inbox.", fontSize = 13.sp, color = CyberSuccess)
+            }
+            if (resetError.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(resetError, fontSize = 13.sp, color = CyberDanger)
             }
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -538,6 +588,8 @@ fun AuthTextField(
     onValueChange: (String) -> Unit,
     label: String,
     keyboardType: KeyboardType = KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
     enabled: Boolean = true,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailingIcon: (@Composable () -> Unit)? = null
@@ -547,7 +599,8 @@ fun AuthTextField(
         label = { Text(label, fontSize = 14.sp) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true, enabled = enabled,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         trailingIcon = trailingIcon,
         shape = RoundedCornerShape(14.dp),

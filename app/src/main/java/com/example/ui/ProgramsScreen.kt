@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -121,7 +122,7 @@ fun ProgramsScreen(viewModel: MainViewModel, onProgramClick: (String) -> Unit = 
     val avgDuration = if (programs.isNotEmpty()) programs.map { it.durationWeeks }.average().toInt() else 0
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(CyberBgPrimary),
+        modifier = Modifier.fillMaxSize().background(CyberBgPrimary).statusBarsPadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -171,8 +172,10 @@ fun ProgramsScreen(viewModel: MainViewModel, onProgramClick: (String) -> Unit = 
                     textStyle = androidx.compose.ui.text.TextStyle(color = CyberTextPrimary, fontSize = 14.sp),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CyberAccent),
                     decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) Text("Search programs…", fontSize = 14.sp, color = CyberTextMuted)
-                        inner()
+                        Box {
+                            if (searchQuery.isEmpty()) Text("Search programs…", fontSize = 14.sp, color = CyberTextMuted)
+                            inner()
+                        }
                     }
                 )
             }
@@ -342,8 +345,9 @@ fun ProgramsScreen(viewModel: MainViewModel, onProgramClick: (String) -> Unit = 
                                 Icon(Icons.Filled.Bolt, contentDescription = null, tint = CyberAccent, modifier = Modifier.size(16.dp))
                             }
                             Column {
-                                Text("${programs.firstOrNull()?.daysPerWeek ?: 4} / wk", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
-                                Text("Sessions", fontSize = 11.sp, color = CyberTextMuted)
+                                val modalDaysPerWeek = programs.mapNotNull { it.daysPerWeek }.groupBy { it }.maxByOrNull { it.value.size }?.key ?: 0
+                                Text("$modalDaysPerWeek / wk", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                                Text("Sessions/week", fontSize = 11.sp, color = CyberTextMuted)
                             }
                         }
                     }

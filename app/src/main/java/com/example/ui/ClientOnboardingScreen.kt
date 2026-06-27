@@ -23,7 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +52,7 @@ import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
 import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberBgPrimary
+import com.example.ui.theme.CyberDanger
 import com.example.ui.theme.CyberTextMuted
 import com.example.ui.theme.CyberTextPrimary
 
@@ -62,9 +65,11 @@ fun ClientOnboardingScreen(
 ) {
     var step by remember { mutableStateOf(1) }
     val scope = rememberCoroutineScope()
-    var clientName by remember { mutableStateOf(userPreferences.clientName.ifEmpty { userPreferences.coachName }) }
+    var clientName by remember { mutableStateOf(userPreferences.clientName.ifEmpty { "" }) }
     var clientCity by remember { mutableStateOf(userPreferences.clientCity) }
     var selectedGoal by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf("") }
 
     val goals = listOf(
         GoalOption("🏋️", "Build Muscle"),
@@ -82,9 +87,33 @@ fun ClientOnboardingScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        // Back button row (step 2 only)
+        if (step > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyberBgCard)
+                        .clickable { step = 1 },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Go back",
+                        tint = CyberTextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
         // Progress bar
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = if (step > 1) 12.dp else 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             repeat(2) { index ->
@@ -125,14 +154,23 @@ fun ClientOnboardingScreen(
             else -> selectedGoal.isNotEmpty()
         }
 
+        if (saveError.isNotEmpty()) {
+            Text(
+                saveError,
+                fontSize = 13.sp,
+                color = CyberDanger,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 16.dp)
                 .height(58.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (canProceed) CyberAccent else CyberBgCard)
-                .clickable(enabled = canProceed) {
+                .background(if (isLoading) CyberAccent.copy(alpha = 0.6f) else if (canProceed) CyberAccent else CyberBgCard)
+                .clickable(enabled = canProceed && !isLoading) {
                     if (step < 2) {
                         step++
                     } else {
@@ -141,26 +179,42 @@ fun ClientOnboardingScreen(
                         userPreferences.clientCity         = clientCity.trim()
                         userPreferences.clientGoal         = selectedGoal
                         userPreferences.onboardingComplete = true
+                        isLoading = true
+                        saveError = ""
                         // Persist full member profile to Firestore — enables any-device restore
                         scope.launch {
-                            ProfileSync.saveMemberProfile(userPreferences)
+                            try {
+                                ProfileSync.saveMemberProfile(userPreferences)
+                                isLoading = false
+                                onComplete()
+                            } catch (e: Exception) {
+                                isLoading = false
+                                saveError = e.message ?: "Failed to save profile. Please try again."
+                            }
                         }
-                        onComplete()
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    if (step < 2) "Continue" else "Find Trainers",
-                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
-                    color = if (canProceed) CyberAccentDark else CyberTextMuted
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = CyberAccentDark,
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp
                 )
-                if (canProceed) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = CyberAccentDark, modifier = Modifier.size(18.dp))
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        if (step < 2) "Continue" else "Find Trainers",
+                        fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
+                        color = if (canProceed) CyberAccentDark else CyberTextMuted
+                    )
+                    if (canProceed) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = CyberAccentDark, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
@@ -266,8 +320,10 @@ private fun InputField(
                 keyboardOptions = KeyboardOptions(keyboardType = keyboard),
                 singleLine = true,
                 decorationBox = { inner ->
-                    if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = CyberTextMuted)
-                    inner()
+                    Box {
+                        if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = CyberTextMuted)
+                        inner()
+                    }
                 }
             )
         }

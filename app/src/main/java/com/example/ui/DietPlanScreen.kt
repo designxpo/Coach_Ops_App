@@ -300,12 +300,12 @@ fun DietPlanEditorScreen(
         existingPlan?.days?.takeIf { it.isNotEmpty() }
             ?: WEEK_DAYS.map { DietDay(it) }
     )}
-    var selectedDay  by remember { mutableStateOf(0) }
+    var selectedDay  by remember(days.size) { mutableStateOf(minOf(0, (days.size - 1).coerceAtLeast(0))) }
     var showAddMeal  by remember { mutableStateOf(false) }
     var newMealName  by remember { mutableStateOf("") }
     var newMealTime  by remember { mutableStateOf("") }
 
-    val planId = remember { existingPlan?.id ?: UUID.randomUUID().toString() }
+    val planId = remember(existingPlan?.id) { existingPlan?.id ?: UUID.randomUUID().toString() }
 
     fun save(status: String) {
         val plan = DietPlan(
@@ -420,6 +420,17 @@ fun DietPlanEditorScreen(
                             }
                         }
                     )
+                }
+
+                item {
+                    val currentDayFoods = days.getOrNull(selectedDay)?.meals?.flatMap { it.foods } ?: emptyList()
+                    if (currentDayFoods.isNotEmpty()) {
+                        Text(
+                            "Day total: ${currentDayFoods.sumOf { it.calories }} kcal",
+                            fontSize = 12.sp, color = CyberAccent, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                 }
 
                 item {

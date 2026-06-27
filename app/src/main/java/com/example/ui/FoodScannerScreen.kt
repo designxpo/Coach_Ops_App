@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.data.FoodNutrition
@@ -102,6 +103,7 @@ fun FoodScannerScreen(onBack: () -> Unit) {
         if (success) {
             imageUri    = cameraUri
             imageBitmap = null
+            isAnalyzing = false
             nutrition   = null
             errorMsg    = ""
             scope.launch {
@@ -121,6 +123,7 @@ fun FoodScannerScreen(onBack: () -> Unit) {
         if (uri != null) {
             imageUri    = uri
             imageBitmap = null
+            isAnalyzing = false
             nutrition   = null
             errorMsg    = ""
             scope.launch {
@@ -131,6 +134,14 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                 imageBitmap = bmp
             }
         }
+    }
+
+    // Camera permission launcher — requests CAMERA at runtime before launching camera
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) cameraLauncher.launch(cameraUri)
+        // if denied, do nothing — button will still be visible to try again
     }
 
     fun analyzeImage() {
@@ -275,7 +286,14 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                         .clip(RoundedCornerShape(16.dp))
                         .background(CyberBgCard)
                         .border(1.dp, Color.White.copy(0.1f), RoundedCornerShape(16.dp))
-                        .clickable { cameraLauncher.launch(cameraUri) }
+                        .clickable {
+                            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA)
+                                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                cameraLauncher.launch(cameraUri)
+                            } else {
+                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                            }
+                        }
                         .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -357,7 +375,7 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                     Text(errorMsg, fontSize = 12.sp, color = CyberDanger, modifier = Modifier.weight(1f))
                     Icon(Icons.Filled.Refresh, null,
                         tint = CyberDanger,
-                        modifier = Modifier.size(18.dp).clickable { analyzeImage() })
+                        modifier = Modifier.size(18.dp).clickable(enabled = !isAnalyzing) { analyzeImage() })
                 }
             }
 
@@ -484,11 +502,11 @@ private fun NutritionResultCard(n: FoodNutrition) {
                         .height(10.dp)
                         .clip(RoundedCornerShape(99.dp))
                 ) {
-                    Box(Modifier.weight(n.proteinG / totalMacros).fillMaxSize()
+                    Box(Modifier.weight((n.proteinG / totalMacros).coerceAtLeast(0.001f)).fillMaxSize()
                         .background(Color(0xFF3B82F6)))
-                    Box(Modifier.weight(n.carbsG / totalMacros).fillMaxSize()
+                    Box(Modifier.weight((n.carbsG / totalMacros).coerceAtLeast(0.001f)).fillMaxSize()
                         .background(Color(0xFFF59E0B)))
-                    Box(Modifier.weight(n.fatG / totalMacros).fillMaxSize()
+                    Box(Modifier.weight((n.fatG / totalMacros).coerceAtLeast(0.001f)).fillMaxSize()
                         .background(Color(0xFFEF4444)))
                 }
                 Row(

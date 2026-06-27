@@ -116,9 +116,11 @@ fun ExerciseDetailScreen(
     val logsForThis = remember(logs, exerciseId) { logs.filter { it.exerciseId == exerciseId } }
     val goalForThis = remember(goals, exerciseId) { goals.find { it.exerciseId == exerciseId } }
     val progressPct = if (goalForThis != null && logsForThis.isNotEmpty()) {
-        val latest = logsForThis.first()
-        val target = goalForThis.targetReps.coerceAtLeast(1)
-        ((latest.repsCompleted.toFloat() / target) * 100).coerceIn(0f, 100f).toInt()
+        val latest = logsForThis.maxByOrNull { it.dateMillis }
+        if (latest != null) {
+            val target = goalForThis.targetReps.coerceAtLeast(1)
+            ((latest.repsCompleted.toFloat() / target) * 100).coerceIn(0f, 100f).toInt()
+        } else 0
     } else 0
 
     // Related exercises — same primary muscle, exclude self; uses live data so admin images show
@@ -446,7 +448,7 @@ fun ExerciseDetailScreen(
             // ── Latest log / review ───────────────────────────────────────────
             if (logsForThis.isNotEmpty()) {
                 item {
-                    val latest = logsForThis.first()
+                    val latest = logsForThis.maxByOrNull { it.dateMillis } ?: return@item
                     val fmt = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
                     DetailSection(title = "Last Session") {
                         Row(
@@ -937,7 +939,8 @@ private fun SetRow(
         SetMiniField(
             value = if (set.weightKg == 0f) "" else set.weightKg.toString(),
             placeholder = "0",
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            keyboardType = KeyboardType.Decimal
         ) { v -> onChange(set.copy(weightKg = v.toFloatOrNull() ?: 0f)) }
 
         // RPE (1–10)
@@ -966,6 +969,7 @@ private fun SetMiniField(
     value: String,
     placeholder: String = "",
     modifier: Modifier,
+    keyboardType: KeyboardType = KeyboardType.Number,
     onValueChange: (String) -> Unit
 ) {
     BasicTextField(
@@ -983,7 +987,7 @@ private fun SetMiniField(
         ),
         cursorBrush = SolidColor(CyberAccent),
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 if (value.isEmpty()) Text(placeholder, fontSize = 12.sp, color = CyberTextMuted,

@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -107,6 +108,7 @@ fun RegisterScreen(
                                 if (userPreferences.coachName.isEmpty()) userPreferences.coachName = displayName
                             }
                             userPreferences.coachEmail = authResult.user.email ?: ""
+                            userPreferences.userRole = selectedRole
                             onRegisterSuccess(authResult.isNewUser)
                         }
                         is AuthResult.Error -> { errorMessage = authResult.message; isGoogleLoading = false }
@@ -179,17 +181,21 @@ fun RegisterScreen(
         Spacer(Modifier.height(20.dp))
 
         AuthTextField(value = name, onValueChange = { name = it; errorMessage = "" },
-            label = "Full Name *", keyboardType = KeyboardType.Text, enabled = !isLoading && !isGoogleLoading)
+            label = "Full Name *", keyboardType = KeyboardType.Text, imeAction = ImeAction.Next,
+            enabled = !isLoading && !isGoogleLoading)
         Spacer(Modifier.height(12.dp))
         AuthTextField(value = email, onValueChange = { email = it; errorMessage = "" },
-            label = "Email address *", keyboardType = KeyboardType.Email, enabled = !isLoading && !isGoogleLoading)
+            label = "Email address *", keyboardType = KeyboardType.Email, imeAction = ImeAction.Next,
+            enabled = !isLoading && !isGoogleLoading)
         Spacer(Modifier.height(12.dp))
         AuthTextField(value = phone, onValueChange = { phone = it; errorMessage = "" },
-            label = "Phone number (optional)", keyboardType = KeyboardType.Phone, enabled = !isLoading && !isGoogleLoading)
+            label = "Phone number (optional)", keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next,
+            enabled = !isLoading && !isGoogleLoading)
         Spacer(Modifier.height(12.dp))
         AuthTextField(
             value = password, onValueChange = { password = it; errorMessage = "" },
-            label = "Password *", keyboardType = KeyboardType.Password, enabled = !isLoading && !isGoogleLoading,
+            label = "Password *", keyboardType = KeyboardType.Password, imeAction = ImeAction.Next,
+            enabled = !isLoading && !isGoogleLoading,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -201,7 +207,8 @@ fun RegisterScreen(
         Spacer(Modifier.height(12.dp))
         AuthTextField(
             value = confirmPassword, onValueChange = { confirmPassword = it; errorMessage = "" },
-            label = "Confirm Password *", keyboardType = KeyboardType.Password, enabled = !isLoading && !isGoogleLoading,
+            label = "Confirm Password *", keyboardType = KeyboardType.Password, imeAction = ImeAction.Done,
+            enabled = !isLoading && !isGoogleLoading,
             visualTransformation = if (confirmVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { confirmVisible = !confirmVisible }) {
@@ -218,7 +225,7 @@ fun RegisterScreen(
 
         Spacer(Modifier.height(28.dp))
 
-        val canRegister = name.isNotBlank() && email.isNotBlank() && password.isNotBlank()
+        val canRegister = name.isNotBlank() && email.isNotBlank() && password.isNotBlank() && confirmPassword.isNotBlank()
         Box(
             modifier = Modifier
                 .fillMaxWidth().height(56.dp)
@@ -244,7 +251,9 @@ fun RegisterScreen(
                                     userPreferences.coachName = name.trim()
                                 }
                                 userPreferences.coachEmail = result.user.email ?: email.trim()
+                                // coachPhone is the shared phone field; no separate clientPhone field exists in UserPreferences
                                 userPreferences.coachPhone = phone.trim()
+                                isLoading = false
                                 onRegisterSuccess(true)
                             }
                             is AuthResult.Error -> { errorMessage = result.message; isLoading = false }

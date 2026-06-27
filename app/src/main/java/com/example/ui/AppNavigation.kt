@@ -317,7 +317,13 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                                 popUpTo(0) { inclusive = true }
                             }
                         },
+                        onPrivacyPolicyClick = { navController.navigate("privacy_policy") },
+                        onTermsClick = { navController.navigate("privacy_policy") },
+                        onDeleteAccountClick = { /* TODO: show delete account dialog */ },
                     )
+                }
+                composable("privacy_policy") {
+                    PrivacyPolicyScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Screen.Home.route) {
                     val chatThreads by chatViewModel.threads.collectAsState()

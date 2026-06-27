@@ -107,7 +107,7 @@ private fun foodImageUrl(name: String): String {
         "dal"  in lower || "lentil" in lower ->
             "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=80&h=80&fit=crop&q=80"
         "chicken"       in lower -> "https://images.unsplash.com/photo-1598103442097-8b74394b95c3?w=80&h=80&fit=crop&q=80"
-        "roti" in lower || "paratha" in lower || "jowar" in lower || "bajra" in lower ->
+        "roti" in lower || "jowar" in lower || "bajra" in lower ->
             "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=80&h=80&fit=crop&q=80"
         "salad"         in lower -> "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=80&h=80&fit=crop&q=80"
         "paneer"        in lower -> "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=80&h=80&fit=crop&q=80"
@@ -115,7 +115,7 @@ private fun foodImageUrl(name: String): String {
             "https://images.unsplash.com/photo-1614961233913-a5113a4a34ed?w=80&h=80&fit=crop&q=80"
         "tea"   in lower || "coffee" in lower || "chai" in lower ->
             "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=80&h=80&fit=crop&q=80"
-        "coconut"       in lower -> "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=80&h=80&fit=crop&q=80"
+        "coconut"       in lower -> "https://images.unsplash.com/photo-1589923188651-268a9765e432?w=200&q=80"
         "sprout"        in lower -> "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=80&h=80&fit=crop&q=80"
         else -> "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=80&h=80&fit=crop&q=80"
     }
@@ -157,7 +157,7 @@ fun NutritionScreen(
                     .fillMaxWidth()
                     .height(220.dp)
             ) {
-                val heroUrl = resolvedHeaderImage(planState)
+                val heroUrl = resolvedHeaderImage(plan)
                 if (heroUrl.isNotBlank()) {
                     AsyncImage(
                         model = heroUrl,
@@ -229,7 +229,7 @@ fun NutritionScreen(
                             .clip(CircleShape)
                             .background(CyberAccent.copy(0.12f))
                     ) {
-                        val iconUrl = resolvedIconImage(planState)
+                        val iconUrl = resolvedIconImage(plan)
                         if (iconUrl.isNotBlank()) {
                             AsyncImage(
                                 model = iconUrl,
@@ -331,6 +331,7 @@ fun NutritionScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        if (plan.generalTips.isEmpty()) { Text("No tips added", fontSize = 12.sp, color = CyberTextMuted) }
                         plan.generalTips.forEachIndexed { i, tip ->
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -555,11 +556,13 @@ private fun FoodItemRow(food: IndianFoodItem) {
         }
 
         // Macro chips row
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            MacroChip("P:${food.proteinG}g", CyberAccent)
-            MacroChip("C:${food.carbsG}g",  Color(0xFFF59E0B))
-            MacroChip("F:${food.fatG}g",    Color(0xFF10B981))
+        if (food.proteinG > 0 || food.carbsG > 0 || food.fatG > 0) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MacroChip("P:${food.proteinG}g", CyberAccent)
+                MacroChip("C:${food.carbsG}g",  Color(0xFFF59E0B))
+                MacroChip("F:${food.fatG}g",    Color(0xFF10B981))
+            }
         }
 
         // Benefits (expandable on tap)

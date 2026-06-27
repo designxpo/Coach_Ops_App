@@ -30,6 +30,7 @@ import com.example.data.*
 import com.example.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 @Composable
 fun MyDietScreen(
@@ -45,10 +46,11 @@ fun MyDietScreen(
 
     if (showLogSheet && plan != null) {
         DietLogSheet(
-            plan   = plan,
-            logs   = logs,
-            onDismiss = { showLogSheet = false },
-            onSave = { log ->
+            plan        = plan,
+            selectedDay = selectedDay,
+            logs        = logs,
+            onDismiss   = { showLogSheet = false },
+            onSave      = { log ->
                 viewModel.saveDietLog(log)
                 viewModel.loadMyDietLogs(plan.id)
                 showLogSheet = false
@@ -101,7 +103,7 @@ fun MyDietScreen(
                     )
                 }
             }
-            return
+            return@MyDietScreen
         }
 
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -186,6 +188,10 @@ fun MyDietScreen(
                             DietLogRow(log)
                         }
                     }
+                }
+            } else {
+                item {
+                    Text("No logs yet — tap Log Today to get started", fontSize = 12.sp, color = CyberTextMuted, modifier = Modifier.padding(16.dp))
                 }
             }
         }
@@ -297,6 +303,7 @@ private fun DietLogRow(log: DietLog) {
 @Composable
 private fun DietLogSheet(
     plan: DietPlan,
+    selectedDay: Int,
     logs: List<DietLog>,
     onDismiss: () -> Unit,
     onSave: (DietLog) -> Unit
@@ -308,7 +315,7 @@ private fun DietLogSheet(
     var adherence  by remember { mutableStateOf(existing?.adherencePercent?.toFloat() ?: 80f) }
     var note       by remember { mutableStateOf(existing?.memberNote ?: "") }
 
-    val dayMeals   = plan.days.firstOrNull()?.meals?.map { it.mealName } ?: emptyList()
+    val dayMeals   = plan.days.getOrNull(selectedDay)?.meals?.map { it.mealName } ?: emptyList()
     var mealStatus by remember {
         mutableStateOf(
             dayMeals.associateWith { name ->
@@ -336,7 +343,7 @@ private fun DietLogSheet(
                     Text("${adherence.toInt()}%", color = CyberAccent, fontSize = 14.sp, fontWeight = FontWeight.Black)
                 }
                 Slider(
-                    value = adherence, onValueChange = { adherence = it },
+                    value = adherence, onValueChange = { adherence = (it * 10).roundToInt() / 10f },
                     valueRange = 0f..100f, steps = 9,
                     colors = SliderDefaults.colors(thumbColor = CyberAccent, activeTrackColor = CyberAccent,
                         inactiveTrackColor = CyberBgCardElevated)

@@ -101,7 +101,7 @@ fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onC
                 "All"     -> true
                 "At Risk" -> payments.any { p ->
                     p.clientId == client.id && p.dueDateMillis > 0 &&
-                    (now - p.dueDateMillis) / 86400000L > 7
+                    run { val daysFromDue = (p.dueDateMillis - now) / 86400000L; daysFromDue in -7..7 }
                 }
                 else      -> client.status.equals(activeFilter, ignoreCase = true)
             }
@@ -411,7 +411,7 @@ private val avatarPalette = listOf(
 )
 
 private fun avatarColor(name: String): Color =
-    avatarPalette[Math.abs(name.hashCode()) % avatarPalette.size]
+    avatarPalette[name.hashCode().and(0x7FFFFFFF) % avatarPalette.size]
 
 @Composable
 fun ClientCard(
@@ -428,7 +428,7 @@ fun ClientCard(
         else     -> CyberDanger
     }
     val avColor = avatarColor(client.name)
-    val locationText = client.city.ifEmpty { "India" }
+    val locationText = client.city.ifEmpty { "" }
 
     Row(
         modifier = Modifier
@@ -450,13 +450,15 @@ fun ClientCard(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(client.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
-            val enrolledDate = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
-                .format(java.util.Date(client.enrollmentDateMillis))
+            val sdf = remember { java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()) }
+            val enrolledDate = sdf.format(java.util.Date(client.enrollmentDateMillis))
             Text("Enrolled $enrolledDate", fontSize = 11.sp, color = CyberTextMuted)
             Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Filled.LocationOn, null, tint = CyberTextSecondary, modifier = Modifier.size(12.dp))
-                Text(locationText, fontSize = 12.sp, color = CyberTextSecondary)
+            if (locationText.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Filled.LocationOn, null, tint = CyberTextSecondary, modifier = Modifier.size(12.dp))
+                    Text(locationText, fontSize = 12.sp, color = CyberTextSecondary)
+                }
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -557,6 +557,7 @@ class MainViewModel(
     fun updateProfile(name: String, email: String, phone: String, specialty: String,
                       clientRange: String = "", challenge: String = "") {
         userPreferences.coachName        = name
+        userPreferences.coachEmail       = email
         userPreferences.coachPhone       = phone
         userPreferences.coachSpecialty   = specialty
         userPreferences.coachClientRange = clientRange

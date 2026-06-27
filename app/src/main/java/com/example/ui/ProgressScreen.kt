@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -78,11 +79,16 @@ fun ProgressScreen(viewModel: FitnessViewModel, onBack: (() -> Unit)? = null) {
         else logs.filter { dateFmt.format(Date(it.dateMillis)) == selectedDateKey }
     }
 
-    // Streak: consecutive days with at least 1 workout ending today
+    // Hoisted at composable scope so recomposition doesn't reset the date-header deduplication key
+    var lastDateKey by remember { mutableStateOf("") }
+
+    // Streak: consecutive days with at least 1 workout, starting from yesterday
+    // A streak counts if the user worked out yesterday even if not yet today
     val streak = remember(dayMap) {
         val today = Calendar.getInstance()
         var streak = 0
         var checking = today.clone() as Calendar
+        checking.add(Calendar.DAY_OF_YEAR, -1)
         while (true) {
             val key = dateFmt.format(checking.time)
             if ((dayMap[key] ?: 0) > 0) {
@@ -169,15 +175,16 @@ fun ProgressScreen(viewModel: FitnessViewModel, onBack: (() -> Unit)? = null) {
                     .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(20.dp))
                     .padding(16.dp)
             ) {
-                // Month label
+                // Month label — show the month of the start of the displayed 35-day range
                 val monthFmt = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                val calRangeStart = Calendar.getInstance().also { it.add(Calendar.DAY_OF_YEAR, -34) }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Workout Calendar", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
-                    Text(monthFmt.format(Date()), fontSize = 12.sp, color = CyberTextMuted)
+                    Text(monthFmt.format(calRangeStart.time), fontSize = 12.sp, color = CyberTextMuted)
                 }
                 Spacer(Modifier.height(14.dp))
 
@@ -372,7 +379,6 @@ fun ProgressScreen(viewModel: FitnessViewModel, onBack: (() -> Unit)? = null) {
                 }
             }
         } else {
-            var lastDateKey = ""
             logs.take(20).forEach { log ->
                 val dateKey = dateFmt.format(Date(log.dateMillis))
                 if (dateKey != lastDateKey) {
@@ -522,7 +528,7 @@ private fun GoalRow(goal: FitnessGoalEntry, onDelete: () -> Unit) {
                 .clickable { onDelete() },
             contentAlignment = Alignment.Center
         ) {
-            Text("✕", fontSize = 12.sp, color = CyberDanger, fontWeight = FontWeight.Bold)
+            Icon(Icons.Filled.Close, contentDescription = "Delete", tint = CyberDanger, modifier = Modifier.size(16.dp))
         }
     }
 }

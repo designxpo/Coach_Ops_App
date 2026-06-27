@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,7 +60,7 @@ fun CoachChatListScreen(
 
         if (threads.isEmpty()) {
             item {
-                Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("💬", fontSize = 48.sp)
@@ -87,10 +88,12 @@ fun CoachChatListScreen(
 
 @Composable
 private fun ThreadRow(thread: ChatThread, onClick: () -> Unit) {
-    val timeFmt = SimpleDateFormat(
-        if (System.currentTimeMillis() - thread.lastMessageAt < 86400000) "h:mm a" else "d MMM",
-        java.util.Locale.getDefault()
-    )
+    val timeFmt = remember(thread.lastMessageAt) {
+        SimpleDateFormat(
+            if (System.currentTimeMillis() - thread.lastMessageAt < 86400000) "h:mm a" else "d MMM",
+            java.util.Locale.getDefault()
+        )
+    }
     Row(
         modifier = Modifier.fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -123,10 +126,15 @@ private fun ThreadRow(thread: ChatThread, onClick: () -> Unit) {
                 Text(timeFmt.format(Date(thread.lastMessageAt)), fontSize = 10.sp, color = CyberTextMuted)
             }
             if (thread.unreadCoach > 0) {
+                val count = thread.unreadCoach
                 Box(Modifier.size(18.dp).clip(CircleShape).background(CyberAccent),
                     contentAlignment = Alignment.Center) {
-                    Text(thread.unreadCoach.coerceAtMost(99).toString(),
-                        fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccentDark)
+                    Text(
+                        text = if (count > 99) "99+" else "$count",
+                        fontSize = if (count >= 10) 7.sp else 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CyberAccentDark
+                    )
                 }
             }
         }

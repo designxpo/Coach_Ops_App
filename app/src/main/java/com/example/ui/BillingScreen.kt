@@ -87,7 +87,7 @@ fun BillingScreen(viewModel: MainViewModel) {
             lastMonth == 0 && diff > 0 -> "+₹${formatAmount(diff).drop(1)} this month"
             lastMonth == 0             -> null
             diff > 0 -> "+${formatAmount(diff)} from last month"
-            diff < 0 -> "${formatAmount(diff)} from last month"
+            diff < 0 -> { val absFormatted = formatAmount(kotlin.math.abs(diff)); "-$absFormatted from last month" }
             else     -> "Same as last month"
         }
     } else null
@@ -226,7 +226,7 @@ fun BillingScreen(viewModel: MainViewModel) {
 
         // Filter chips
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
                 items(filters) { filter ->
                     val isActive = filter == activeFilter
                     Box(
@@ -277,7 +277,7 @@ fun PaymentCard(payment: Payment, clientName: String, clientPhone: String) {
     val formatter = SimpleDateFormat("MMM dd", Locale.getDefault())
     val isFailed = payment.mandateStatus == "FAILED"
     val isExpiring = payment.mandateStatus == "EXPIRING"
-    val computedDaysOverdue = maxOf(0, ((System.currentTimeMillis() - payment.dueDateMillis) / 86400000L).toInt())
+    val computedDaysOverdue = remember(payment.dueDateMillis) { maxOf(0, ((System.currentTimeMillis() - payment.dueDateMillis) / 86400000L).toInt()) }
     val isOverdue = computedDaysOverdue > 0 && !isFailed
 
     val statusColor = when {

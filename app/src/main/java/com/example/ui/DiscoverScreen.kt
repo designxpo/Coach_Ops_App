@@ -40,11 +40,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -110,12 +112,13 @@ fun DiscoverScreen(
     val autoFeedRadius       by viewModel.autoFeedRadius.collectAsState()
     val searchOverrideLabel  by viewModel.searchOverrideLabel.collectAsState()
 
-    var cityQuery         by remember { mutableStateOf(viewModel.clientCity) }
-    var isGeocoding       by remember { mutableStateOf(false) }
-    var isGpsLocating     by remember { mutableStateOf(false) }
-    var locationLabel     by remember { mutableStateOf(viewModel.clientCity) }
-    var isGpsMode         by remember { mutableStateOf(false) }
-    var permDenied        by remember { mutableStateOf(false) }
+    var cityQuery              by remember { mutableStateOf(viewModel.clientCity) }
+    var isGeocoding            by remember { mutableStateOf(false) }
+    var isGpsLocating          by remember { mutableStateOf(false) }
+    var locationLabel          by remember { mutableStateOf(viewModel.clientCity) }
+    var isGpsMode              by remember { mutableStateOf(false) }
+    var permDenied             by remember { mutableStateOf(false) }
+    var showLocationRationale  by remember { mutableStateOf(false) }
 
     // Suggestion state
     var isSearchFocused   by remember { mutableStateOf(false) }
@@ -169,10 +172,7 @@ fun DiscoverScreen(
                 }
             )
         } else {
-            permLauncher.launch(arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ))
+            showLocationRationale = true
         }
     }
 
@@ -199,6 +199,7 @@ fun DiscoverScreen(
             if (coords != null) {
                 viewModel.setClientCoordinates(coords.first, coords.second)
                 locationLabel = savedCity
+                viewModel.loadTrainers()
             } else {
                 viewModel.loadTrainers()
             }
@@ -225,7 +226,7 @@ fun DiscoverScreen(
         }
     }
     LaunchedEffect(shouldExpand) {
-        if (shouldExpand && hasMoreCoaches && !isExpandingFeed) {
+        if (shouldExpand && hasMoreCoaches && !isExpandingFeed && !isLoading) {
             viewModel.expandFeedRadius()
         }
     }
@@ -236,6 +237,28 @@ fun DiscoverScreen(
         else if (cityQuery.isBlank()) nearbyAreas
         else nearbyAreas.filter { it.name.contains(cityQuery, ignoreCase = true) ||
                                   it.cityName.contains(cityQuery, ignoreCase = true) }
+    }
+
+    // ── Location rationale dialog ─────────────────────────────────────────────
+    if (showLocationRationale) {
+        AlertDialog(
+            onDismissRequest = { showLocationRationale = false },
+            title = { Text("Location Required", color = CyberTextPrimary) },
+            text = { Text("ProCoach India needs your location to show nearby coaches. Your location is only used within the app and never shared.", color = CyberTextSecondary) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLocationRationale = false
+                    permLauncher.launch(arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ))
+                }) { Text("Allow", color = CyberAccent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocationRationale = false }) { Text("Not now", color = CyberTextMuted) }
+            },
+            containerColor = CyberBgCard
+        )
     }
 
     val pullState = rememberPullToRefreshState()
@@ -309,6 +332,8 @@ fun DiscoverScreen(
                                             if (nearbyAreas.isEmpty() && !isFetchingNearby) {
                                                 requestGpsWithSuggestions()
                                             }
+                                        } else if (!state.isFocused && isSearchFocused) {
+                                            isSearchFocused = false
                                         }
                                     },
                                 textStyle = TextStyle(
@@ -457,10 +482,7 @@ fun DiscoverScreen(
                                                 }
                                             }
                                         } else {
-                                            permLauncher.launch(arrayOf(
-                                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                                Manifest.permission.ACCESS_COARSE_LOCATION
-                                            ))
+                                            showLocationRationale = true
                                         }
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),

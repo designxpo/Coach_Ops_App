@@ -163,12 +163,13 @@ private fun CoachBookingCard(
     onDecline: (String) -> Unit = {},
     onCancel: (() -> Unit)? = null
 ) {
-    var responseText    by remember { mutableStateOf("") }
+    var responseText    by remember(booking.id) { mutableStateOf("") }
     var showCancelDialog by remember { mutableStateOf(false) }
 
-    val canCancel = onCancel != null && booking.status in listOf("PENDING", "CONFIRMED") &&
+    val now = remember(booking.sessionDateMillis) { System.currentTimeMillis() }
+    val canCancel = onCancel != null && booking.status == "CONFIRMED" &&
         (booking.sessionDateMillis == 0L ||
-         (booking.sessionDateMillis - System.currentTimeMillis()) > 24 * 60 * 60 * 1000L)
+         (booking.sessionDateMillis - now) > 24 * 60 * 60 * 1000L)
 
     if (showCancelDialog) {
         androidx.compose.material3.AlertDialog(
@@ -334,7 +335,7 @@ private fun CoachBookingCard(
                     Text("Cancel Session", fontSize = 12.sp, color = CyberDanger, fontWeight = FontWeight.Bold)
                 }
             } else if (booking.status == "CONFIRMED" && booking.sessionDateMillis > 0 &&
-                       (booking.sessionDateMillis - System.currentTimeMillis()) <= 24 * 60 * 60 * 1000L) {
+                       (booking.sessionDateMillis - now) <= 24 * 60 * 60 * 1000L) {
                 Text("⏳ Cannot cancel within 24 hours of session", fontSize = 11.sp, color = CyberTextMuted)
             }
         }

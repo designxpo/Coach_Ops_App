@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -102,7 +104,7 @@ fun ExerciseCategoryScreen(
     var showSearch  by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    val bookmarked  = remember { mutableSetOf<String>() }
+    var bookmarked  by remember { mutableStateOf(setOf<String>()) }
 
     // Use live Firestore-merged data so admin image/howTo updates appear in real-time
     val allExercises by viewModel.allExercises.collectAsState()
@@ -169,7 +171,7 @@ fun ExerciseCategoryScreen(
                             if (sel) Color.Transparent else Color.White.copy(0.1f),
                             RoundedCornerShape(999.dp)
                         )
-                        .clickable { selectedCategory = cat; diffFilter = null }
+                        .clickable { selectedCategory = cat; diffFilter = null; searchQuery = "" }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
                     Text(
@@ -307,14 +309,13 @@ fun ExerciseCategoryScreen(
                     exercise = ex,
                     isBookmarked = ex.id in bookmarked,
                     onBookmark = {
-                        if (ex.id in bookmarked) bookmarked.remove(ex.id)
-                        else bookmarked.add(ex.id)
+                        if (ex.id in bookmarked) bookmarked = bookmarked - ex.id
+                        else bookmarked = bookmarked + ex.id
                     },
                     onClick = { onExerciseClick(ex.id) }
                 )
             }
-            item { Spacer(Modifier.height(16.dp)) }
-            item { Spacer(Modifier.height(16.dp)) }
+            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
@@ -409,7 +410,8 @@ private fun WorkoutPhotoCard(
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White,
                 lineHeight = 16.sp,
-                maxLines = 2
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
             // Duration + Difficulty row

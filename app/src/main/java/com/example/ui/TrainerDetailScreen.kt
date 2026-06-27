@@ -31,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,7 +81,10 @@ fun TrainerDetailScreen(
     var sessionDateMillis by remember { mutableStateOf(0L) }
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = System.currentTimeMillis()
+        initialSelectedDateMillis = System.currentTimeMillis(),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= System.currentTimeMillis() - 86400000L
+        }
     )
 
     if (showDatePicker) {
@@ -123,7 +127,8 @@ fun TrainerDetailScreen(
         // Top bar
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier.size(40.dp).clip(CircleShape).background(CyberBgCard).clickable { onBack() },
@@ -131,6 +136,7 @@ fun TrainerDetailScreen(
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = CyberTextPrimary, modifier = Modifier.size(18.dp))
             }
+            Text(t.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary, modifier = Modifier.weight(1f))
         }
 
         Column(
@@ -254,9 +260,9 @@ fun TrainerDetailScreen(
                 SectionCard {
                     Text("Availability", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val allDays = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-                        allDays.forEach { day ->
+                        items(allDays) { day ->
                             val active = day in days
                             Box(
                                 modifier = Modifier
@@ -313,8 +319,8 @@ fun TrainerDetailScreen(
                         .clip(RoundedCornerShape(14.dp))
                         .background(CyberBgCardElevated)
                         .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(14.dp))
-                        .padding(14.dp)
                         .height(80.dp)
+                        .padding(14.dp)
                 ) {
                     BasicTextField(
                         value = requestNotes,

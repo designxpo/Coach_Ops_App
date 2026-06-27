@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -108,6 +109,7 @@ fun ClientDetailScreen(
     var showLogSessionSheet by remember { mutableStateOf(false) }
     var showLogMeasurementSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
     var logDayTarget by remember { mutableStateOf<Long?>(null) }
     val tabs = listOf("Overview", "Sessions", "Progress", "Notes", "Billing", "Diet Plan")
 
@@ -172,8 +174,15 @@ fun ClientDetailScreen(
             title = { Text("Delete ${client.name}?", color = CyberTextPrimary) },
             text = { Text("This will permanently remove the client and all their data.", color = CyberTextSecondary) },
             confirmButton = {
-                TextButton(onClick = { viewModel.deleteClient(clientId); showDeleteConfirm = false; onBack() }) {
-                    Text("Delete", color = CyberDanger, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = { isDeleting = true; viewModel.deleteClient(clientId); showDeleteConfirm = false; onBack() },
+                    enabled = !isDeleting
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(color = CyberDanger, modifier = androidx.compose.ui.Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Delete", color = CyberDanger, fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             dismissButton = {
@@ -595,9 +604,7 @@ private fun OverviewContent(
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             DetailStatBox(Modifier.weight(1f), "SESSIONS LOGGED", "$sessionCount", CyberAccent)
-            if (client.city.isNotEmpty()) {
-                DetailStatBox(Modifier.weight(1f), "LOCATION", client.city, CyberTextPrimary)
-            }
+            DetailStatBox(Modifier.weight(1f), "LOCATION", client.city.ifEmpty { "—" }, CyberTextPrimary)
         }
 
         // Program card

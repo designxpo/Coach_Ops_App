@@ -189,26 +189,40 @@ fun HealthMetricsScreen(
                     }
                 }
 
-                // Goal
+                // Goal — non-lazy 2-column grid (LazyVerticalGrid cannot be nested in LazyColumn)
                 Text("Your Goal", fontSize = 12.sp, color = CyberTextMuted)
-                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
-                    modifier = Modifier.heightIn(max = 200.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(ClientGoal.entries.size) { i ->
-                        val g = ClientGoal.entries[i]; val sel = goal == g
-                        Box(modifier = Modifier.clip(RoundedCornerShape(10.dp))
-                            .background(if (sel) CyberAccent.copy(0.15f) else CyberBgCardElevated)
-                            .border(1.dp, if (sel) CyberAccent.copy(0.5f) else Color.White.copy(0.06f), RoundedCornerShape(10.dp))
-                            .clickable { goal = g }.padding(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(g.emoji, fontSize = 14.sp)
-                                Text(g.label, fontSize = 11.sp, modifier = Modifier.weight(1f),
-                                    color = if (sel) CyberAccent else CyberTextSecondary,
-                                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ClientGoal.entries.chunked(2).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            row.forEach { g ->
+                                val sel = goal == g
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (sel) CyberAccent.copy(0.15f) else CyberBgCardElevated)
+                                        .border(1.dp, if (sel) CyberAccent.copy(0.5f) else Color.White.copy(0.06f), RoundedCornerShape(10.dp))
+                                        .clickable { goal = g }
+                                        .padding(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(g.emoji, fontSize = 14.sp)
+                                        Text(
+                                            g.label, fontSize = 11.sp,
+                                            modifier = Modifier.weight(1f),
+                                            color = if (sel) CyberAccent else CyberTextSecondary,
+                                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
                             }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }

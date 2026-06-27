@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -87,13 +88,14 @@ fun ProgramDetailScreen(
     onClientClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val fmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val allPrograms by viewModel.programs.collectAsStateWithLifecycle()
     val allClients by viewModel.clients.collectAsStateWithLifecycle()
     val enrolledClients by viewModel.getClientsForProgramFlow(programId).collectAsStateWithLifecycle(emptyList())
     val programLogs by viewModel.getWorkoutLogsForProgramFlow(programId).collectAsStateWithLifecycle(emptyList())
 
     val program = allPrograms.find { it.id == programId }
-    val logsByClient: Map<String, List<WorkoutLog>> = programLogs.groupBy { it.clientId }
+    val logsByClient: Map<String, List<WorkoutLog>> = remember(programLogs) { programLogs.groupBy { it.clientId } }
 
     var showEnrollSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
@@ -117,7 +119,12 @@ fun ProgramDetailScreen(
     }
 
     if (program == null) {
-        Box(Modifier.fillMaxSize().background(CyberBgPrimary))
+        Box(Modifier.fillMaxSize().background(CyberBgPrimary).statusBarsPadding(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Program not found", color = CyberTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                androidx.compose.material3.TextButton(onClick = onBack) { Text("Go Back", color = CyberAccent) }
+            }
+        }
         return
     }
 
@@ -159,15 +166,14 @@ fun ProgramDetailScreen(
     val milestoneClients = enrolledClients.filter { it.programWeek > 0 && it.programWeek % 4 == 0 }
 
     val totalMrrDisplay = when {
-        totalMrr >= 100000 -> "₹${totalMrr / 1000}K"
         totalMrr >= 1000 -> "₹${totalMrr / 1000}K"
         else -> "₹$totalMrr"
     }
     val tags = program.tags.split(",").filter { it.isNotBlank() }
-    val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    val today = fmt.format(Date())
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(CyberBgPrimary),
+        modifier = Modifier.fillMaxSize().background(CyberBgPrimary).statusBarsPadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -307,7 +313,7 @@ fun ProgramDetailScreen(
                         val todayDoneCount = enrolledClients.count { client ->
                             (logsByClient[client.id] ?: emptyList()).any { log ->
                                 !log.isMissed &&
-                                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(log.sessionDateMillis)) == today
+                                fmt.format(Date(log.sessionDateMillis)) == today
                             }
                         }
                         Text("$todayDoneCount / $enrolledCount done", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CyberSuccess)
@@ -319,11 +325,11 @@ fun ProgramDetailScreen(
                 val clientLogs = logsByClient[client.id] ?: emptyList()
                 val loggedToday = clientLogs.any { log ->
                     !log.isMissed &&
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(log.sessionDateMillis)) == today
+                    fmt.format(Date(log.sessionDateMillis)) == today
                 }
                 val missedToday = clientLogs.any { log ->
                     log.isMissed &&
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(log.sessionDateMillis)) == today
+                    fmt.format(Date(log.sessionDateMillis)) == today
                 }
 
                 DailySessionCard(
@@ -335,9 +341,10 @@ fun ProgramDetailScreen(
                     onClientClick = { onClientClick(client.id) },
                     onWhatsApp = {
                         val msg = "Hey ${client.name}, reminder to log your session today! You're on Week ${client.programWeek} of ${program.name} — keep the streak going 💪"
-                        val url = if (client.phoneNumber.isNotEmpty())
-                            "https://wa.me/91${client.phoneNumber}?text=${Uri.encode(msg)}"
-                        else "https://wa.me/?text=${Uri.encode(msg)}"
+                        val url = if (client.phoneNumber.isNotEmpty()) {
+                            val phone = client.phoneNumber.trimStart('+').let { if (it.startsWith("91") && it.length > 10) it else "91$it" }
+                            "https://wa.me/$phone?text=${Uri.encode(msg)}"
+                        } else "https://wa.me/?text=${Uri.encode(msg)}"
                         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
                     }
                 )

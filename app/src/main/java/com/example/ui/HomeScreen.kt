@@ -126,7 +126,7 @@ fun HomeScreen(
     }
     val activePaymentCount = payments.count { it.mandateStatus == "ACTIVE" }
 
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val hour = remember { java.util.Calendar.getInstance() }.get(java.util.Calendar.HOUR_OF_DAY)
     val greeting = when {
         hour < 12 -> "Good morning"
         hour < 17 -> "Good afternoon"
@@ -351,14 +351,6 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f),
                     onClick = onLibraryClick
                 )
-                QuickAccessTile(
-                    icon  = androidx.compose.material.icons.Icons.Filled.Checklist,
-                    label = "Diet Plans",
-                    tint  = Color(0xFF34D399),
-                    modifier = Modifier.weight(1f),
-                    subtitle = "Members → client → Diet Plan tab",
-                    onClick = {}
-                )
             }
         }
 
@@ -496,9 +488,10 @@ fun SignalCard(
     }
 
     fun openWhatsApp() {
-        val url = if (clientPhone.isNotEmpty())
-            "https://wa.me/91$clientPhone?text=${Uri.encode(waMessage)}"
-        else "https://wa.me/?text=${Uri.encode(waMessage)}"
+        val url = if (clientPhone.isNotEmpty()) {
+            val cleanPhone = clientPhone.trimStart('+').removePrefix("91")
+            "https://wa.me/91$cleanPhone?text=${Uri.encode(waMessage)}"
+        } else "https://wa.me/?text=${Uri.encode(waMessage)}"
         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
     }
 

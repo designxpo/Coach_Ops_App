@@ -141,7 +141,7 @@ private fun MemberThreadRow(thread: ChatThread, onClick: () -> Unit) {
     ) {
         Box(Modifier.size(48.dp).clip(CircleShape).background(CyberAccent.copy(0.15f)),
             contentAlignment = Alignment.Center) {
-            Text(thread.coachName.firstOrNull()?.toString() ?: "?",
+            Text(thread.coachName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
                 fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent)
         }
         Column(Modifier.weight(1f)) {

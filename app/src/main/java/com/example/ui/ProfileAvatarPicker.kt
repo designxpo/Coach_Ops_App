@@ -37,7 +37,9 @@ import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
 import com.example.ui.theme.CyberDanger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ProfileAvatarPicker(
@@ -63,7 +65,7 @@ fun ProfileAvatarPicker(
         scope.launch {
             isUploading = true
             try {
-                val url = SupabaseStorage.uploadProfilePhoto(context, uri)
+                val url = withContext(Dispatchers.IO) { SupabaseStorage.uploadProfilePhoto(context, uri) }
                 userPreferences.profilePhotoUrl = url
                 onPhotoUploaded(url)
             } catch (e: Exception) {

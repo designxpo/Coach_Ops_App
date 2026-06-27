@@ -22,7 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -62,6 +64,9 @@ fun ProfileScreen(
     userPreferences: UserPreferences,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onPrivacyPolicyClick: () -> Unit = {},
+    onTermsClick: () -> Unit = {},
+    onDeleteAccountClick: () -> Unit = {},
     onAdminAccess: () -> Unit = {}  // reserved for future deep-link
 ) {
     val clients by viewModel.clients.collectAsStateWithLifecycle()
@@ -417,6 +422,27 @@ fun ProfileScreen(
             }
         }
 
+        // Legal
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(CyberBgCard)
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text("Legal", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary,
+                        modifier = Modifier.padding(bottom = 12.dp))
+                    LegalLinkRow(label = "Privacy Policy", onClick = onPrivacyPolicyClick)
+                    HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
+                    LegalLinkRow(label = "Terms of Service", onClick = onTermsClick)
+                    HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
+                    LegalLinkRow(label = "Delete My Account", onClick = onDeleteAccountClick, danger = true)
+                }
+            }
+        }
+
         // Logout
         item {
             Spacer(Modifier.height(8.dp))
@@ -464,5 +490,21 @@ private fun ProfileStatCard(modifier: Modifier, value: String, label: String) {
             Spacer(Modifier.height(2.dp))
             Text(label, fontSize = 11.sp, color = CyberTextMuted, fontWeight = FontWeight.SemiBold)
         }
+    }
+}
+
+@Composable
+private fun LegalLinkRow(label: String, onClick: () -> Unit, danger: Boolean = false) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 14.sp, color = if (danger) CyberDanger else CyberTextSecondary)
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null,
+            tint = if (danger) CyberDanger else CyberTextMuted, modifier = Modifier.size(16.dp))
     }
 }

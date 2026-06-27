@@ -484,7 +484,7 @@ fun AssignProgramSheet(
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("All members are already enrolled", fontSize = 13.sp, color = CyberTextMuted)
+                    Text("No clients added yet", fontSize = 13.sp, color = CyberTextMuted)
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1707,7 +1707,7 @@ fun LogDaySheet(
     onLog: (type: String, notes: String) -> Unit  // type = "COMPLETED" | "LEAVE" | "ABSENT"
 ) {
     val dateStr = SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date(dateMillis))
-    var notes by remember { mutableStateOf(existingLog?.notes ?: existingLog?.missedReason ?: "") }
+    var notes by remember { mutableStateOf(existingLog?.missedReason?.removePrefix("LEAVE: ")?.removePrefix("ABSENT: ") ?: existingLog?.notes ?: "") }
 
     val currentType = when {
         existingLog == null -> null
@@ -1956,6 +1956,7 @@ fun PublicProfileSheet(
     var uploadingProfile   by remember { mutableStateOf(false) }
     var uploadingPortfolio by remember { mutableStateOf(-1) } // index being uploaded, -1 = none
     var uploadError        by remember { mutableStateOf("") }
+    var pendingSlot        by remember { mutableStateOf(-1) }
 
     // Profile photo picker
     val profilePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -1978,7 +1979,7 @@ fun PublicProfileSheet(
     // Portfolio photo picker
     val portfolioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val idx = if (portfolioImageUrls.size < 3) portfolioImageUrls.size else 2
+            val idx = if (pendingSlot >= 0) pendingSlot else if (portfolioImageUrls.size < 3) portfolioImageUrls.size else 2
             uploadingPortfolio = idx
             uploadError = ""
             scope.launch {
@@ -1992,6 +1993,7 @@ fun PublicProfileSheet(
                     uploadError = e.message ?: "Portfolio upload failed"
                 } finally {
                     uploadingPortfolio = -1
+                    pendingSlot = -1
                 }
             }
         }
@@ -2130,6 +2132,7 @@ fun PublicProfileSheet(
                                         if (url != null) CyberAccent.copy(0.3f) else Color.White.copy(0.06f),
                                         RoundedCornerShape(14.dp))
                                     .clickable(enabled = !isUploading && uploadingPortfolio == -1 && !uploadingProfile) {
+                                        pendingSlot = idx
                                         portfolioPicker.launch("image/*")
                                     },
                                 contentAlignment = Alignment.Center

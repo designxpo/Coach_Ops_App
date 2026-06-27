@@ -35,6 +35,7 @@ import com.example.data.ReminderTemplate
 import com.example.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
@@ -50,15 +51,19 @@ fun ChatScreen(
     val myUid     = remember { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "" }
     val isCoach   = viewModel.isCoach
 
-    var inputText       by remember { mutableStateOf("") }
-    var showReminders   by remember { mutableStateOf(false) }
+    var inputText         by remember { mutableStateOf("") }
+    var showReminders     by remember { mutableStateOf(false) }
+    var isLoadingMessages by remember { mutableStateOf(true) }
 
     val listState = rememberLazyListState()
 
     LaunchedEffect(chatId) { viewModel.openChat(chatId) }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(messages.lastOrNull()?.id) {
+        if (messages.isNotEmpty()) {
+            isLoadingMessages = false
+            listState.animateScrollToItem(messages.size - 1)
+        }
     }
 
     if (showReminders) {
@@ -110,27 +115,36 @@ fun ChatScreen(
         }
 
         // ── Messages ──────────────────────────────────────────────────────────
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            var lastDate = ""
-            items(messages, key = { it.id }) { msg ->
-                val fmt = SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
-                val date = fmt.format(Date(msg.timestamp))
-                if (date != lastDate) {
-                    lastDate = date
-                    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center) {
-                        Box(Modifier.clip(RoundedCornerShape(20.dp)).background(CyberBgCard)
-                            .padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            Text(date, fontSize = 11.sp, color = CyberTextMuted)
+        if (isLoadingMessages && messages.isEmpty()) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = CyberAccent, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+            }
+        } else {
+            val dateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
+            var lastDate by remember { mutableStateOf("") }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(messages, key = { it.id }) { msg ->
+                    val date = dateFmt.format(Date(msg.timestamp))
+                    if (date != lastDate) {
+                        lastDate = date
+                        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center) {
+                            Box(Modifier.clip(RoundedCornerShape(20.dp)).background(CyberBgCard)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)) {
+                                Text(date, fontSize = 11.sp, color = CyberTextMuted)
+                            }
                         }
                     }
+                    MessageBubble(msg = msg, isMe = msg.senderId == myUid)
                 }
-                MessageBubble(msg = msg, isMe = msg.senderId == myUid)
             }
         }
 
@@ -274,7 +288,9 @@ fun ReminderSheet(
                     Column(Modifier.weight(1f)) {
                         Text(template.title, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             color = if (isSelected) CyberAccent else CyberTextPrimary)
-                        Text(template.body.replace("{name}", memberName).take(60) + "…",
+                        val body = template.body.replace("{name}", memberName)
+                        val preview = body.take(60); val previewText = if (body.length > 60) "$preview…" else preview
+                        Text(previewText,
                             fontSize = 11.sp, color = CyberTextMuted)
                     }
                     if (isSelected) Box(Modifier.size(18.dp).clip(CircleShape).background(CyberAccent),
@@ -304,7 +320,7 @@ fun ReminderSheet(
                             val fullPhone = if (phone.startsWith("91") && phone.length >= 12) phone
                                            else if (phone.length == 10) "91$phone"
                                            else phone
-                            val encoded = java.net.URLEncoder.encode(msg, "UTF-8")
+                            val encoded = android.net.Uri.encode(msg)
                             val uri = Uri.parse("https://wa.me/$fullPhone?text=$encoded")
                             context.startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -32,12 +32,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -75,6 +79,8 @@ fun OnboardingScreen(
     var selectedSpecialties by remember { mutableStateOf(setOf<String>()) }
     var selectedClientRange by remember { mutableStateOf("") }
     var selectedChallenge by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val specialties = listOf(
         OnboardingOption("🏋️", "Strength Training",    "Powerlifting & barbell"),
@@ -118,9 +124,34 @@ fun OnboardingScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        // Back button row
+        val canGoBack = currentStep > 1
+        if (canGoBack) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyberBgCard)
+                        .clickable { currentStep-- },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Go back",
+                        tint = CyberTextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
         // Progress bar
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = if (canGoBack) 12.dp else 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -147,7 +178,8 @@ fun OnboardingScreen(
         AnimatedContent(
             targetState = currentStep,
             transitionSpec = {
-                (slideInHorizontally { it } + fadeIn()) togetherWith (slideOutHorizontally { -it } + fadeOut())
+                (slideInHorizontally { if (targetState > initialState) it else -it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { if (targetState > initialState) -it else it } + fadeOut())
             },
             modifier = Modifier.weight(1f),
             label = "onboarding_step"
@@ -213,34 +245,42 @@ fun OnboardingScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp)
                 .height(58.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (canProceed) CyberAccent else CyberBgCard)
-                .clickable(enabled = canProceed) {
+                .background(if (isLoading) CyberAccent.copy(alpha = 0.6f) else if (canProceed) CyberAccent else CyberBgCard)
+                .clickable(enabled = canProceed && !isLoading) {
                     if (currentStep < 5) {
                         currentStep++
                     } else {
-                        viewModel.saveOnboardingData(coachName.trim(), coachPhone.trim(), selectedSpecialties.toList(), selectedClientRange, selectedChallenge)
-                        onComplete()
+                        isLoading = true
+                        scope.launch {
+                            viewModel.saveOnboardingData(coachName.trim(), coachPhone.trim(), selectedSpecialties.toList(), selectedClientRange, selectedChallenge)
+                            isLoading = false
+                            onComplete()
+                        }
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    if (currentStep < 5) "Continue" else "Start Coaching",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (canProceed) CyberAccentDark else CyberTextMuted
-                )
-                if (canProceed) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = CyberAccentDark,
-                        modifier = Modifier.size(18.dp)
+            if (isLoading) {
+                CircularProgressIndicator(color = CyberAccentDark, modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp)
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        if (currentStep < 5) "Continue" else "Start Coaching",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (canProceed) CyberAccentDark else CyberTextMuted
                     )
+                    if (canProceed) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = CyberAccentDark,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -291,8 +331,10 @@ private fun OnboardingNameStep(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     singleLine = true,
                     decorationBox = { inner ->
-                        if (name.isEmpty()) Text("e.g. Priyesh Mishra", fontSize = 16.sp, color = CyberTextMuted)
-                        inner()
+                        Box {
+                            if (name.isEmpty()) Text("e.g. Priyesh Mishra", fontSize = 16.sp, color = CyberTextMuted)
+                            inner()
+                        }
                     }
                 )
             }
@@ -322,8 +364,10 @@ private fun OnboardingNameStep(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     singleLine = true,
                     decorationBox = { inner ->
-                        if (phone.isEmpty()) Text("e.g. 9876543210", fontSize = 16.sp, color = CyberTextMuted)
-                        inner()
+                        Box {
+                            if (phone.isEmpty()) Text("e.g. 9876543210", fontSize = 16.sp, color = CyberTextMuted)
+                            inner()
+                        }
                     }
                 )
             }

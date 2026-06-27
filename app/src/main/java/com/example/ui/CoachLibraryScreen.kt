@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -307,15 +308,20 @@ fun CoachLibraryScreen(
             }
         }
 
-        // ── Exercise list ─────────────────────────────────────────────────────
-        items(filtered, key = { it.id }) { ex ->
-            CoachExerciseRow(exercise = ex, onClick = { onExerciseClick(ex.id) })
-        }
+        // ── Exercise list (only shown during search) ──────────────────────────
+        if (search.isNotBlank()) {
+            items(filtered, key = { it.id }) { ex ->
+                CoachExerciseRow(exercise = ex, onClick = { onExerciseClick(ex.id) })
+            }
 
-        if (filtered.isEmpty()) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                    Text("No exercises match \"$search\"", fontSize = 14.sp, color = CyberTextMuted)
+            if (filtered.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (search.isBlank()) "No exercises yet" else "No exercises match \"$search\"",
+                            fontSize = 14.sp, color = CyberTextMuted
+                        )
+                    }
                 }
             }
         }
@@ -342,6 +348,7 @@ private fun CoachCategoryCard(
             model = info.coverUrl,
             contentDescription = info.category.label,
             contentScale = ContentScale.Crop,
+            placeholder = painterResource(android.R.drawable.ic_menu_gallery),
             modifier = Modifier.fillMaxSize()
         )
         // dark overlay
