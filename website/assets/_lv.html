@@ -1,0 +1,8 @@
+<!doctype html><meta charset=utf8><body style="margin:0;background:#0a140a;display:flex;gap:30px;align-items:center;padding:30px">
+<div style="text-align:center"><img src="logo-full.svg" style="height:200px"><p style="color:#888;font:12px sans-serif">logo-full</p></div>
+<div style="text-align:center;background:#1a1a1a;padding:16px;border-radius:12px"><img src="logo-mark.svg" style="height:120px"><p style="color:#888;font:12px sans-serif">logo-mark</p></div>
+</body>HTML
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+"$CHROME" --headless=new --disable-gpu --window-size=700,320 --screenshot="$OUT/logo-variants.png" "file://$PWD/_lv.html" 2>/dev/null
+rm -f _lv.html
+echo done

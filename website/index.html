@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProCoach India — Coaching business + personal fitness, in one app</title>
+  <meta name="description" content="ProCoach India is two apps in one: a complete business cockpit for fitness coaches, and a personal fitness center for their members — diet plans, BMI & body composition, progress tracking, and coach booking." />
+  <link rel="icon" href="assets/logo-mark.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ambient background -->
+  <div class="bg-layer" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="blob blob--1"></div>
+    <div class="blob blob--2"></div>
+    <div class="blob blob--3"></div>
+    <div class="noise"></div>
+  </div>
+
+  <!-- ====================== NAV ====================== -->
+  <header class="nav-wrap">
+    <nav class="nav glass" aria-label="Primary">
+      <a class="brand" href="#top">
+        <img class="brand__logo" src="assets/logo-mark.svg" alt="" aria-hidden="true" />
+        <span class="brand__name">ProCoach<span>&nbsp;India</span></span>
+      </a>
+
+      <ul class="nav__links">
+        <li><a href="#coaches">For Coaches</a></li>
+        <li><a href="#fitness">Fitness Center</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#reviews">Reviews</a></li>
+      </ul>
+
+      <div class="nav__cta">
+        <a href="#contact" class="btn btn--ghost nav__signin">Sign in</a>
+        <a href="#pricing" class="btn btn--lime">Get the app</a>
+      </div>
+
+      <button class="nav__burger" id="burger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </nav>
+    <div class="mobile-menu glass" id="mobileMenu" hidden>
+      <a href="#coaches">For Coaches</a>
+      <a href="#fitness">Fitness Center</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#reviews">Reviews</a>
+      <a href="#pricing" class="btn btn--lime btn--block">Get the app</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ====================== HERO ====================== -->
+    <section class="hero">
+      <div class="hero__copy reveal">
+        <span class="eyebrow"><span class="dot"></span> For coaches &amp; the people they train</span>
+        <h1>Coaching &amp; fitness, <span class="grad">in one app.</span></h1>
+        <p class="lead">
+          ProCoach India is two experiences in one: a complete <strong>business cockpit for coaches</strong>,
+          and a personal <strong>fitness center for members</strong> — diet plans, body analysis, and progress, all in your pocket.
+        </p>
+        <div class="hero__actions">
+          <a href="#coaches" class="btn btn--lime btn--lg">I'm a coach</a>
+          <a href="#fitness" class="btn btn--glass btn--lg">I want to get fit</a>
+        </div>
+
+        <div class="hero__social">
+          <div class="avatars" aria-hidden="true">
+            <span style="--i:0">A</span><span style="--i:1">R</span><span style="--i:2">P</span><span style="--i:3">Y</span><span style="--i:4">S</span>
+          </div>
+          <div class="hero__social-text"><strong>2,400+</strong><span>coaches &amp; members across India</span></div>
+        </div>
+      </div>
+
+      <div class="hero__visual reveal">
+        <div class="orbit" aria-hidden="true">
+          <svg class="orbit__line" viewBox="0 0 600 600" fill="none" preserveAspectRatio="none">
+            <path d="M40 300 C 40 120, 200 40, 360 90 S 580 320, 520 460 S 200 600, 120 480" stroke="url(#og)" stroke-width="2" stroke-dasharray="4 8"/>
+            <defs><linearGradient id="og" x1="0" y1="0" x2="600" y2="600">
+              <stop stop-color="#B9F501" stop-opacity="0"/><stop offset="0.5" stop-color="#B9F501" stop-opacity=".9"/><stop offset="1" stop-color="#B9F501" stop-opacity="0"/>
+            </linearGradient></defs>
+          </svg>
+          <span class="orbit__node orbit__node--1"></span>
+          <span class="orbit__node orbit__node--2"></span>
+        </div>
+
+        <div class="phone phone--back float-slow">
+          <div class="phone__notch"></div>
+          <img src="assets/app-diet.jpg" alt="ProCoach India member diet plan screen" loading="eager" />
+          <span class="phone__tag phone__tag--member">Member</span>
+        </div>
+        <div class="phone phone--front float">
+          <div class="phone__notch"></div>
+          <img src="assets/app-home.jpg" alt="ProCoach India coach dashboard" loading="eager" />
+          <span class="phone__tag phone__tag--coach">Coach</span>
+        </div>
+
+        <div class="chip glass chip--mrr float">
+          <span class="chip__label">Collected MRR</span>
+          <span class="chip__value">₹23K <em>↑ on track</em></span>
+        </div>
+        <div class="chip glass chip--roster float-slow">
+          <span class="chip__dot"></span>
+          <span>Build Muscle · 2000 kcal</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== TRUST STRIP ====================== -->
+    <section class="strip reveal">
+      <p class="strip__label">One platform, two powerful sides</p>
+      <ul class="strip__logos">
+        <li>Members</li><li>Programs</li><li>Revenue</li><li>Diet Plans</li><li>Body Analysis</li><li>Bookings</li>
+      </ul>
+    </section>
+
+    <!-- ====================== AUDIENCE SPLIT ====================== -->
+    <section class="section split-section">
+      <div class="section__head reveal">
+        <span class="kicker">Built for both sides</span>
+        <h2>Whether you coach or train — there's a side for you</h2>
+        <p>ProCoach India balances the business of coaching with the joy of getting fit. Pick your path.</p>
+      </div>
+      <div class="split">
+        <a href="#coaches" class="split-card glass reveal">
+          <span class="split-card__badge split-card__badge--coach">For Coaches</span>
+          <h3>Run a profitable coaching business</h3>
+          <p>Manage your roster, build programs, track revenue, and fill your calendar — all from your phone.</p>
+          <ul class="split-card__list">
+            <li>Member &amp; roster health</li>
+            <li>Program builder &amp; tracker</li>
+            <li>Revenue, billing &amp; forecasts</li>
+          </ul>
+          <span class="split-card__link">Explore the coach app <span aria-hidden="true">→</span></span>
+        </a>
+        <a href="#fitness" class="split-card glass split-card--hl reveal">
+          <span class="split-card__badge split-card__badge--member">For Members · Fitness Center</span>
+          <h3>Your personal fitness center</h3>
+          <p>Indian diet plans, body composition analysis, daily targets, and progress tracking — plus book the perfect coach.</p>
+          <ul class="split-card__list">
+            <li>Indian diet &amp; nutrition plans</li>
+            <li>BMI &amp; body composition</li>
+            <li>Steps, sleep, water &amp; progress</li>
+          </ul>
+          <span class="split-card__link">Explore the fitness center <span aria-hidden="true">→</span></span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ====================== FOR COACHES ====================== -->
+    <section class="section anchor" id="coaches">
+      <div class="section__head reveal">
+        <span class="kicker">For Coaches</span>
+        <h2>Run your coaching business like a&nbsp;pro</h2>
+        <p>Replace the messy stack of spreadsheets, chat threads, and payment links with one calm command center.</p>
+      </div>
+
+      <div class="showcase">
+        <div class="showcase__copy reveal">
+          <h3 class="showcase__h3">Your whole business, <span class="grad">live</span> in your hand.</h3>
+          <p>See roster health and at-risk members, watch MRR and 30-day forecasts, and assign programs in two taps — without leaving the app.</p>
+          <ul class="showcase__list">
+            <li><span class="tick">✓</span> Roster health &amp; at-risk alerts</li>
+            <li><span class="tick">✓</span> Live MRR, billing &amp; forecasts</li>
+            <li><span class="tick">✓</span> Program builder &amp; session tracking</li>
+          </ul>
+          <a href="#pricing" class="btn btn--lime btn--lg">Start coaching free</a>
+        </div>
+        <div class="phone-fan reveal" data-count="3">
+          <div class="phone phone--fan1 float">
+            <div class="phone__notch"></div>
+            <img src="assets/app-members.jpg" alt="Coach members roster" loading="lazy" />
+          </div>
+          <div class="phone phone--fan2 float-slow">
+            <div class="phone__notch"></div>
+            <img src="assets/app-home.jpg" alt="Coach home dashboard" loading="lazy" />
+          </div>
+          <div class="phone phone--fan3 float">
+            <div class="phone__notch"></div>
+            <img src="assets/app-revenue.jpg" alt="Coach revenue and billing" loading="lazy" />
+          </div>
+          <div class="glow-ring" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div class="trio">
+        <article class="feature glass reveal">
+          <span class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M16 11a4 4 0 1 0-8 0M3 20a7 7 0 0 1 18 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/></svg>
+          </span>
+          <h3>Member management</h3>
+          <p>A live roster with health scores, risk flags, and one-tap chat. Know exactly who needs you today.</p>
+        </article>
+        <article class="feature glass feature--hl reveal">
+          <span class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <h3>Program builder</h3>
+          <p>Design strength, fat-loss &amp; hypertrophy templates once, assign in seconds, and track every logged session live.</p>
+        </article>
+        <article class="feature glass reveal">
+          <span class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <h3>Revenue &amp; billing</h3>
+          <p>Collected MRR, 30-day forecasts, and mandate tracking. Your business health at a glance.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ====================== FITNESS CENTER (MEMBERS) — HIGHLIGHT ====================== -->
+    <section class="section anchor fitness" id="fitness">
+      <div class="fitness__halo" aria-hidden="true"></div>
+      <div class="section__head reveal">
+        <span class="kicker">For Members · The Fitness Center</span>
+        <h2>A complete fitness center <span class="grad">in your pocket</span></h2>
+        <p>Members don't just get a chat thread — they get a full personal fitness app. This is what keeps them engaged, motivated, and renewing.</p>
+      </div>
+
+      <div class="showcase showcase--rev">
+        <div class="phone-fan reveal" data-count="3">
+          <div class="phone phone--fan1 float">
+            <div class="phone__notch"></div>
+            <img src="assets/app-bmi.jpg" alt="BMI and body composition analysis" loading="lazy" />
+          </div>
+          <div class="phone phone--fan2 float-slow">
+            <div class="phone__notch"></div>
+            <img src="assets/app-diet.jpg" alt="Build Muscle Indian diet plan" loading="lazy" />
+          </div>
+          <div class="phone phone--fan3 float">
+            <div class="phone__notch"></div>
+            <img src="assets/app-fitness-home.jpg" alt="Fitness home with steps, sleep and energy" loading="lazy" />
+          </div>
+          <div class="glow-ring" aria-hidden="true"></div>
+        </div>
+        <div class="showcase__copy reveal">
+          <h3 class="showcase__h3">Eat right, train smart, <span class="grad">see results</span>.</h3>
+          <p>From a Build-Muscle Indian diet plan with exact macros to a full body-composition breakdown, members always know their next move — and their coach is one tap away.</p>
+          <ul class="showcase__list">
+            <li><span class="tick">✓</span> Personalised Indian diet plans with macros</li>
+            <li><span class="tick">✓</span> BMI, body-fat, lean &amp; fat mass analysis</li>
+            <li><span class="tick">✓</span> Steps, water, sleep &amp; energy tracking</li>
+          </ul>
+          <a href="#pricing" class="btn btn--lime btn--lg">Start your fitness journey</a>
+        </div>
+      </div>
+
+      <!-- fitness feature grid -->
+      <div class="fgrid">
+        <article class="fcard glass reveal fcard--wide">
+          <div class="fcard__macros">
+            <span class="macro macro--p">100g<small>Protein</small></span>
+            <span class="macro macro--c">240g<small>Carbs</small></span>
+            <span class="macro macro--f">65g<small>Fat</small></span>
+          </div>
+          <div class="fcard__body">
+            <h3>Indian diet plans</h3>
+            <p>Goal-based meal plans built around real Indian food — idli &amp; sambar to high-protein thalis — with per-meal calories and macros.</p>
+          </div>
+        </article>
+
+        <article class="fcard glass reveal">
+          <span class="fcard__stat">30.1</span>
+          <h3>BMI &amp; body composition</h3>
+          <p>BMI, body-fat %, lean &amp; fat mass, and daily calorie / water targets — the full picture.</p>
+        </article>
+
+        <article class="fcard glass reveal">
+          <span class="feature__icon"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+          <h3>Daily targets</h3>
+          <p>Steps, water glasses, sleep and an energy mood check — gentle nudges that build real habits.</p>
+        </article>
+
+        <article class="fcard glass reveal">
+          <span class="feature__icon"><svg viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.6"/></svg></span>
+          <h3>Progress &amp; measurements</h3>
+          <p>Log weight, chest &amp; waist, and build a visual transformation timeline with progress photos.</p>
+        </article>
+
+        <article class="fcard glass reveal">
+          <span class="feature__icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/><path d="m21 21-4.3-4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <h3>Find your coach</h3>
+          <p>Discover top-rated trainers near you by location, specialty and price — and book in a tap.</p>
+        </article>
+
+        <article class="fcard glass reveal">
+          <span class="feature__icon"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+          <h3>Easy bookings</h3>
+          <p>Confirmed sessions, clear pricing and smart cancellation rules — never miss a session again.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ====================== STATS ====================== -->
+    <section class="section stats-section">
+      <div class="stats glass reveal">
+        <div class="stats__copy">
+          <span class="kicker">Numbers that matter</span>
+          <h2>Loved by coaches, trusted by members.</h2>
+          <p>One platform keeping businesses healthy and people on track — measured every single day.</p>
+          <a href="#pricing" class="btn btn--lime">Explore plans</a>
+        </div>
+        <div class="stats__grid">
+          <div class="stat-card glass">
+            <span class="stat-card__num">₹23K</span>
+            <span class="stat-card__label">Coach MRR tracked</span>
+          </div>
+          <div class="stat-card glass stat-card--ring">
+            <span class="ring" aria-hidden="true"></span>
+            <span class="stat-card__num">2,450+</span>
+            <span class="stat-card__label">Sessions logged</span>
+          </div>
+          <div class="stat-card glass">
+            <span class="stat-card__num">5</span>
+            <span class="stat-card__label">Indian diet plans</span>
+          </div>
+          <div class="stat-card glass">
+            <span class="stat-card__num">100%</span>
+            <span class="stat-card__label">Member retention</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== PRICING ====================== -->
+    <section class="section anchor" id="pricing">
+      <div class="section__head reveal">
+        <span class="kicker">Pricing</span>
+        <h2>Coaches pay. Members train free.</h2>
+        <p>Every plan includes the full member fitness center at no extra cost. Start free, upgrade as your roster grows.</p>
+      </div>
+
+      <div class="pricing">
+        <article class="price glass reveal">
+          <span class="price__tier">Starter</span>
+          <div class="price__amount"><span class="price__big">Free</span><span class="price__per">forever</span></div>
+          <p class="price__note">For new coaches finding their feet.</p>
+          <ul class="price__list">
+            <li>Up to 5 active members</li>
+            <li>Program builder &amp; library</li>
+            <li>Members get the full fitness center</li>
+            <li>In-app chat</li>
+          </ul>
+          <a href="#contact" class="btn btn--glass btn--block">Get started</a>
+        </article>
+
+        <article class="price glass price--featured reveal">
+          <span class="price__badge">Most popular</span>
+          <span class="price__tier">Pro</span>
+          <div class="price__amount"><span class="price__big">₹1,499</span><span class="price__per">/mo</span></div>
+          <p class="price__note">For growing coaches &amp; small studios.</p>
+          <ul class="price__list">
+            <li>Unlimited members</li>
+            <li>Full revenue &amp; billing suite</li>
+            <li>30-day forecasting &amp; insights</li>
+            <li>Diet plans, BMI &amp; progress tools</li>
+            <li>Bookings &amp; calendar</li>
+          </ul>
+          <a href="#contact" class="btn btn--lime btn--block">Start 14-day trial</a>
+        </article>
+
+        <article class="price glass reveal">
+          <span class="price__tier">Studio</span>
+          <div class="price__amount"><span class="price__big">₹4,999</span><span class="price__per">/mo</span></div>
+          <p class="price__note">For multi-coach teams &amp; gyms.</p>
+          <ul class="price__list">
+            <li>Everything in Pro</li>
+            <li>Multiple coach seats</li>
+            <li>Team roster &amp; permissions</li>
+            <li>Priority support</li>
+          </ul>
+          <a href="#contact" class="btn btn--glass btn--block">Talk to sales</a>
+        </article>
+      </div>
+    </section>
+
+    <!-- ====================== TESTIMONIALS ====================== -->
+    <section class="section anchor" id="reviews">
+      <div class="section__head reveal">
+        <span class="kicker">Loved by both sides</span>
+        <h2>What coaches &amp; members are saying</h2>
+      </div>
+      <div class="reviews">
+        <figure class="review glass reveal">
+          <span class="review__who review__who--coach">Coach</span>
+          <div class="review__stars">★★★★★</div>
+          <blockquote>"I dropped three spreadsheets and a payment app. My retention jumped because I finally see who's at risk before they ghost."</blockquote>
+          <figcaption><span class="review__av">A</span><span><strong>Abhishek Balhara</strong><em>Fat-loss coach · New Delhi</em></span></figcaption>
+        </figure>
+        <figure class="review glass reveal">
+          <span class="review__who review__who--member">Member</span>
+          <div class="review__stars">★★★★★</div>
+          <blockquote>"The Indian diet plan with exact macros changed everything. I can see my BMI and body fat drop week by week — and my coach is one tap away."</blockquote>
+          <figcaption><span class="review__av">Y</span><span><strong>Yash Dhankar</strong><em>Member · Strength Foundation</em></span></figcaption>
+        </figure>
+        <figure class="review glass reveal">
+          <span class="review__who review__who--coach">Coach</span>
+          <div class="review__stars">★★★★★</div>
+          <blockquote>"Assigning programs used to take my evening. Now it's two taps and clients get a premium fitness app. It looks like I have a whole team behind me."</blockquote>
+          <figcaption><span class="review__av">P</span><span><strong>Priyesh Mishra</strong><em>Strength coach · India</em></span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ====================== CTA ====================== -->
+    <section class="section anchor" id="contact">
+      <div class="cta glass reveal">
+        <div class="cta__glow" aria-hidden="true"></div>
+        <h2>Start with ProCoach India today.</h2>
+        <p>Whether you're building a coaching business or building yourself — there's a side here for you. Free to start, no card required.</p>
+        <form class="cta__form" onsubmit="return false;">
+          <input type="email" placeholder="you@email.com" aria-label="Email address" required />
+          <button class="btn btn--lime btn--lg" type="submit">Get early access</button>
+        </form>
+        <span class="cta__fine">★★★★★ trusted by 2,400+ coaches &amp; members · cancel anytime</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- ====================== FOOTER ====================== -->
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <img class="footer__logo" src="assets/logo-full.svg" alt="ProCoach India" />
+        <p>Coaching business + personal fitness, in one app. Built in India, for coaches and the people they train.</p>
+        <div class="footer__social" aria-label="Social links">
+          <a href="#" aria-label="Instagram">◎</a>
+          <a href="#" aria-label="X">✕</a>
+          <a href="#" aria-label="LinkedIn">in</a>
+          <a href="#" aria-label="YouTube">▶</a>
+        </div>
+      </div>
+      <div class="footer__cols">
+        <div class="footer__col">
+          <h4>For Coaches</h4>
+          <a href="#coaches">Member management</a>
+          <a href="#coaches">Program builder</a>
+          <a href="#coaches">Revenue &amp; billing</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="footer__col">
+          <h4>Fitness Center</h4>
+          <a href="#fitness">Diet plans</a>
+          <a href="#fitness">BMI &amp; body analysis</a>
+          <a href="#fitness">Progress tracking</a>
+          <a href="#fitness">Find a coach</a>
+        </div>
+        <div class="footer__col">
+          <h4>Company</h4>
+          <a href="#">About</a>
+          <a href="#reviews">Reviews</a>
+          <a href="#contact">Contact</a>
+          <a href="#">Privacy</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bar">
+      <span>© 2026 ProCoach India. All rights reserved.</span>
+      <span>Made in India, with ♥</span>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
