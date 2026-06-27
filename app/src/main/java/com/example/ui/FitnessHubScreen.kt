@@ -39,6 +39,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberDanger
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +52,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -492,6 +499,23 @@ fun FitnessHubScreen(
                 val score = healthViewModel.weeklyHealthScore()
                 var showStepsDialog by remember { mutableStateOf(false) }
                 var stepsInput      by remember { mutableStateOf("") }
+
+                // Step permission state (ACTIVITY_RECOGNITION required on Android 10+)
+                val context = LocalContext.current
+                var hasStepPermission by remember {
+                    mutableStateOf(
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                        ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACTIVITY_RECOGNITION
+                        ) == PackageManager.PERMISSION_GRANTED
+                    )
+                }
+                val stepPermLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted -> hasStepPermission = granted }
+
+                val autoSteps = healthViewModel.isStepCounterAvailable && hasStepPermission
+
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -504,31 +528,67 @@ fun FitnessHubScreen(
 
                     // Steps + Water
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Steps card — tap to enter count
+                        // Steps card — auto tracking when sensor + permission available
                         Column(
                             modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
                                 .background(CyberBgCard)
                                 .border(1.dp, Color(0xFF3B82F6).copy(0.2f), RoundedCornerShape(16.dp))
-                                .clickable { stepsInput = if (log.stepsCount > 0) log.stepsCount.toString() else ""; showStepsDialog = true }
+                                .then(
+                                    // Only tappable for manual fallback (no sensor)
+                                    if (!healthViewModel.isStepCounterAvailable)
+                                        Modifier.clickable {
+                                            stepsInput = if (log.stepsCount > 0) log.stepsCount.toString() else ""
+                                            showStepsDialog = true
+                                        }
+                                    else Modifier
+                                )
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("🏃 Steps", fontSize = 12.sp, color = CyberTextMuted)
-                                Text("✏️", fontSize = 11.sp)
+                                when {
+                                    autoSteps -> Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                        Text("Live", fontSize = 9.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                                    }
+                                    !healthViewModel.isStepCounterAvailable -> Text("✏️", fontSize = 11.sp)
+                                    // sensor present but permission missing — no badge, button below
+                                    else -> Unit
+                                }
                             }
-                            Text(
-                                if (log.stepsCount == 0) "Tap to log" else "${log.stepsCount}",
-                                fontSize = if (log.stepsCount == 0) 14.sp else 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (log.stepsCount == 0) CyberTextMuted else CyberTextPrimary
-                            )
-                            LinearProgressIndicator(
-                                progress = { (log.stepsCount / 10_000f).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
-                                color = Color(0xFF3B82F6), trackColor = Color(0xFF3B82F6).copy(0.15f)
-                            )
-                            Text("Goal: 10,000", fontSize = 10.sp, color = CyberTextMuted)
+                            if (healthViewModel.isStepCounterAvailable && !hasStepPermission) {
+                                // Prompt to enable automatic tracking
+                                Text("0", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextMuted)
+                                LinearProgressIndicator(
+                                    progress = { 0f },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
+                                    color = Color(0xFF3B82F6), trackColor = Color(0xFF3B82F6).copy(0.15f)
+                                )
+                                TextButton(
+                                    onClick = { stepPermLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION) },
+                                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                ) {
+                                    Text("Enable auto tracking", fontSize = 10.sp, color = Color(0xFF3B82F6))
+                                }
+                            } else {
+                                Text(
+                                    if (log.stepsCount == 0 && !autoSteps) "Tap to log" else "${log.stepsCount}",
+                                    fontSize = if (log.stepsCount == 0 && !autoSteps) 14.sp else 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (log.stepsCount == 0 && !autoSteps) CyberTextMuted else CyberTextPrimary
+                                )
+                                LinearProgressIndicator(
+                                    progress = { (log.stepsCount / 10_000f).coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
+                                    color = Color(0xFF3B82F6), trackColor = Color(0xFF3B82F6).copy(0.15f)
+                                )
+                                Text("Goal: 10,000", fontSize = 10.sp, color = CyberTextMuted)
+                            }
                         }
                         // Water card
                         Column(
@@ -623,8 +683,8 @@ fun FitnessHubScreen(
                 }
                 Spacer(Modifier.height(20.dp))
 
-                // Steps input dialog
-                if (showStepsDialog) {
+                // Manual fallback dialog — only used when hardware step counter is unavailable
+                if (showStepsDialog && !healthViewModel.isStepCounterAvailable) {
                     AlertDialog(
                         onDismissRequest = { showStepsDialog = false },
                         containerColor = CyberBgCard,

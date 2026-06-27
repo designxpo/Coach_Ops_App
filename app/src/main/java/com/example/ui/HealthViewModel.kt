@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,13 +9,17 @@ import com.example.data.CycleEntry
 import com.example.data.DailyHealthLog
 import com.example.data.HealthRepository
 import com.example.data.ProgressPhoto
+import com.example.data.StepCounterManager
 import com.example.data.UserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class HealthViewModel(private val repo: HealthRepository) : ViewModel() {
+class HealthViewModel(
+    private val repo: HealthRepository,
+    private val stepCounter: StepCounterManager,
+) : ViewModel() {
 
     private val _todayLog  = MutableStateFlow(DailyHealthLog())
     val todayLog: StateFlow<DailyHealthLog> = _todayLog.asStateFlow()
@@ -34,13 +39,45 @@ class HealthViewModel(private val repo: HealthRepository) : ViewModel() {
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
-    init { loadAll() }
+    val isStepCounterAvailable: Boolean get() = stepCounter.isAvailable
+
+    init {
+        loadAll()
+        if (stepCounter.isAvailable) {
+            stepCounter.start()
+            viewModelScope.launch {
+                stepCounter.dailySteps.collect { steps ->
+                    val current = _todayLog.value
+                    if (steps != current.stepsCount) {
+                        val log = current.copy(
+                            stepsCount     = steps,
+                            caloriesBurned = (steps * 0.04f).toInt()
+                        )
+                        _todayLog.value = log
+                        // Persist every 50 steps to avoid excessive Firestore writes
+                        if (steps > 0 && steps % 50 == 0) saveLog(log)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stepCounter.stop()
+        // Flush final step count to Firestore
+        viewModelScope.launch {
+            try { repo.saveLog(_todayLog.value.copy(date = repo.todayKey())) } catch (_: Exception) {}
+        }
+    }
 
     private fun loadAll() {
         viewModelScope.launch {
             try {
                 val today = repo.todayKey()
-                _todayLog.value     = repo.getLog(today)
+                val log   = repo.getLog(today)
+                _todayLog.value     = log
+                stepCounter.setBaseline(log.stepsCount)
                 _weekLogs.value     = repo.getLast7Days()
                 _measurements.value = repo.getMeasurements()
                 _photos.value       = repo.getProgressPhotos()
@@ -165,10 +202,16 @@ class HealthViewModel(private val repo: HealthRepository) : ViewModel() {
     }
 }
 
-class HealthViewModelFactory(private val prefs: UserPreferences) : ViewModelProvider.Factory {
+class HealthViewModelFactory(
+    private val prefs: UserPreferences,
+    private val context: Context,
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        val uid  = prefs.userId.ifEmpty { "anonymous" }
+        val uid = prefs.userId.ifEmpty { "anonymous" }
         @Suppress("UNCHECKED_CAST")
-        return HealthViewModel(HealthRepository(uid)) as T
+        return HealthViewModel(
+            HealthRepository(uid),
+            StepCounterManager(context.applicationContext),
+        ) as T
     }
 }

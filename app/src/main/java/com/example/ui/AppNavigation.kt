@@ -560,7 +560,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     factory = FitnessViewModelFactory(userPreferences)
                 )
                 val healthViewModel: HealthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = HealthViewModelFactory(userPreferences)
+                    factory = HealthViewModelFactory(userPreferences, context)
                 )
                 FitnessHubScreen(
                     viewModel            = fitnessViewModel,
@@ -653,19 +653,19 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
             }
             composable("body_measurements") {
                 val healthViewModel: HealthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = HealthViewModelFactory(userPreferences)
+                    factory = HealthViewModelFactory(userPreferences, context)
                 )
                 BodyMeasurementsScreen(viewModel = healthViewModel, onBack = { navController.popBackStack() })
             }
             composable("progress_photos") {
                 val healthViewModel: HealthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = HealthViewModelFactory(userPreferences)
+                    factory = HealthViewModelFactory(userPreferences, context)
                 )
                 ProgressPhotosScreen(viewModel = healthViewModel, onBack = { navController.popBackStack() })
             }
             composable("cycle_tracker") {
                 val healthViewModel: HealthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = HealthViewModelFactory(userPreferences)
+                    factory = HealthViewModelFactory(userPreferences, context)
                 )
                 CycleTrackerScreen(viewModel = healthViewModel, onBack = { navController.popBackStack() })
             }
