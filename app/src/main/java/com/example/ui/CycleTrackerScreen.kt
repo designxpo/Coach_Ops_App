@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,35 +31,60 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
+private val FMT = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+private val DISPLAY_FMT = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+
+private fun msToKey(ms: Long)     = FMT.format(Date(ms))
+private fun msToDisplay(ms: Long) = DISPLAY_FMT.format(Date(ms))
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CycleTrackerScreen(viewModel: HealthViewModel, onBack: () -> Unit) {
     val entries by viewModel.cycleEntries.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
 
+    // Entries from Firestore are DESCENDING (newest first).
+    // Cycle length = newer.startDate - older.startDate  →  entries[i] - entries[i+1]
     val avgCycleLength = if (entries.size >= 2) {
-        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val lengths = (0 until entries.size - 1).mapNotNull { i ->
             try {
-                val a = fmt.parse(entries[i].startDate)
-                val b = fmt.parse(entries[i + 1].startDate)
-                if (a != null && b != null)
-                    ((b.time - a.time) / (1000 * 60 * 60 * 24)).toInt()
+                val newer = FMT.parse(entries[i].startDate)
+                val older = FMT.parse(entries[i + 1].startDate)
+                if (newer != null && older != null)
+                    ((newer.time - older.time) / (1000L * 60 * 60 * 24)).toInt()
                 else null
             } catch (_: Exception) { null }
-        }.filter { it in 20..40 }
+        }.filter { it in 20..45 }
         if (lengths.isNotEmpty()) lengths.average().roundToInt() else 28
     } else 28
 
     val nextPeriod: String? = if (entries.isNotEmpty()) {
         try {
-            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val last = fmt.parse(entries.first().startDate)
+            val last = FMT.parse(entries.first().startDate)
             if (last != null) {
                 val cal = Calendar.getInstance().apply {
                     time = last
                     add(Calendar.DAY_OF_YEAR, avgCycleLength)
                 }
-                fmt.format(cal.time)
+                DISPLAY_FMT.format(cal.time)
+            } else null
+        } catch (_: Exception) { null }
+    } else null
+
+    // Days until next period
+    val daysUntil: Int? = if (entries.isNotEmpty()) {
+        try {
+            val last = FMT.parse(entries.first().startDate)
+            if (last != null) {
+                val next = Calendar.getInstance().apply {
+                    time = last
+                    add(Calendar.DAY_OF_YEAR, avgCycleLength)
+                }.timeInMillis
+                val today = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                ((next - today) / (1000L * 60 * 60 * 24)).toInt()
             } else null
         } catch (_: Exception) { null }
     } else null
@@ -97,15 +123,39 @@ fun CycleTrackerScreen(viewModel: HealthViewModel, onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Summary card
+            // Summary stats
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CycleStat("🔄 Avg Cycle", "${avgCycleLength} days", Modifier.weight(1f))
+                    CycleStat("🔄 Avg Cycle", "${avgCycleLength}d", Modifier.weight(1f))
                     CycleStat("📅 Next Period", nextPeriod ?: "—", Modifier.weight(1f))
-                    CycleStat("📝 Logged", "${entries.size} cycles", Modifier.weight(1f))
+                    CycleStat("📝 Logged", "${entries.size}", Modifier.weight(1f))
+                }
+            }
+
+            // Countdown banner
+            if (daysUntil != null) {
+                item {
+                    val (bannerColor, bannerText) = when {
+                        daysUntil < 0  -> Color(0xFFEF4444) to "Period may have started"
+                        daysUntil == 0 -> Color(0xFFEF4444) to "Period expected today"
+                        daysUntil <= 5 -> Color(0xFFF59E0B) to "Period in $daysUntil day${if (daysUntil == 1) "" else "s"}"
+                        else           -> Color(0xFFE91E8C) to "$daysUntil days until next period"
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(bannerColor.copy(0.1f))
+                            .border(1.dp, bannerColor.copy(0.3f), RoundedCornerShape(14.dp))
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🌸", fontSize = 22.sp)
+                        Text(bannerText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = bannerColor)
+                    }
                 }
             }
 
@@ -158,6 +208,16 @@ private fun CycleStat(label: String, value: String, modifier: Modifier) {
 
 @Composable
 private fun CycleEntryCard(entry: CycleEntry, onDelete: () -> Unit) {
+    val startDisplay = try { DISPLAY_FMT.format(FMT.parse(entry.startDate)!!) } catch (_: Exception) { entry.startDate }
+    val endDisplay   = try { if (entry.endDate.isNotBlank()) DISPLAY_FMT.format(FMT.parse(entry.endDate)!!) else "" } catch (_: Exception) { entry.endDate }
+    val duration: Int? = if (entry.startDate.isNotBlank() && entry.endDate.isNotBlank()) {
+        try {
+            val s = FMT.parse(entry.startDate)
+            val e = FMT.parse(entry.endDate)
+            if (s != null && e != null) ((e.time - s.time) / (1000L * 60 * 60 * 24)).toInt() + 1 else null
+        } catch (_: Exception) { null }
+    } else null
+
     Row(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)).background(CyberBgCard)
@@ -167,10 +227,10 @@ private fun CycleEntryCard(entry: CycleEntry, onDelete: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("🌸", fontSize = 28.sp)
-        Column(Modifier.weight(1f)) {
-            Text("Started: ${entry.startDate}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
-            if (entry.endDate.isNotBlank())
-                Text("Ended: ${entry.endDate}", fontSize = 12.sp, color = CyberTextMuted)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(startDisplay, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+            if (endDisplay.isNotBlank())
+                Text("Ended: $endDisplay${if (duration != null) "  ($duration days)" else ""}", fontSize = 12.sp, color = CyberTextMuted)
             if (entry.notes.isNotBlank())
                 Text(entry.notes, fontSize = 11.sp, color = CyberTextMuted)
         }
@@ -179,12 +239,75 @@ private fun CycleEntryCard(entry: CycleEntry, onDelete: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LogCycleDialog(onDismiss: () -> Unit, onSave: (CycleEntry) -> Unit) {
-    val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    var startDate by remember { mutableStateOf(fmt.format(Date())) }
-    var endDate   by remember { mutableStateOf("") }
-    var notes     by remember { mutableStateOf("") }
+    var startMs  by remember { mutableStateOf(System.currentTimeMillis()) }
+    var endMs    by remember { mutableStateOf<Long?>(null) }
+    var notes    by remember { mutableStateOf("") }
+
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker   by remember { mutableStateOf(false) }
+
+    // Start date picker
+    if (showStartPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = startMs)
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { startMs = it }
+                    showStartPicker = false
+                }) { Text("OK", color = Color(0xFFE91E8C)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartPicker = false }) { Text("Cancel", color = CyberTextMuted) }
+            },
+            colors = DatePickerDefaults.colors(containerColor = CyberBgCard)
+        ) {
+            DatePicker(state = state, colors = DatePickerDefaults.colors(
+                containerColor          = CyberBgCard,
+                titleContentColor       = CyberTextMuted,
+                headlineContentColor    = CyberTextPrimary,
+                weekdayContentColor     = CyberTextMuted,
+                dayContentColor         = CyberTextPrimary,
+                selectedDayContainerColor = Color(0xFFE91E8C),
+                todayContentColor       = Color(0xFFE91E8C),
+                todayDateBorderColor    = Color(0xFFE91E8C)
+            ))
+        }
+    }
+
+    // End date picker
+    if (showEndPicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = endMs ?: startMs
+        )
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endMs = state.selectedDateMillis
+                    showEndPicker = false
+                }) { Text("OK", color = Color(0xFFE91E8C)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndPicker = false }) { Text("Cancel", color = CyberTextMuted) }
+            },
+            colors = DatePickerDefaults.colors(containerColor = CyberBgCard)
+        ) {
+            DatePicker(state = state, colors = DatePickerDefaults.colors(
+                containerColor            = CyberBgCard,
+                titleContentColor         = CyberTextMuted,
+                headlineContentColor      = CyberTextPrimary,
+                weekdayContentColor       = CyberTextMuted,
+                dayContentColor           = CyberTextPrimary,
+                selectedDayContainerColor = Color(0xFFE91E8C),
+                todayContentColor         = Color(0xFFE91E8C),
+                todayDateBorderColor      = Color(0xFFE91E8C)
+            ))
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -194,17 +317,48 @@ private fun LogCycleDialog(onDismiss: () -> Unit, onSave: (CycleEntry) -> Unit) 
         ) {
             Text("Log Period", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
 
-            CycleField("Start Date (YYYY-MM-DD)", startDate, { startDate = it })
-            CycleField("End Date (optional)",     endDate,   { endDate   = it })
-            CycleField("Notes (optional)",        notes,     { notes     = it })
+            // Start date picker button
+            DatePickerButton(
+                label   = "Period started",
+                display = msToDisplay(startMs),
+                onClick = { showStartPicker = true }
+            )
+
+            // End date picker button
+            DatePickerButton(
+                label   = "Period ended (optional)",
+                display = endMs?.let { msToDisplay(it) } ?: "Tap to select",
+                onClick = { showEndPicker = true },
+                placeholder = endMs == null
+            )
+
+            // Notes
+            OutlinedTextField(
+                value       = notes,
+                onValueChange = { notes = it },
+                label       = { Text("Notes (optional)", color = CyberTextMuted, fontSize = 12.sp) },
+                modifier    = Modifier.fillMaxWidth(),
+                singleLine  = true,
+                colors      = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Color(0xFFE91E8C),
+                    unfocusedBorderColor = Color.White.copy(0.15f),
+                    focusedTextColor     = CyberTextPrimary,
+                    unfocusedTextColor   = CyberTextPrimary
+                )
+            )
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
                     Text("Cancel", color = CyberTextMuted)
                 }
                 Button(
-                    onClick = { onSave(CycleEntry(startDate = startDate, endDate = endDate, notes = notes)) },
-                    enabled  = startDate.length == 10,
+                    onClick = {
+                        onSave(CycleEntry(
+                            startDate = msToKey(startMs),
+                            endDate   = endMs?.let { msToKey(it) } ?: "",
+                            notes     = notes.trim()
+                        ))
+                    },
                     modifier = Modifier.weight(1f),
                     colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E8C)),
                     shape    = RoundedCornerShape(12.dp)
@@ -217,16 +371,29 @@ private fun LogCycleDialog(onDismiss: () -> Unit, onSave: (CycleEntry) -> Unit) 
 }
 
 @Composable
-private fun CycleField(label: String, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value, onValueChange = onChange,
-        label = { Text(label, color = CyberTextMuted, fontSize = 12.sp) },
-        modifier = Modifier.fillMaxWidth(), singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = Color(0xFFE91E8C),
-            unfocusedBorderColor = Color.White.copy(0.15f),
-            focusedTextColor     = CyberTextPrimary,
-            unfocusedTextColor   = CyberTextPrimary
-        )
-    )
+private fun DatePickerButton(
+    label: String,
+    display: String,
+    onClick: () -> Unit,
+    placeholder: Boolean = false,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, fontSize = 11.sp, color = CyberTextMuted)
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, Color(0xFFE91E8C).copy(0.4f), RoundedCornerShape(10.dp))
+                .background(CyberBgPrimary)
+                .clickable { onClick() }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Default.CalendarToday, null,
+                tint = Color(0xFFE91E8C), modifier = Modifier.size(16.dp))
+            Text(display, fontSize = 14.sp,
+                color = if (placeholder) CyberTextMuted else CyberTextPrimary,
+                fontWeight = if (placeholder) FontWeight.Normal else FontWeight.SemiBold)
+        }
+    }
 }
