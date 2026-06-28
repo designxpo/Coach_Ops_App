@@ -134,8 +134,9 @@ object FirestoreSync {
 
     /** Persists FCM token so the admin panel can send push notifications to this device.
      *  Never sets 'role' — role is owned by registerClientRecord / updateProfileRecord. */
-    fun saveFcmToken(uid: String, token: String) {
-        db.collection("user_records").document(uid)
+    fun saveFcmToken(token: String) {
+        val u = uid ?: return
+        db.collection("user_records").document(u)
             .set(mapOf(
                 "fcmToken"       to token,
                 "tokenUpdatedAt" to System.currentTimeMillis()
@@ -143,8 +144,9 @@ object FirestoreSync {
     }
 
     /** Persists subscription plan so admin panel can target Pro/Business users. */
-    fun saveSubscriptionPlan(uid: String, plan: String) {
-        db.collection("user_records").document(uid)
+    fun saveSubscriptionPlan(plan: String) {
+        val u = uid ?: return
+        db.collection("user_records").document(u)
             .set(mapOf("subscriptionPlan" to plan),
                  com.google.firebase.firestore.SetOptions.merge())
     }
@@ -158,6 +160,22 @@ object FirestoreSync {
             db.collection("user_records").document(uid).get().await()
                 .data?.get("role") as? String
         } catch (_: Exception) { null }
+
+    /** Writes the role into user_records immediately after account creation.
+     *  Always uses the authenticated UID — the uid parameter is validated against auth. */
+    suspend fun setUserRole(role: String) {
+        val u = uid ?: return
+        try {
+            db.collection("user_records").document(u)
+                .set(mapOf("role" to role), com.google.firebase.firestore.SetOptions.merge()).await()
+        } catch (_: Exception) {}
+    }
+
+    /** Returns true if a coaches/{uid} document exists — used to detect legacy coach accounts
+     *  that were created before the role field was written at registration time. */
+    suspend fun hasCoachData(uid: String): Boolean = try {
+        db.collection("coaches").document(uid).get().await().exists()
+    } catch (_: Exception) { false }
 
     /**
      * Called on every login on any device.
@@ -236,7 +254,7 @@ object FirestoreSync {
 
     suspend fun publishTrainerProfile(profile: TrainerProfile) {
         val uid = uid ?: throw Exception("Not authenticated")
-        android.util.Log.d("CoachOps", "publishTrainerProfile uid=$uid name=${profile.name} city=${profile.city} lat=${profile.lat} lng=${profile.lng}")
+        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile uid=$uid name=${profile.name} city=${profile.city} lat=${profile.lat} lng=${profile.lng}")
         // rating is NOT written here — maintained exclusively by rateBooking()
         db.collection("trainers").document(uid).set(mapOf(
             "uid"              to uid,
@@ -256,7 +274,7 @@ object FirestoreSync {
             "isPublic"         to true,
             "updatedAtMillis"  to System.currentTimeMillis()
         ), com.google.firebase.firestore.SetOptions.merge()).await()
-        android.util.Log.d("CoachOps", "publishTrainerProfile DONE — wrote to trainers/$uid")
+        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile DONE — wrote to trainers/$uid")
     }
 
     suspend fun unpublishTrainerProfile() {
@@ -270,21 +288,21 @@ object FirestoreSync {
         radiusKm: Int = 0        // 0 = no radius filter (show all)
     ): List<TrainerProfile> {
         val currentUid = auth.currentUser?.uid
-        android.util.Log.d("CoachOps", "getPublicTrainers START — uid=$currentUid lat=$clientLat lng=$clientLng radius=$radiusKm")
+        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "getPublicTrainers START — uid=$currentUid lat=$clientLat lng=$clientLng radius=$radiusKm")
 
         val applyRadius = radiusKm > 0 && clientLat != 0.0 && clientLng != 0.0
 
         // Fetch ALL docs in trainers collection (no isPublic filter) to see what's there
         val allDocs = db.collection("trainers").get().await().documents
-        android.util.Log.d("CoachOps", "trainers collection total docs: ${allDocs.size}")
+        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "trainers collection total docs: ${allDocs.size}")
         allDocs.forEach { doc ->
-            android.util.Log.d("CoachOps", "  doc ${doc.id} isPublic=${doc.data?.get("isPublic")} name=${doc.data?.get("name")}")
+            if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "  doc ${doc.id} isPublic=${doc.data?.get("isPublic")} name=${doc.data?.get("name")}")
         }
 
         val docs = db.collection("trainers")
             .whereEqualTo("isPublic", true)
             .get().await().documents
-        android.util.Log.d("CoachOps", "isPublic=true docs: ${docs.size}")
+        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "isPublic=true docs: ${docs.size}")
 
         return docs.mapNotNull { doc ->
             val d = doc.data ?: return@mapNotNull null
@@ -295,7 +313,7 @@ object FirestoreSync {
             // always pass through so they remain visible.
             if (applyRadius && (trainerLat != 0.0 || trainerLng != 0.0)) {
                 val dist = GeoUtils.distanceKm(clientLat, clientLng, trainerLat, trainerLng)
-                android.util.Log.d("CoachOps", "  trainer ${d["name"]} dist=${dist}km — ${if (dist > radiusKm) "FILTERED OUT" else "included"}")
+                if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "  trainer ${d["name"]} dist=${dist}km — ${if (dist > radiusKm) "FILTERED OUT" else "included"}")
                 if (dist > radiusKm) return@mapNotNull null
             }
             TrainerProfile(
@@ -348,12 +366,14 @@ object FirestoreSync {
         clientId: String, clientName: String,
         feeAmount: Int, notes: String, sessionDateMillis: Long = 0L
     ): String {
+        // Always use the authenticated UID as clientId — clientId param is ignored to prevent IDOR
+        val authenticatedClientId = uid ?: throw Exception("Not authenticated")
         val bookingId = java.util.UUID.randomUUID().toString()
         db.collection("bookings").document(bookingId).set(mapOf(
             "id"                  to bookingId,
             "coachId"             to coachId,
             "coachName"           to coachName,
-            "clientId"            to clientId,
+            "clientId"            to authenticatedClientId,
             "clientName"          to clientName,
             "sessionDateMillis"   to sessionDateMillis,
             "status"              to "PENDING",
@@ -366,7 +386,16 @@ object FirestoreSync {
         return bookingId
     }
 
-    suspend fun rateBooking(bookingId: String, coachId: String, rating: Float) {
+    suspend fun rateBooking(bookingId: String, rating: Float) {
+        val currentUid = uid ?: throw Exception("Not authenticated")
+        // Fetch booking to verify ownership and prevent duplicate ratings
+        val bookingDoc = db.collection("bookings").document(bookingId).get().await()
+        val data = bookingDoc.data ?: throw Exception("Booking not found")
+        require(data["clientId"] == currentUid) { "Not your booking" }
+        val existingRating = (data["clientRating"] as? Double)?.toFloat()
+            ?: (data["clientRating"] as? Long)?.toFloat() ?: 0f
+        require(existingRating == 0f) { "Already rated" }
+        val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
         db.collection("bookings").document(bookingId)
             .update("clientRating", rating).await()
         // Recompute aggregate rating for this coach
@@ -390,20 +419,29 @@ object FirestoreSync {
         db.collection("bookings").whereEqualTo("coachId", coachId)
             .get().await().documents.mapNotNull { mapDocToBooking(it) }
 
-    fun updateBookingStatus(bookingId: String, status: String, coachResponse: String = "") {
+    suspend fun updateBookingStatus(bookingId: String, status: String, coachResponse: String = "") {
+        val currentUid = uid ?: return
+        val data = db.collection("bookings").document(bookingId).get().await().data ?: return
+        if (data["coachId"] != currentUid) return  // only the assigned coach may change booking status
         db.collection("bookings").document(bookingId)
             .update(mapOf("status" to status, "coachResponse" to coachResponse))
     }
 
     /**
-     * Cancel a booking. Only allowed if more than 24 hours before sessionDateMillis.
-     * Returns true if cancelled, false if within 24hr window.
+     * Cancel a booking. Only allowed if more than 24 hours before the session.
+     * Fetches sessionDateMillis from Firestore (not caller-supplied) to prevent 24hr bypass.
+     * Returns true if cancelled, false if caller is not a party or within 24hr window.
      */
-    suspend fun cancelBooking(bookingId: String, sessionDateMillis: Long, cancelledBy: String): Boolean {
+    suspend fun cancelBooking(bookingId: String, cancelledBy: String): Boolean {
+        val currentUid = uid ?: return false
+        val bookingDoc = db.collection("bookings").document(bookingId).get().await()
+        val data = bookingDoc.data ?: return false
+        if (data["clientId"] != currentUid && data["coachId"] != currentUid) return false
+        // Use sessionDateMillis from Firestore — never trust caller-supplied value
+        val storedDateMillis = data["sessionDateMillis"] as? Long ?: 0L
         val twentyFourHours = 24 * 60 * 60 * 1000L
         val now = System.currentTimeMillis()
-        // If session date is set and within 24 hours, block cancellation
-        if (sessionDateMillis > 0 && (sessionDateMillis - now) < twentyFourHours) {
+        if (storedDateMillis > 0 && (storedDateMillis - now) < twentyFourHours) {
             return false
         }
         db.collection("bookings").document(bookingId)
@@ -770,8 +808,10 @@ object FirestoreSync {
                     .sortedByDescending { it.createdAt })
             }
 
-    fun listenMyDietPlans(clientUid: String, callback: (List<DietPlan>) -> Unit): ListenerRegistration =
-        db.collection("diet_plans")
+    fun listenMyDietPlans(callback: (List<DietPlan>) -> Unit): ListenerRegistration {
+        val clientUid = uid
+        if (clientUid == null) { callback(emptyList()); return db.collection("diet_plans").addSnapshotListener { _, _ -> } }
+        return db.collection("diet_plans")
             .whereEqualTo("clientId", clientUid)
             .whereEqualTo("status", "active")
             .addSnapshotListener { snap, err ->
@@ -779,6 +819,7 @@ object FirestoreSync {
                 callback(snap.documents.mapNotNull { doc -> parseDietPlan(doc.id, doc.data ?: return@mapNotNull null) }
                     .sortedByDescending { it.sentAt })
             }
+    }
 
     fun saveDietLog(log: DietLog) {
         db.collection("diet_logs").document(log.id)
@@ -795,13 +836,18 @@ object FirestoreSync {
             ))
     }
 
-    fun listenDietLogs(planId: String, callback: (List<DietLog>) -> Unit): ListenerRegistration =
-        db.collection("diet_logs")
+    fun listenDietLogs(planId: String, callback: (List<DietLog>) -> Unit): ListenerRegistration {
+        val currentUid = uid  // capture auth uid at registration time
+        return db.collection("diet_logs")
             .whereEqualTo("planId", planId)
             .addSnapshotListener { snap, err ->
                 if (err != null || snap == null) { callback(emptyList()); return@addSnapshotListener }
                 callback(snap.documents.mapNotNull { doc ->
                     val d = doc.data ?: return@mapNotNull null
+                    // Only return logs the authenticated user is a party to (client or coach)
+                    if (currentUid != null && d["clientId"] != currentUid && d["coachUid"] != currentUid) {
+                        return@mapNotNull null
+                    }
                     DietLog(
                         id                = doc.id,
                         planId            = d["planId"] as? String ?: "",
@@ -819,6 +865,7 @@ object FirestoreSync {
                     )
                 }.sortedByDescending { it.createdAt })
             }
+    }
 
     private fun parseDietPlan(id: String, d: Map<String, Any>): DietPlan? = try {
         DietPlan(

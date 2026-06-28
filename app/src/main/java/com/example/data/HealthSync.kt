@@ -49,8 +49,13 @@ object HealthSync {
 
     // ─── Real-time listener ───────────────────────────────────────────────────
 
-    fun listenMyRecords(uid: String, limit: Int = 20, onRecords: (List<HealthRecord>) -> Unit): ListenerRegistration =
-        db.collection("member_health").document(uid)
+    fun listenMyRecords(uid: String, limit: Int = 20, onRecords: (List<HealthRecord>) -> Unit): ListenerRegistration {
+        val authUid = this.uid
+        if (authUid == null || uid != authUid) {
+            onRecords(emptyList())
+            return db.collection("member_health").addSnapshotListener { _, _ -> }
+        }
+        return db.collection("member_health").document(authUid)
             .collection("records")
             .orderBy("recordedAt", Query.Direction.DESCENDING)
             .limit(limit.toLong())
@@ -58,6 +63,7 @@ object HealthSync {
                 if (err != null) return@addSnapshotListener
                 onRecords(snap?.documents?.mapNotNull { mapToRecord(it.id, it.data) } ?: emptyList())
             }
+    }
 
     // ─── Fetch (member's own records) ─────────────────────────────────────────
 

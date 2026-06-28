@@ -99,13 +99,26 @@ fun RegisterScreen(
             scope.launch {
                 try {
                     val account = AuthRepository.handleGoogleSignInIntent(result.data).getResult(Exception::class.java)
-                    when (val authResult = AuthRepository.signInWithGoogle(account.idToken!!)) {
+                    val idToken = account.idToken ?: run {
+                        errorMessage = "Google sign-in failed. Try again."
+                        isGoogleLoading = false
+                        return@launch
+                    }
+                    when (val authResult = AuthRepository.signInWithGoogle(idToken)) {
                         is AuthResult.Success -> {
+                            val uid = authResult.user.uid
                             val displayName = authResult.user.displayName ?: ""
                             if (selectedRole == "client") {
                                 if (userPreferences.clientName.isEmpty()) userPreferences.clientName = displayName
+                                // Write role + profile to Firestore — prevents login role-bypass
+                                com.example.data.FirestoreSync.registerClientRecord(
+                                    displayName.ifEmpty { userPreferences.clientName },
+                                    authResult.user.email ?: ""
+                                )
                             } else {
                                 if (userPreferences.coachName.isEmpty()) userPreferences.coachName = displayName
+                                // Write role to Firestore — prevents login role-bypass
+                                com.example.data.FirestoreSync.setUserRole("coach")
                             }
                             userPreferences.coachEmail = authResult.user.email ?: ""
                             userPreferences.userRole = selectedRole
@@ -245,10 +258,17 @@ fun RegisterScreen(
                     scope.launch {
                         when (val result = AuthRepository.register(email, password)) {
                             is AuthResult.Success -> {
+                                val uid = result.user.uid
                                 if (selectedRole == "client") {
                                     userPreferences.clientName = name.trim()
+                                    // Write role + profile to Firestore — prevents login role-bypass
+                                    com.example.data.FirestoreSync.registerClientRecord(
+                                        name.trim(), result.user.email ?: email.trim()
+                                    )
                                 } else {
                                     userPreferences.coachName = name.trim()
+                                    // Write role to Firestore — prevents login role-bypass
+                                    com.example.data.FirestoreSync.setUserRole("coach")
                                 }
                                 userPreferences.coachEmail = result.user.email ?: email.trim()
                                 // coachPhone is the shared phone field; no separate clientPhone field exists in UserPreferences

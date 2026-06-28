@@ -70,14 +70,20 @@ object SupabaseStorage {
 
     private suspend fun upload(context: Context, uri: Uri, path: String): String =
         withContext(Dispatchers.IO) {
-            // 1. Validate input size before reading bitmap
+            // 1. Validate MIME type — reject non-image files
+            val mimeType = context.contentResolver.getType(uri)
+            if (mimeType == null || !mimeType.startsWith("image/")) {
+                throw Exception("Only image files are supported.")
+            }
+
+            // 2. Validate input size before reading bitmap
             val inputSize = context.contentResolver.openFileDescriptor(uri, "r")
                 ?.use { it.statSize } ?: 0L
             if (inputSize > MAX_BYTES) {
                 throw Exception("Image is too large. Maximum size is 5 MB.")
             }
 
-            // 2. Compress image
+            // 3. Compress image
             val bytes = compressImage(context, uri)
 
             // 3. Upload via multipart/form-data (matches official Supabase SDK behaviour)

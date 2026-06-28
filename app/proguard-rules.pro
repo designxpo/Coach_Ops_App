@@ -87,3 +87,10 @@
 # Google Play Services
 -dontwarn com.google.android.gms.**
 -keep class com.google.android.gms.** { *; }
+
+# Strip debug/verbose logs from release builds — prevents UID and GPS leakage
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int d(...);
+    public static int v(...);
+}

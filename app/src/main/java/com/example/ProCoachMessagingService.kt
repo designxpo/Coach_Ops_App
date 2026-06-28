@@ -17,8 +17,9 @@ class ProCoachMessagingService : FirebaseMessagingService() {
     // Auth may not be ready yet, so attach an auth-state listener to save when ready.
     override fun onNewToken(token: String) {
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
-            val uid = auth.currentUser?.uid ?: return@addAuthStateListener
-            FirestoreSync.saveFcmToken(uid, token)
+            if (auth.currentUser != null) {
+                FirestoreSync.saveFcmToken(token)
+            }
         }
     }
 

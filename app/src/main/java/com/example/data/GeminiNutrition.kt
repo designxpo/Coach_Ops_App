@@ -114,6 +114,8 @@ object GeminiNutrition {
                     .removeSuffix("```").trim()
 
                 val j = JSONObject(text)
+                val rawConfidence = j.optString("confidence", "medium")
+                val safeConfidence = if (rawConfidence in setOf("high", "medium", "low")) rawConfidence else "medium"
                 Result.success(FoodNutrition(
                     foodName    = j.optString("foodName",    "Unknown Food"),
                     servingSize = j.optString("servingSize", "1 serving"),
@@ -122,8 +124,8 @@ object GeminiNutrition {
                     carbsG      = j.optDouble("carbsG",      0.0).toFloat(),
                     fatG        = j.optDouble("fatG",        0.0).toFloat(),
                     fiberG      = j.optDouble("fiberG",      0.0).toFloat(),
-                    confidence  = j.optString("confidence",  "medium"),
-                    notes       = j.optString("notes",       "")
+                    confidence  = safeConfidence,
+                    notes       = j.optString("notes", "").take(200)
                 ))
             } catch (e: Exception) {
                 Result.failure(e)

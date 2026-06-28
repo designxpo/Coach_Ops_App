@@ -162,7 +162,7 @@ private fun BookingCard(
                 TextButton(onClick = {
                     showCancelDialog = false
                     scope.launch {
-                        val success = viewModel.cancelBooking(booking.id, booking.sessionDateMillis)
+                        val success = viewModel.cancelBooking(booking.id)
                         if (!success) cancelError = "Cannot cancel within 24 hours of the session."
                     }
                 }) { Text("Cancel Booking", color = CyberDanger, fontWeight = FontWeight.Bold) }

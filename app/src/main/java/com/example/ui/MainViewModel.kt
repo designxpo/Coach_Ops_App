@@ -621,9 +621,11 @@ class MainViewModel(
     }
 
     fun logout() {
-        com.example.data.AuthRepository.signOut()
-        userPreferences.clearLocalSession()
-        viewModelScope.launch { repository.clearAllLocalData() }
+        viewModelScope.launch {
+            com.example.data.AuthRepository.signOut()
+            repository.clearAllLocalData()   // await Room wipe before clearing prefs
+            userPreferences.clearLocalSession()
+        }
     }
 
     // ─── Coach Marketplace ────────────────────────────────────────────────────
@@ -649,9 +651,9 @@ class MainViewModel(
     }
 
     /** Returns true if cancelled, false if within 24hr window */
-    suspend fun cancelBooking(bookingId: String, sessionDateMillis: Long): Boolean {
+    suspend fun cancelBooking(bookingId: String): Boolean {
         val name = userPreferences.coachName.ifEmpty { "Coach" }
-        val result = FirestoreSync.cancelBooking(bookingId, sessionDateMillis, name)
+        val result = FirestoreSync.cancelBooking(bookingId, name)
         if (result) loadCoachBookings()
         return result
     }

@@ -90,6 +90,7 @@ fun LoginScreen(
     var resetEmail by remember { mutableStateOf("") }
     var resetSent by remember { mutableStateOf(false) }
     var resetError by remember { mutableStateOf("") }
+    var lastResetMillis by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
 
     val googleLauncher = rememberLauncherForActivityResult(
@@ -100,24 +101,30 @@ fun LoginScreen(
             scope.launch {
                 try {
                     val account = AuthRepository.handleGoogleSignInIntent(result.data).getResult(Exception::class.java)
-                    when (val authResult = AuthRepository.signInWithGoogle(account.idToken!!)) {
+                    val idToken = account.idToken ?: run {
+                        errorMessage = "Google sign-in failed. Try again."
+                        isGoogleLoading = false
+                        return@launch
+                    }
+                    when (val authResult = AuthRepository.signInWithGoogle(idToken)) {
                         is AuthResult.Success -> {
                             val uid = authResult.user.uid
                             // Bind first — clears prefs if different user on same device
                             userPreferences.bindToUser(uid)
                             // Restore onboarding state from Firestore (handles new device logins)
                             com.example.data.FirestoreSync.restoreOnboardingIfNeeded(uid, userPreferences)
-                            // Validate stored role
+                            // Validate stored role — also check coaches collection for legacy accounts
                             val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
-                            if (storedRole != null && storedRole != selectedRole) {
+                            val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
+                            if (resolvedRole != null && resolvedRole != selectedRole) {
                                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                errorMessage = if (storedRole == "client")
+                                errorMessage = if (resolvedRole == "client")
                                     "This is a Member account. Please select \"I'm a Member\" to sign in."
                                 else
                                     "This is a Coach account. Please select \"I'm a Coach\" to sign in."
                                 isGoogleLoading = false
                             } else {
-                                val role = storedRole ?: selectedRole
+                                val role = resolvedRole ?: selectedRole
                                 userPreferences.userRole = role
                                 if (userPreferences.coachName.isEmpty()) {
                                     userPreferences.coachName = authResult.user.displayName ?: ""
@@ -153,13 +160,19 @@ fun LoginScreen(
             sent = resetSent,
             resetError = resetError,
             onSend = {
-                scope.launch {
-                    try {
-                        AuthRepository.sendPasswordReset(resetEmail)
-                        resetSent = true
-                        resetError = ""
-                    } catch (e: Exception) {
-                        resetError = e.message ?: "Failed to send reset link. Try again."
+                val now = System.currentTimeMillis()
+                if (now - lastResetMillis < 60_000L) {
+                    resetError = "Please wait 60 seconds before requesting another link."
+                } else {
+                    scope.launch {
+                        try {
+                            AuthRepository.sendPasswordReset(resetEmail)
+                            lastResetMillis = now
+                            resetSent = true
+                            resetError = ""
+                        } catch (e: Exception) {
+                            resetError = e.message ?: "Failed to send reset link. Try again."
+                        }
                     }
                 }
             },
@@ -299,18 +312,19 @@ fun LoginScreen(
                                 userPreferences.bindToUser(uid)
                                 com.example.data.FirestoreSync.restoreOnboardingIfNeeded(uid, userPreferences)
                                 val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
-                                if (storedRole != null && storedRole != selectedRole) {
+                                val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
+                                if (resolvedRole != null && resolvedRole != selectedRole) {
                                     com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                    errorMessage = if (storedRole == "client")
+                                    errorMessage = if (resolvedRole == "client")
                                         "This is a Member account. Please select \"I'm a Member\" to sign in."
                                     else
                                         "This is a Coach account. Please select \"I'm a Coach\" to sign in."
                                     isLoading = false
                                 } else {
-                                    val role = storedRole ?: selectedRole
+                                    val role = resolvedRole ?: selectedRole
                                     userPreferences.coachEmail = result.user.email ?: email
                                     userPreferences.userRole = role
-                                    userPreferences.onboardingComplete = storedRole != null
+                                    userPreferences.onboardingComplete = resolvedRole != null
                                     ProfileSync.restoreProfile(uid, role, userPreferences)
                                     isLoading = false
                                     onLoginSuccess()
@@ -366,20 +380,22 @@ fun LoginScreen(
                                 com.example.data.FirestoreSync.restoreOnboardingIfNeeded(uid, userPreferences)
                                 // 3. Validate role — fetch stored role from Firestore
                                 val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
-                                if (storedRole != null && storedRole != selectedRole) {
+                                // Legacy accounts (pre-fix) have no role field — infer from coaches collection
+                                val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
+                                if (resolvedRole != null && resolvedRole != selectedRole) {
                                     // Wrong role selected — sign out and show a clear error
                                     com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                    errorMessage = if (storedRole == "client")
+                                    errorMessage = if (resolvedRole == "client")
                                         "This is a Member account. Please select \"I'm a Member\" to sign in."
                                     else
                                         "This is a Coach account. Please select \"I'm a Coach\" to sign in."
                                     isLoading = false
                                 } else {
-                                    // 3. Role is valid — restore full profile from Firestore
-                                    val role = storedRole ?: selectedRole
+                                    // Role is valid — restore full profile from Firestore
+                                    val role = resolvedRole ?: selectedRole
                                     userPreferences.coachEmail = result.user.email ?: email
                                     userPreferences.userRole = role
-                                    userPreferences.onboardingComplete = storedRole != null
+                                    userPreferences.onboardingComplete = resolvedRole != null
                                     // Pull all profile data (name, specialty, health etc.) from cloud
                                     ProfileSync.restoreProfile(uid, role, userPreferences)
                                     isLoading = false

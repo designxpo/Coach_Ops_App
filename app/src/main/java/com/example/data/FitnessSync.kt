@@ -29,8 +29,13 @@ object FitnessSync {
     }
 
     /** Real-time goals listener — fires immediately and on every change */
-    fun listenGoals(uid: String, onGoals: (List<FitnessGoalEntry>) -> Unit): ListenerRegistration =
-        db.collection("client_fitness").document(uid)
+    fun listenGoals(uid: String, onGoals: (List<FitnessGoalEntry>) -> Unit): ListenerRegistration {
+        val authUid = this.uid
+        if (authUid == null || uid != authUid) {
+            onGoals(emptyList())
+            return db.collection("client_fitness").addSnapshotListener { _, _ -> }
+        }
+        return db.collection("client_fitness").document(authUid)
             .collection("goals")
             .addSnapshotListener { snap, err ->
                 if (err != null) return@addSnapshotListener
@@ -47,6 +52,7 @@ object FitnessSync {
                     )
                 } ?: emptyList())
             }
+    }
 
     suspend fun deleteGoal(exerciseId: String) {
         val u = uid ?: return
@@ -84,8 +90,13 @@ object FitnessSync {
     }
 
     /** Real-time logs listener — fires immediately and on every change */
-    fun listenLogs(uid: String, onLogs: (List<WorkoutLogEntry>) -> Unit): ListenerRegistration =
-        db.collection("client_fitness").document(uid)
+    fun listenLogs(uid: String, onLogs: (List<WorkoutLogEntry>) -> Unit): ListenerRegistration {
+        val authUid = this.uid
+        if (authUid == null || uid != authUid) {
+            onLogs(emptyList())
+            return db.collection("client_fitness").addSnapshotListener { _, _ -> }
+        }
+        return db.collection("client_fitness").document(authUid)
             .collection("logs")
             .orderBy("dateMillis", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->

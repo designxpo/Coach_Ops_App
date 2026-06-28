@@ -90,14 +90,14 @@ class UserPreferences private constructor(private val context: Context) {
 
     // ─── Subscription ─────────────────────────────────────────────────────────
     var subscriptionPlan: String
-        get() = prefs.getString("subscription_plan", SubscriptionPlan.PRO.name) ?: SubscriptionPlan.PRO.name
+        get() = prefs.getString("subscription_plan", SubscriptionPlan.STARTER.name) ?: SubscriptionPlan.STARTER.name
         set(value) { prefs.edit().putString("subscription_plan", value).apply() }
 
     val currentPlan: SubscriptionPlan
-        get() = SubscriptionPlan.entries.find { it.name == subscriptionPlan } ?: SubscriptionPlan.PRO
+        get() = SubscriptionPlan.entries.find { it.name == subscriptionPlan } ?: SubscriptionPlan.STARTER
 
     var adminPin: String
-        get() = prefs.getString("admin_pin", "0000") ?: "0000"
+        get() = prefs.getString("admin_pin", "") ?: ""
         set(value) { prefs.edit().putString("admin_pin", value).apply() }
 
     var planPriceStarter: Int

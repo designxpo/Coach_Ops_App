@@ -128,7 +128,7 @@ fun CoachBookingsScreen(viewModel: MainViewModel) {
                         booking   = booking,
                         readOnly  = true,
                         onCancel  = { viewModel.viewModelScope.launch {
-                            viewModel.cancelBooking(booking.id, booking.sessionDateMillis)
+                            viewModel.cancelBooking(booking.id)
                         }}
                     )
                 }

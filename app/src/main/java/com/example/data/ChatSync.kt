@@ -50,13 +50,15 @@ object ChatSync {
         text: String,
         type: String = "text"
     ) {
+        // Always use authenticated UID as senderId — caller-supplied value is ignored to prevent spoofing
+        val authenticatedSenderId = uid ?: throw Exception("Not authenticated")
         val now   = System.currentTimeMillis()
         val msgId = now.toString()
         db.collection("chats").document(chatId)
             .collection("messages").document(msgId)
             .set(mapOf(
                 "id"         to msgId,
-                "senderId"   to senderId,
+                "senderId"   to authenticatedSenderId,
                 "senderName" to senderName,
                 "text"       to text,
                 "timestamp"  to now,
@@ -68,7 +70,7 @@ object ChatSync {
         // and increment their unread counter using atomic increment
         val parts    = chatId.split("_")
         val coachId  = parts.getOrElse(0) { "" }
-        val isCoachSending = senderId == coachId
+        val isCoachSending = authenticatedSenderId == coachId
         val unreadField = if (isCoachSending) "unreadMember" else "unreadCoach"
 
         db.collection("chats").document(chatId).set(

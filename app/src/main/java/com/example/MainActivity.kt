@@ -47,9 +47,10 @@ class MainActivity : ComponentActivity() {
     // FirebaseMessaging.token resolves before Firebase Auth restores the session.
     private fun registerFcmToken() {
         FirebaseAuth.getInstance().addAuthStateListener { auth ->
-            val uid = auth.currentUser?.uid ?: return@addAuthStateListener
-            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-                FirestoreSync.saveFcmToken(uid, token)
+            if (auth.currentUser != null) {
+                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                    FirestoreSync.saveFcmToken(token)
+                }
             }
         }
     }

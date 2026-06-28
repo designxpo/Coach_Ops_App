@@ -254,9 +254,9 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         }
     }
 
-    suspend fun cancelBooking(bookingId: String, sessionDateMillis: Long): Boolean {
+    suspend fun cancelBooking(bookingId: String): Boolean {
         val name = userPreferences.clientName.ifEmpty { "Member" }
-        val result = FirestoreSync.cancelBooking(bookingId, sessionDateMillis, name)
+        val result = FirestoreSync.cancelBooking(bookingId, name)
         if (result) loadMyBookings()
         return result
     }
@@ -290,7 +290,7 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     fun rateCoach(bookingId: String, coachId: String, rating: Float, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
-                FirestoreSync.rateBooking(bookingId, coachId, rating)
+                FirestoreSync.rateBooking(bookingId, rating)
                 loadMyBookings()
                 onResult(true)
             } catch (_: Exception) {

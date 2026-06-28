@@ -22,7 +22,7 @@ object NutritionixService {
         withContext(Dispatchers.IO) {
             if (query.length < 2) return@withContext emptyList()
             try {
-                val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+                val encoded = URLEncoder.encode(query.trim().take(200), "UTF-8")
                 val json = JSONObject(httpGet("$BASE/search/instant?query=$encoded"))
                 val results = mutableListOf<FoodSuggestion>()
 
@@ -52,7 +52,7 @@ object NutritionixService {
     suspend fun getNutrition(query: String): Result<FoodNutrition> =
         withContext(Dispatchers.IO) {
             try {
-                val body = JSONObject().put("query", query).toString()
+                val body = JSONObject().put("query", query.take(200)).toString()
                 val url  = "$BASE/natural/nutrients"
                 val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"

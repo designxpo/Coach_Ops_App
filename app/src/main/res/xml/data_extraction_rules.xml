@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Exclude sensitive user data and credentials from cloud backup -->
-        <exclude domain="sharedpref" path="user_prefs.xml" />
+        <!-- Exclude ALL SharedPreferences and all internal/external files from cloud backup -->
+        <exclude domain="sharedpref" path="." />
         <exclude domain="database" path="coachops.db" />
         <exclude domain="file" path="." />
         <exclude domain="external" path="." />
     </cloud-backup>
     <device-transfer>
-        <!-- Exclude sensitive data from device-to-device transfers -->
-        <exclude domain="sharedpref" path="user_prefs.xml" />
+        <!-- Mirror cloud-backup exclusions — also blocks Quick Share / device migration transfer -->
+        <exclude domain="sharedpref" path="." />
         <exclude domain="database" path="coachops.db" />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
     </device-transfer>
 </data-extraction-rules>

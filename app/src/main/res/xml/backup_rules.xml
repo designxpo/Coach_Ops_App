@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Exclude sensitive credentials and tokens from cloud backup -->
-    <exclude domain="sharedpref" path="user_prefs.xml" />
+    <!-- Exclude ALL SharedPreferences (actual files: global_session.xml, user_prefs_<uid>.xml,
+         user_prefs_anonymous.xml, feature_flags.xml). Path "." excludes the whole domain. -->
+    <exclude domain="sharedpref" path="." />
     <exclude domain="database" path="coachops.db" />
     <exclude domain="file" path="." />
     <exclude domain="external" path="." />
