@@ -407,16 +407,26 @@
       </div>
     </section>
 
-    <!-- ====================== CTA ====================== -->
+    <!-- ====================== EARLY ACCESS ====================== -->
     <section class="section anchor" id="contact">
       <div class="cta glass reveal">
         <div class="cta__glow" aria-hidden="true"></div>
-        <h2>Start with ProCoach India today.</h2>
-        <p>Whether you're building a coaching business or building yourself — there's a side here for you. Free to start, no card required.</p>
-        <form class="cta__form" onsubmit="return false;">
-          <input type="email" placeholder="you@email.com" aria-label="Email address" required />
-          <button class="btn btn--lime btn--lg" type="submit">Get early access</button>
+        <h2>Get early access.</h2>
+        <p>Be the first to know when we launch new features. Free to start, no card required.</p>
+
+        <form class="cta__form cta__form--full" id="early-access-form" novalidate>
+          <div class="ea-fields">
+            <input type="text"  id="ea-name"  placeholder="Your name"       aria-label="Full name"      required />
+            <input type="email" id="ea-email" placeholder="you@email.com"   aria-label="Email address"  required />
+            <div class="ea-role-wrap" role="group" aria-label="I am a">
+              <label class="ea-role"><input type="radio" name="ea-role" value="coach"  required /> Coach</label>
+              <label class="ea-role"><input type="radio" name="ea-role" value="member"            /> Member</label>
+            </div>
+          </div>
+          <button class="btn btn--lime btn--lg" type="submit" id="ea-submit">Request early access</button>
+          <div class="ea-status" id="ea-status" aria-live="polite" hidden></div>
         </form>
+
         <span class="cta__fine">★★★★★ trusted by 2,400+ coaches &amp; members · cancel anytime</span>
       </div>
     </section>
@@ -465,6 +475,7 @@
     </div>
   </footer>
 
-  <script src="script.js"></script>
+  <!-- Firebase SDK (needed only for early access form) -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>

@@ -1,4 +1,18 @@
 // CoachOps marketing site — interactions
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, addDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyDoL0oCduhmf3G6T10sdCCuU2NIV7g1_E8",
+  authDomain:        "coachops-27a73.firebaseapp.com",
+  projectId:         "coachops-27a73",
+  storageBucket:     "coachops-27a73.firebasestorage.app",
+  messagingSenderId: "566108244280",
+  appId:             "1:566108244280:web:f9c48c0c548522846899cd",
+};
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
 (function () {
   'use strict';
 
@@ -65,16 +79,50 @@
     });
   }
 
-  // --- CTA form (demo only) ---
-  document.querySelectorAll('form').forEach((form) => {
-    form.addEventListener('submit', (e) => {
+  // --- Early access form ---
+  const eaForm   = document.getElementById('early-access-form');
+  const eaStatus = document.getElementById('ea-status');
+  const eaSubmit = document.getElementById('ea-submit');
+
+  if (eaForm) {
+    eaForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = form.querySelector('button');
-      if (!btn) return;
-      const original = btn.textContent;
-      btn.textContent = '✓ You’re on the list!';
-      btn.disabled = true;
-      setTimeout(() => { btn.textContent = original; btn.disabled = false; form.reset(); }, 2600);
+
+      const name  = document.getElementById('ea-name').value.trim();
+      const email = document.getElementById('ea-email').value.trim();
+      const role  = eaForm.querySelector('input[name="ea-role"]:checked')?.value ?? '';
+
+      if (!name || !email || !role) {
+        showStatus('Please fill in all fields and pick a role.', 'error');
+        return;
+      }
+
+      eaSubmit.disabled = true;
+      eaSubmit.textContent = 'Sending…';
+
+      try {
+        await addDoc(collection(db, 'early_access'), {
+          name,
+          email: email.toLowerCase(),
+          role,
+          signedUpAt: Date.now(),
+          source: 'website',
+        });
+        showStatus("You're on the list! We'll be in touch soon.", 'success');
+        eaForm.reset();
+        eaSubmit.textContent = '✓ Done';
+      } catch (err) {
+        console.error('early_access write failed', err);
+        showStatus('Something went wrong — please try again.', 'error');
+        eaSubmit.disabled = false;
+        eaSubmit.textContent = 'Request early access';
+      }
     });
-  });
+  }
+
+  function showStatus(msg, type) {
+    eaStatus.textContent = msg;
+    eaStatus.hidden = false;
+    eaStatus.className = 'ea-status ea-status--' + type;
+  }
 })();

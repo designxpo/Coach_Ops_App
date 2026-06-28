@@ -103,6 +103,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Early access sign-ups — public create (unauthenticated website visitors), admin read/delete
+    match /early_access/{docId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'email', 'role', 'signedUpAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.email is string && request.resource.data.email.size() <= 200
+        && request.resource.data.role in ['coach', 'member'];
+      allow read, delete: if isAdmin();
+    }
+
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

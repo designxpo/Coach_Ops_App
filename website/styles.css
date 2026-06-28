@@ -296,6 +296,16 @@ section{position:relative}
 .cta__form input::placeholder{color:var(--muted-2)}
 .cta__form input:focus{outline:none;border-color:var(--lime);box-shadow:0 0 0 3px rgba(185,245,1,.2)}
 .cta__fine{color:var(--muted-2);font-size:.85rem}
+.cta__form--full{max-width:560px;flex-direction:column;align-items:stretch}
+.ea-fields{display:flex;flex-direction:column;gap:10px}
+.ea-fields input{flex:unset;min-width:unset;width:100%;border-radius:16px}
+.ea-role-wrap{display:flex;gap:12px;justify-content:center}
+.ea-role{display:flex;align-items:center;gap:8px;padding:12px 28px;border-radius:999px;border:1px solid var(--glass-border);background:rgba(255,255,255,.05);color:var(--muted);font-size:.95rem;cursor:pointer;transition:border-color .2s,background .2s,color .2s}
+.ea-role:has(input:checked){border-color:var(--lime);background:rgba(185,245,1,.1);color:var(--ink)}
+.ea-role input{position:absolute;opacity:0;pointer-events:none}
+.ea-status{font-size:.9rem;margin-top:8px;padding:10px 16px;border-radius:12px;text-align:center}
+.ea-status--success{background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)}
+.ea-status--error{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.25)}
 
 /* ===================== FOOTER ===================== */
 .footer{border-top:1px solid rgba(255,255,255,.07);margin-top:40px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.015))}
