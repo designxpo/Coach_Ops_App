@@ -1,7 +1,6 @@
 package com.example.data
 
 import android.content.Context
-import androidx.room.Room
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -234,17 +233,11 @@ class CoachRepository(private val coachDao: CoachDao) {
     companion object {
         @Volatile private var INSTANCE: CoachRepository? = null
 
-        fun getInstance(context: Context): CoachRepository {
-            return INSTANCE ?: synchronized(this) {
-                val db = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "coachops_db"
-                )
-                .fallbackToDestructiveMigration(true)
-                .build()
-                CoachRepository(db.coachDao()).also { INSTANCE = it }
+        fun getInstance(context: Context): CoachRepository =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: CoachRepository(
+                    AppDatabase.getInstance(context).coachDao()
+                ).also { INSTANCE = it }
             }
-        }
     }
 }

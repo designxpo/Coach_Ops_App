@@ -100,6 +100,44 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getString("admin_pin", "") ?: ""
         set(value) { prefs.edit().putString("admin_pin", value).apply() }
 
+    // ─── Per-day macro goals ──────────────────────────────────────────────────
+    var trainingDayCalories: Int
+        get() = prefs.getInt("macro_training_calories", 2200)
+        set(v) { prefs.edit().putInt("macro_training_calories", v).apply() }
+
+    var trainingDayProteinG: Int
+        get() = prefs.getInt("macro_training_protein", 150)
+        set(v) { prefs.edit().putInt("macro_training_protein", v).apply() }
+
+    var trainingDayCarbsG: Int
+        get() = prefs.getInt("macro_training_carbs", 250)
+        set(v) { prefs.edit().putInt("macro_training_carbs", v).apply() }
+
+    var trainingDayFatG: Int
+        get() = prefs.getInt("macro_training_fat", 70)
+        set(v) { prefs.edit().putInt("macro_training_fat", v).apply() }
+
+    var restDayCalories: Int
+        get() = prefs.getInt("macro_rest_calories", 1800)
+        set(v) { prefs.edit().putInt("macro_rest_calories", v).apply() }
+
+    var restDayProteinG: Int
+        get() = prefs.getInt("macro_rest_protein", 130)
+        set(v) { prefs.edit().putInt("macro_rest_protein", v).apply() }
+
+    var restDayCarbsG: Int
+        get() = prefs.getInt("macro_rest_carbs", 180)
+        set(v) { prefs.edit().putInt("macro_rest_carbs", v).apply() }
+
+    var restDayFatG: Int
+        get() = prefs.getInt("macro_rest_fat", 60)
+        set(v) { prefs.edit().putInt("macro_rest_fat", v).apply() }
+
+    // ─── Water goal ───────────────────────────────────────────────────────────
+    var dailyWaterGoalMl: Int
+        get() = prefs.getInt("water_goal_ml", 2500)
+        set(v) { prefs.edit().putInt("water_goal_ml", v).apply() }
+
     var planPriceStarter: Int
         get() = prefs.getInt("plan_price_starter", 0)
         set(v) { prefs.edit().putInt("plan_price_starter", v).apply() }

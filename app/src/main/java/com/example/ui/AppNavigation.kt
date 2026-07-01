@@ -66,10 +66,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.data.AppControlState
+import com.example.data.AppDatabase
 import com.example.data.AuthRepository
 import com.example.data.CoachRepository
 import com.example.data.FeatureFlagManager
 import com.example.data.UserPreferences
+import com.example.data.WeeklyMealPlan
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -525,6 +527,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
     val context = LocalContext.current
     val navController = rememberNavController()
     val clientItems = listOf(ClientScreen.Discover, ClientScreen.Fitness, ClientScreen.MyBookings, ClientScreen.Messages, ClientScreen.Profile)
+    var sharedMealPlan by remember { mutableStateOf<WeeklyMealPlan?>(null) }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute != null
@@ -576,10 +579,14 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onProgressClick      = { navController.navigate("fitness_progress") },
                     onHealthMetricsClick = { navController.navigate("health_metrics") },
                     onMyDietClick        = { navController.navigate("my_diet") },
-                    onFoodScanClick      = { },
+                    onFoodScanClick         = { navController.navigate("food_scanner") },
                     onBodyMeasurementsClick = { navController.navigate("body_measurements") },
                     onProgressPhotosClick   = { navController.navigate("progress_photos") },
-                    onCycleTrackerClick     = { navController.navigate("cycle_tracker") }
+                    onCycleTrackerClick     = { navController.navigate("cycle_tracker") },
+                    onWaterTrackerClick     = { navController.navigate("water_tracker") },
+                    onNutritionCoachClick   = { navController.navigate("nutrition_coach") },
+                    onMealPlannerClick      = { navController.navigate("meal_planner") },
+                    onHealthConnectClick    = { navController.navigate("health_connect") }
                 )
             }
             composable("health_metrics") {
@@ -674,6 +681,42 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     factory = HealthViewModelFactory(userPreferences, context)
                 )
                 CycleTrackerScreen(viewModel = healthViewModel, onBack = { navController.popBackStack() })
+            }
+            composable("food_scanner") {
+                FoodScannerScreen(onBack = { navController.popBackStack() })
+            }
+            composable("water_tracker") {
+                val db = remember { AppDatabase.getInstance(context) }
+                WaterTrackerScreen(
+                    onBack            = { navController.popBackStack() },
+                    userPreferences   = userPreferences,
+                    db                = db
+                )
+            }
+            composable("nutrition_coach") {
+                NutritionCoachScreen(
+                    onBack          = { navController.popBackStack() },
+                    userPreferences = userPreferences
+                )
+            }
+            composable("meal_planner") {
+                MealPlannerScreen(
+                    onBack            = { navController.popBackStack() },
+                    userPreferences   = userPreferences,
+                    onViewGroceryList = { plan ->
+                        sharedMealPlan = plan
+                        navController.navigate("grocery_list")
+                    }
+                )
+            }
+            composable("grocery_list") {
+                val plan = sharedMealPlan
+                if (plan != null) {
+                    GroceryListScreen(onBack = { navController.popBackStack() }, plan = plan)
+                }
+            }
+            composable("health_connect") {
+                HealthConnectScreen(onBack = { navController.popBackStack() }, context = context)
             }
             composable(ClientScreen.MyBookings.route) {
                 ClientDashboardScreen(viewModel = viewModel)

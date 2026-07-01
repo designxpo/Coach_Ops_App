@@ -106,7 +106,11 @@ fun FitnessHubScreen(
     onFoodScanClick: () -> Unit = {},
     onBodyMeasurementsClick: () -> Unit = {},
     onProgressPhotosClick: () -> Unit = {},
-    onCycleTrackerClick: () -> Unit = {}
+    onCycleTrackerClick: () -> Unit = {},
+    onWaterTrackerClick: () -> Unit = {},
+    onNutritionCoachClick: () -> Unit = {},
+    onMealPlannerClick: () -> Unit = {},
+    onHealthConnectClick: () -> Unit = {}
 ) {
     val logs  by viewModel.logs.collectAsState()
     val goals by viewModel.goals.collectAsState()
@@ -796,6 +800,69 @@ fun FitnessHubScreen(
                         modifier = Modifier.weight(1f),
                         onClick  = onHealthMetricsClick
                     )
+                }
+                // ── Wellness & Nutrition Tools ─────────────────────────────────
+                androidx.compose.material3.Text(
+                    "Wellness Tools", fontSize = 13.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                    color = com.example.ui.theme.CyberTextMuted,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=300&h=180&fit=crop",
+                        title    = "Food Scanner",
+                        subtitle = "AI · Barcode · Voice",
+                        color    = Color(0xFF065F46),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onFoodScanClick
+                    )
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=300&h=180&fit=crop",
+                        title    = "Water Tracker",
+                        subtitle = "Daily hydration",
+                        color    = Color(0xFF0C4A6E),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onWaterTrackerClick
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=300&h=180&fit=crop",
+                        title    = "AI Coach",
+                        subtitle = "Nutrition · Advice",
+                        color    = Color(0xFF1E1B4B),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onNutritionCoachClick
+                    )
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=300&h=180&fit=crop",
+                        title    = "Meal Planner",
+                        subtitle = "7-day Indian plan",
+                        color    = Color(0xFF451A03),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onMealPlannerClick
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&h=180&fit=crop",
+                        title    = "Health Connect",
+                        subtitle = "Steps · Calories · Workouts",
+                        color    = Color(0xFF0F172A),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onHealthConnectClick
+                    )
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }

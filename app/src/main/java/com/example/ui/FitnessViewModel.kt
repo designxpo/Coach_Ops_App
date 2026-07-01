@@ -139,9 +139,8 @@ class FitnessViewModel(private val userPreferences: UserPreferences) : ViewModel
             goalsListener = FitnessSync.listenGoals(uid) { _goals.value = it }
             logsListener  = FitnessSync.listenLogs(uid)  { _logs.value = it }
             healthRecordsListener = HealthSync.listenMyRecords(uid) { _healthRecords.value = it }
-            myDietPlansListener = FirestoreSync.listenMyDietPlans(uid) { plans ->
+            myDietPlansListener = FirestoreSync.listenMyDietPlans { plans ->
                 _myDietPlans.value = plans
-                // Auto-load logs for the first active plan
                 plans.firstOrNull()?.let { loadMyDietLogs(it.id) }
             }
         }

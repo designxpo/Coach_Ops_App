@@ -129,4 +129,5 @@ object FitnessSync {
                     )
                 } ?: emptyList())
             }
+    }
 }
