@@ -82,6 +82,7 @@ dependencies {
   implementation(libs.androidx.camera.lifecycle)
   implementation(libs.androidx.camera.view)
   implementation("com.google.mlkit:barcode-scanning:17.3.0")
+  implementation("com.google.mlkit:image-labeling:17.0.9")
   implementation("androidx.health.connect:connect-client:1.1.0-rc01")
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)

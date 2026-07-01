@@ -64,8 +64,10 @@ import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.example.data.BarcodeScanner
 import com.example.data.FoodNutrition
-import com.example.data.GeminiNutrition
-import com.example.data.NutritionixService
+import com.example.data.LocalFoodParser
+import com.example.data.MlKitFoodScanner
+import com.example.data.OpenFoodFactsService
+import com.example.data.UsdaFoodService
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -108,50 +110,67 @@ fun FoodScannerScreen(onBack: () -> Unit) {
     }
 
     // ── Analyze helpers ────────────────────────────────────────────────────────
+
+    // AI Scan — ML Kit on-device image labeling, no API key needed
     fun analyzeAI(bmp: Bitmap) {
         scope.launch {
             isAnalyzing = true; resetResult()
-            val result = GeminiNutrition.analyze(bmp)
+            val result = MlKitFoodScanner.analyze(bmp)
             isAnalyzing = false
             result.fold(
                 onSuccess = { nutrition = it },
                 onFailure = { e ->
-                    errorMsg = e.message?.takeIf { it.length < 200 && !it.contains("http") }
-                        ?: "Analysis failed. Check internet and try again."
+                    errorMsg = e.message?.take(200)
+                        ?: "Could not identify food. Try a clearer photo or use Voice mode."
                 }
             )
         }
     }
 
+    // Barcode — Open Food Facts first (free, no key), USDA branded foods as fallback
     fun analyzeBarcode(bmp: Bitmap) {
         scope.launch {
             isAnalyzing = true; resetResult()
             val barcode = BarcodeScanner.scan(bmp)
             if (barcode == null) {
                 isAnalyzing = false
-                errorMsg = "No barcode detected. Point camera at a product barcode or switch to AI Scan mode."
+                errorMsg = "No barcode detected. Point camera directly at the barcode or switch to AI Scan."
                 return@launch
             }
-            val result = NutritionixService.getNutrition(barcode)
+            val offResult = OpenFoodFactsService.lookup(barcode)
+            if (offResult.isSuccess) {
+                isAnalyzing = false
+                nutrition = offResult.getOrNull()
+                return@launch
+            }
+            // Open Food Facts missed — try USDA Branded Foods
+            val usdaResult = UsdaFoodService.lookupBarcode(barcode)
             isAnalyzing = false
-            result.fold(
+            usdaResult.fold(
                 onSuccess = { nutrition = it },
                 onFailure = { e ->
-                    errorMsg = e.message?.takeIf { it.length < 200 } ?: "Product not found in database."
+                    errorMsg = e.message?.take(200) ?: "Product not found. Try AI Scan or Voice mode."
                 }
             )
         }
     }
 
+    // Voice — local DB instant + offline, USDA fallback for unknown foods
     fun analyzeVoice(query: String) {
+        val localResult = LocalFoodParser.parse(query)
+        if (localResult.isSuccess) {
+            nutrition = localResult.getOrNull()
+            return
+        }
         scope.launch {
             isAnalyzing = true; resetResult()
-            val result = NutritionixService.getNutrition(query)
+            val usdaResult = UsdaFoodService.search(query)
             isAnalyzing = false
-            result.fold(
+            usdaResult.fold(
                 onSuccess = { nutrition = it },
                 onFailure = { e ->
-                    errorMsg = e.message?.takeIf { it.length < 200 } ?: "Food not found. Try saying it differently."
+                    errorMsg = e.message?.take(200)
+                        ?: "Food not recognised. Try: \"2 rotis\", \"a bowl of dal\", \"200g chicken\""
                 }
             )
         }
@@ -198,9 +217,10 @@ fun FoodScannerScreen(onBack: () -> Unit) {
     ) { result ->
         val text = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         if (!text.isNullOrBlank()) {
-            voiceQuery = text
-            imageUri   = null
+            voiceQuery  = text
+            imageUri    = null
             imageBitmap = null
+            resetResult()
             analyzeVoice(text)
         }
     }
@@ -387,7 +407,7 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White
                                     )
                                     Text(
-                                        if (mode == ScanMode.BARCODE) "Looking up product…" else "Powered by Gemini AI",
+                                        if (mode == ScanMode.BARCODE) "Open Food Facts + USDA" else "ML Kit · on-device",
                                         fontSize = 11.sp, color = Color.White.copy(0.6f)
                                     )
                                 }
