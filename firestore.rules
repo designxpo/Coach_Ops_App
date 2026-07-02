@@ -52,6 +52,16 @@ service cloud.firestore {
       match /gym_checkins/{checkinId}     { allow read, write: if request.auth.uid == coachId; }
     }
 
+    // Phone → account directory — members publish their own phone so gym
+    // owners/coaches adding them by number link to ONE identity (no duplicates)
+    match /user_phone_index/{phone} {
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null;
+    }
+
     // Gym membership index — owner writes their members' plan status;
     // members read it (matched by phone) for in-app renewal reminders
     match /gym_memberships/{docId} {

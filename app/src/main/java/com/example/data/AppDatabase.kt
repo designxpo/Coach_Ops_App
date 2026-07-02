@@ -21,7 +21,7 @@ import androidx.room.RoomDatabase
         GymPayment::class,
         GymCheckIn::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

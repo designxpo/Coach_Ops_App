@@ -19,8 +19,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.Calendar
 import java.util.UUID
 
@@ -42,9 +44,18 @@ data class PaymentClaim(
     val claimedAt: Long
 )
 
+/** What we know about a phone number the owner is adding as a gym member. */
+data class GymPhoneCheck(
+    val duplicateMember: GymMember? = null,      // already in THIS gym → block
+    val coachClientName: String = "",            // already the owner's PT client → link
+    val appUserUid: String = "",                 // registered ProCoach account → link
+    val appUserName: String = ""
+)
+
 class GymViewModel(
     private val repository: GymRepository,
-    val userPreferences: UserPreferences
+    val userPreferences: UserPreferences,
+    private val coachRepository: com.example.data.CoachRepository? = null
 ) : ViewModel() {
 
     val entitlements: StateFlow<Entitlements> = EntitlementManager.entitlements
@@ -77,8 +88,45 @@ class GymViewModel(
         EntitlementManager.start(userPreferences)
         com.example.data.GymSync.gymName = userPreferences.gymName
         com.example.data.GymSync.gymUpiId = userPreferences.gymUpiId
+        com.example.data.GymSync.gymAddress = userPreferences.gymAddress
         viewModelScope.launch { repository.syncFromFirestoreIfEmpty() }
         startClaimsListener()
+    }
+
+    /**
+     * One person = one identity. Before adding a member, resolve the phone:
+     * duplicate in this gym (block), existing PT client (prefill + link),
+     * or a registered ProCoach account (link → they see the gym in their app).
+     */
+    suspend fun checkPhone(rawPhone: String): GymPhoneCheck {
+        val phone = com.example.data.GymSync.normalizePhone(rawPhone)
+        if (phone.length != 10) return GymPhoneCheck()
+
+        val duplicate = members.value.firstOrNull {
+            com.example.data.GymSync.normalizePhone(it.phone) == phone && it.status != "LEFT"
+        }
+
+        val client = try {
+            coachRepository?.allClients?.first()?.firstOrNull {
+                com.example.data.GymSync.normalizePhone(it.phoneNumber) == phone
+            }
+        } catch (_: Exception) { null }
+
+        var appUid = ""; var appName = ""
+        try {
+            val doc = FirebaseFirestore.getInstance()
+                .collection("user_phone_index").document(phone)
+                .get().await()
+            appUid = doc.getString("uid") ?: ""
+            appName = doc.getString("name") ?: ""
+        } catch (_: Exception) { }
+
+        return GymPhoneCheck(
+            duplicateMember = duplicate,
+            coachClientName = client?.name ?: "",
+            appUserUid = appUid,
+            appUserName = appName
+        )
     }
 
     private fun startClaimsListener() {
@@ -226,7 +274,8 @@ class GymViewModel(
         joinDateMillis: Long = System.currentTimeMillis(),
         collectPayment: Boolean = false,
         amountInr: Int = 0,
-        method: String = "UPI"
+        method: String = "UPI",
+        linkedUid: String = ""
     ) {
         viewModelScope.launch {
             val member = GymMember(
@@ -234,6 +283,7 @@ class GymViewModel(
                 name = name.trim(),
                 phone = phone.trim(),
                 gender = gender,
+                linkedUid = linkedUid,
                 joinDateMillis = joinDateMillis,
                 planId = plan?.id ?: "",
                 planName = plan?.name ?: "",
@@ -323,9 +373,10 @@ Thank you for training with us! 💪"""
 
 class GymViewModelFactory(
     private val repository: GymRepository,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val coachRepository: com.example.data.CoachRepository? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        GymViewModel(repository, userPreferences) as T
+        GymViewModel(repository, userPreferences, coachRepository) as T
 }

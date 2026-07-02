@@ -191,6 +191,14 @@ private fun GymMembershipCard(
                 fontSize = 12.sp, color = CyberTextSecondary
             )
         }
+        val detailLine = buildList {
+            if (membership.joinDateMillis > 0L) add("Member since ${dateFmt.format(Date(membership.joinDateMillis))}")
+            if (membership.gymAddress.isNotEmpty()) add(membership.gymAddress)
+        }.joinToString(" · ")
+        if (detailLine.isNotEmpty()) {
+            Spacer(Modifier.height(2.dp))
+            Text(detailLine, fontSize = 11.sp, color = CyberTextMuted)
+        }
 
         // ── Pay from app: UPI straight to the gym's bank ──────────────────────
         when {

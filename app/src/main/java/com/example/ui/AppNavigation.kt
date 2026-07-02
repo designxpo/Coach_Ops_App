@@ -391,7 +391,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val gymContext = LocalContext.current
                     val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                         factory = GymViewModelFactory(
-                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences,
+                            CoachRepository.getInstance(gymContext))
                     )
                     GymDashboardScreen(
                         viewModel = gymVm,
@@ -406,7 +407,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val gymContext = LocalContext.current
                     val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                         factory = GymViewModelFactory(
-                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences,
+                            CoachRepository.getInstance(gymContext))
                     )
                     GymMembersScreen(
                         viewModel = gymVm,
@@ -419,7 +421,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val gymContext = LocalContext.current
                     val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                         factory = GymViewModelFactory(
-                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences,
+                            CoachRepository.getInstance(gymContext))
                     )
                     GymMemberDetailScreen(
                         viewModel = gymVm,
@@ -431,7 +434,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val gymContext = LocalContext.current
                     val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                         factory = GymViewModelFactory(
-                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences,
+                            CoachRepository.getInstance(gymContext))
                     )
                     GymPlansScreen(viewModel = gymVm, onBack = { navController.popBackStack() })
                 }
@@ -439,7 +443,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val gymContext = LocalContext.current
                     val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                         factory = GymViewModelFactory(
-                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences,
+                            CoachRepository.getInstance(gymContext))
                     )
                     GymAttendanceScreen(viewModel = gymVm, onBack = { navController.popBackStack() })
                 }

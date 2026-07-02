@@ -22,7 +22,9 @@ object GymMembershipLookup {
         val phone: String = "",
         val upiId: String = "",
         val renewalAmountInr: Int = 0,
-        val claimStatus: String = ""     // "" none · PENDING · REJECTED
+        val claimStatus: String = "",    // "" none · PENDING · REJECTED
+        val joinDateMillis: Long = 0L,
+        val gymAddress: String = ""
     ) {
         val daysLeft: Int
             get() = if (planEndMillis <= 0L) 0
@@ -34,38 +36,54 @@ object GymMembershipLookup {
 
     private fun claimId(ownerUid: String, phone: String) = "${ownerUid}_$phone"
 
+    /**
+     * Finds memberships for the signed-in user two ways and merges:
+     *  1. by account UID (set when the gym owner added them as a linked app user)
+     *  2. by phone number (fallback for pre-link records)
+     * One person = one identity, even if their phone changes later.
+     */
     suspend fun findByPhone(rawPhone: String): List<Membership> {
-        if (FirebaseAuth.getInstance().currentUser == null) return emptyList()
+        val user = FirebaseAuth.getInstance().currentUser ?: return emptyList()
         val phone = GymSync.normalizePhone(rawPhone)
-        if (phone.length != 10) return emptyList()
         val db = FirebaseFirestore.getInstance()
         return try {
-            db.collection("gym_memberships")
-                .whereEqualTo("phone", phone)
-                .get().await()
-                .documents.mapNotNull { d ->
-                    val ownerUid = d.getString("ownerUid") ?: return@mapNotNull null
-                    // Any pending "I've paid" claim for this membership?
-                    val claimStatus = try {
-                        db.collection("gym_payment_claims")
-                            .document(claimId(ownerUid, phone))
-                            .get().await()
-                            .getString("status") ?: ""
-                    } catch (_: Exception) { "" }
-                    Membership(
-                        gymName = d.getString("gymName")?.ifEmpty { "Your Gym" } ?: "Your Gym",
-                        memberName = d.getString("memberName") ?: "",
-                        planName = d.getString("planName") ?: "",
-                        planEndMillis = d.getLong("planEndMillis") ?: 0L,
-                        status = d.getString("status") ?: "ACTIVE",
-                        ownerUid = ownerUid,
-                        phone = phone,
-                        upiId = d.getString("upiId") ?: "",
-                        renewalAmountInr = (d.getLong("renewalAmountInr") ?: 0L).toInt(),
-                        claimStatus = claimStatus
-                    )
-                }
-                .filter { it.status != "LEFT" }
+            val docs = mutableMapOf<String, com.google.firebase.firestore.DocumentSnapshot>()
+            try {
+                db.collection("gym_memberships").whereEqualTo("memberUid", user.uid)
+                    .get().await().documents.forEach { docs[it.id] = it }
+            } catch (_: Exception) { }
+            if (phone.length == 10) {
+                try {
+                    db.collection("gym_memberships").whereEqualTo("phone", phone)
+                        .get().await().documents.forEach { docs.putIfAbsent(it.id, it) }
+                } catch (_: Exception) { }
+            }
+
+            docs.values.mapNotNull { d ->
+                val ownerUid = d.getString("ownerUid") ?: return@mapNotNull null
+                val docPhone = d.getString("phone") ?: phone
+                // Any pending "I've paid" claim for this membership?
+                val claimStatus = try {
+                    db.collection("gym_payment_claims")
+                        .document(claimId(ownerUid, docPhone))
+                        .get().await()
+                        .getString("status") ?: ""
+                } catch (_: Exception) { "" }
+                Membership(
+                    gymName = d.getString("gymName")?.ifEmpty { "Your Gym" } ?: "Your Gym",
+                    memberName = d.getString("memberName") ?: "",
+                    planName = d.getString("planName") ?: "",
+                    planEndMillis = d.getLong("planEndMillis") ?: 0L,
+                    status = d.getString("status") ?: "ACTIVE",
+                    ownerUid = ownerUid,
+                    phone = docPhone,
+                    upiId = d.getString("upiId") ?: "",
+                    renewalAmountInr = (d.getLong("renewalAmountInr") ?: 0L).toInt(),
+                    claimStatus = claimStatus,
+                    joinDateMillis = d.getLong("joinDateMillis") ?: 0L,
+                    gymAddress = d.getString("gymAddress") ?: ""
+                )
+            }.filter { it.status != "LEFT" }
         } catch (_: Exception) {
             emptyList()
         }

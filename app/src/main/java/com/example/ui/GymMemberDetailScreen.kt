@@ -140,7 +140,7 @@ fun GymMemberDetailScreen(
             plans = plans,
             existing = m,
             onDismiss = { showEditSheet = false },
-            onSave = { name, phone, gender, _, notes, _, _, _, _ ->
+            onSave = { name, phone, gender, _, notes, _, _, _, _, _ ->
                 viewModel.updateMember(m.copy(name = name, phone = phone, gender = gender, notes = notes))
                 showEditSheet = false
             }

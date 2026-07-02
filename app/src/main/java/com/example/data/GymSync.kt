@@ -22,6 +22,7 @@ object GymSync {
     /** Set by GymViewModel so the membership index can carry the gym's identity. */
     var gymName: String = ""
     var gymUpiId: String = ""
+    var gymAddress: String = ""
 
     fun normalizePhone(raw: String): String = raw.filter { it.isDigit() }.takeLast(10)
 
@@ -34,7 +35,7 @@ object GymSync {
             "planId" to m.planId, "planName" to m.planName,
             "planPriceInr" to m.planPriceInr,
             "planStartMillis" to m.planStartMillis, "planEndMillis" to m.planEndMillis,
-            "status" to m.status, "notes" to m.notes
+            "status" to m.status, "notes" to m.notes, "linkedUid" to m.linkedUid
         ))
         upsertMembershipIndex(m)
     }
@@ -59,12 +60,15 @@ object GymSync {
         db.collection("gym_memberships").document("${u}_$p").set(mapOf(
             "ownerUid" to u,
             "phone" to p,
+            "memberUid" to m.linkedUid,
             "gymName" to gymName,
+            "gymAddress" to gymAddress,
             "upiId" to gymUpiId,
             "memberName" to m.name,
             "planName" to m.planName,
             "renewalAmountInr" to m.planPriceInr,
             "planEndMillis" to m.planEndMillis,
+            "joinDateMillis" to m.joinDateMillis,
             "status" to m.status,
             "updatedAt" to System.currentTimeMillis()
         ))
@@ -131,7 +135,8 @@ object GymSync {
                     planStartMillis = d.getLong("planStartMillis") ?: 0L,
                     planEndMillis = d.getLong("planEndMillis") ?: 0L,
                     status = d.getString("status") ?: "ACTIVE",
-                    notes = d.getString("notes") ?: ""
+                    notes = d.getString("notes") ?: "",
+                    linkedUid = d.getString("linkedUid") ?: ""
                 )
             }
             if (members.isNotEmpty()) dao.insertMembers(members)

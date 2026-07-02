@@ -132,15 +132,39 @@ fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onC
         else                    -> "$activeFilter Clients"
     }
 
+    var duplicateClientName by remember { mutableStateOf("") }
     if (showAddSheet) {
         AddClientSheet(
             programs = programs,
             onDismiss = { showAddSheet = false },
             onSave = { name, phone, goal, mrr, paymentCycle, programId, trainingStartDateMillis, trainingEndDateMillis ->
-                viewModel.addClient(name, phone, goal, mrr, programId, paymentCycle,
-                    trainingStartDateMillis = trainingStartDateMillis,
-                    trainingEndDateMillis = trainingEndDateMillis)
+                // One person = one client record — block same-phone duplicates
+                val phoneDigits = phone.filter { it.isDigit() }.takeLast(10)
+                val existing = if (phoneDigits.length == 10) allClients.firstOrNull {
+                    it.phoneNumber.filter { c -> c.isDigit() }.takeLast(10) == phoneDigits
+                } else null
+                if (existing != null) {
+                    duplicateClientName = existing.name
+                } else {
+                    viewModel.addClient(name, phone, goal, mrr, programId, paymentCycle,
+                        trainingStartDateMillis = trainingStartDateMillis,
+                        trainingEndDateMillis = trainingEndDateMillis)
+                }
                 showAddSheet = false
+            }
+        )
+    }
+
+    if (duplicateClientName.isNotEmpty()) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { duplicateClientName = "" },
+            containerColor = CyberBgCardElevated,
+            title = { Text("Already a client", color = CyberTextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("$duplicateClientName already exists with this phone number. Open their profile to make changes instead of creating a duplicate.", color = CyberTextSecondary) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { duplicateClientName = "" }) {
+                    Text("OK", color = CyberAccent, fontWeight = FontWeight.Bold)
+                }
             }
         )
     }

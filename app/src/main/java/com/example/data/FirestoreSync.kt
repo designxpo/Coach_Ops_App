@@ -226,6 +226,24 @@ object FirestoreSync {
             ), com.google.firebase.firestore.SetOptions.merge())
     }
 
+    /**
+     * Phone → account directory (one doc per member, keyed by 10-digit phone).
+     * Lets a gym owner/coach adding someone by phone discover they're already
+     * on ProCoach — so the person is linked to ONE identity instead of
+     * duplicate unlinked records.
+     */
+    fun savePhoneIndex(rawPhone: String, displayName: String) {
+        val u = uid ?: return
+        val phone = rawPhone.filter { it.isDigit() }.takeLast(10)
+        if (phone.length != 10) return
+        db.collection("user_phone_index").document(phone)
+            .set(mapOf(
+                "uid"       to u,
+                "name"      to displayName,
+                "updatedAt" to System.currentTimeMillis()
+            ))
+    }
+
     // ─── Aggregate stats → user_records (read by admin dashboard) ────────────
 
     fun updateAggregates(clientCount: Int, totalMrr: Int, sessionCount: Int) {

@@ -279,6 +279,9 @@ fun RegisterScreen(
                                 userPreferences.coachEmail = result.user.email ?: email.trim()
                                 // coachPhone is the shared phone field; no separate clientPhone field exists in UserPreferences
                                 userPreferences.coachPhone = phone.trim()
+                                if (selectedRole == "client" && phone.isNotBlank()) {
+                                    com.example.data.FirestoreSync.savePhoneIndex(phone.trim(), name.trim())
+                                }
                                 isLoading = false
                                 onRegisterSuccess(true)
                             }

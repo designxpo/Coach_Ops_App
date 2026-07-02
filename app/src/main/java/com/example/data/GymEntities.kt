@@ -22,7 +22,8 @@ data class GymMember(
     val planStartMillis: Long = 0L,
     val planEndMillis: Long = 0L,            // 0 = no active plan
     val status: String = "ACTIVE",           // ACTIVE, EXPIRED, FROZEN, LEFT
-    val notes: String = ""
+    val notes: String = "",
+    val linkedUid: String = ""               // ProCoach account UID when the member is an app user
 ) {
     val daysLeft: Int
         get() = if (planEndMillis <= 0L) 0

@@ -100,8 +100,9 @@ fun GymMembersScreen(
         GymMemberSheet(
             plans = plans,
             onDismiss = { showAddSheet = false },
-            onSave = { name, phone, gender, plan, notes, joinDate, collectPayment, amount, method ->
-                viewModel.addMember(name, phone, gender, plan, notes, joinDate, collectPayment, amount, method)
+            onPhoneCheck = { phone -> viewModel.checkPhone(phone) },
+            onSave = { name, phone, gender, plan, notes, joinDate, collectPayment, amount, method, linkedUid ->
+                viewModel.addMember(name, phone, gender, plan, notes, joinDate, collectPayment, amount, method, linkedUid)
                 showAddSheet = false
             }
         )
@@ -274,14 +275,34 @@ fun GymMemberSheet(
     plans: List<GymPlan>,
     existing: GymMember? = null,
     onDismiss: () -> Unit,
+    onPhoneCheck: (suspend (String) -> GymPhoneCheck)? = null,
     onSave: (name: String, phone: String, gender: String, plan: GymPlan?, notes: String,
-             joinDateMillis: Long, collectPayment: Boolean, amountInr: Int, method: String) -> Unit
+             joinDateMillis: Long, collectPayment: Boolean, amountInr: Int, method: String,
+             linkedUid: String) -> Unit
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var phone by remember { mutableStateOf(existing?.phone ?: "") }
     var gender by remember { mutableStateOf(existing?.gender ?: "") }
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
     var selectedPlan by remember { mutableStateOf<GymPlan?>(null) }
+
+    // One person, one identity — resolve the phone as it's typed
+    var phoneCheck by remember { mutableStateOf(GymPhoneCheck()) }
+    androidx.compose.runtime.LaunchedEffect(phone) {
+        if (existing == null && onPhoneCheck != null && phone.length == 10) {
+            kotlinx.coroutines.delay(350)
+            val check = onPhoneCheck(phone)
+            phoneCheck = check
+            // Prefill the known name so records stay consistent
+            if (name.isBlank()) {
+                val known = check.appUserName.ifEmpty { check.coachClientName }
+                if (known.isNotEmpty()) name = known
+            }
+        } else {
+            phoneCheck = GymPhoneCheck()
+        }
+    }
+    val isDuplicate = phoneCheck.duplicateMember != null
 
     // Joining date — plan validity & fee schedule auto-calculate from this
     var joinDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -330,6 +351,31 @@ fun GymMemberSheet(
                 Spacer(Modifier.height(12.dp))
                 GymTextField(phone, { phone = it.filter { c -> c.isDigit() }.take(10) }, "Phone (WhatsApp)", "10-digit mobile",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+
+                // Identity resolution feedback
+                when {
+                    isDuplicate -> {
+                        Text(
+                            "⚠️ ${phoneCheck.duplicateMember?.name} is already a member with this number",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberDanger,
+                            modifier = Modifier.padding(top = 6.dp), lineHeight = 16.sp
+                        )
+                    }
+                    phoneCheck.appUserUid.isNotEmpty() -> {
+                        Text(
+                            "✓ On ProCoach as \"${phoneCheck.appUserName}\" — this gym will appear in their app automatically",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberSuccess,
+                            modifier = Modifier.padding(top = 6.dp), lineHeight = 16.sp
+                        )
+                    }
+                    phoneCheck.coachClientName.isNotEmpty() -> {
+                        Text(
+                            "✓ Already your PT client (${phoneCheck.coachClientName}) — same person, linked",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberSuccess,
+                            modifier = Modifier.padding(top = 6.dp), lineHeight = 16.sp
+                        )
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
 
                 // Gender chips
@@ -463,14 +509,16 @@ fun GymMemberSheet(
 
                 val payAmount = amountText.toIntOrNull() ?: 0
                 val payValid = !collectPayment || selectedPlan == null || payAmount > 0
+                val canSave = name.isNotBlank() && payValid && !isDuplicate
                 Button(
                     onClick = {
-                        if (name.isNotBlank() && payValid) onSave(
+                        if (canSave) onSave(
                             name, phone, gender, selectedPlan, notes,
-                            joinDateMillis, collectPayment && selectedPlan != null, payAmount, payMethod
+                            joinDateMillis, collectPayment && selectedPlan != null, payAmount, payMethod,
+                            phoneCheck.appUserUid
                         )
                     },
-                    enabled = name.isNotBlank() && payValid,
+                    enabled = canSave,
                     colors = ButtonDefaults.buttonColors(containerColor = CyberAccent, disabledContainerColor = CyberBgCard),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -478,12 +526,13 @@ fun GymMemberSheet(
                     Text(
                         when {
                             existing != null -> "Save Changes"
+                            isDuplicate -> "Already a member"
                             collectPayment && selectedPlan != null && payAmount > 0 ->
                                 "Add Member · Collect ₹${"%,d".format(payAmount)}"
                             else -> "Add Member"
                         },
                         fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                        color = if (name.isNotBlank() && payValid) CyberAccentDark else CyberTextMuted
+                        color = if (canSave) CyberAccentDark else CyberTextMuted
                     )
                 }
             }

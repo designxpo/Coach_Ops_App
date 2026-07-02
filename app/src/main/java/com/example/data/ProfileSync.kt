@@ -57,6 +57,7 @@ object ProfileSync {
                 "uid"                to uid,
                 "displayName"        to prefs.clientName,
                 "email"              to (auth.currentUser?.email ?: ""),
+                "phone"              to prefs.coachPhone,
                 "clientGoal"         to prefs.clientGoal,
                 "clientCity"         to prefs.clientCity,
                 "role"               to "client",
@@ -66,6 +67,8 @@ object ProfileSync {
             ) + healthMap(prefs),
             SetOptions.merge()
         ).await()
+        // Keep the phone → account directory current for gym/coach linking
+        FirestoreSync.savePhoneIndex(prefs.coachPhone, prefs.clientName)
     }
 
     // ─── Health profile snapshot (saved separately so either role can call it) ─
