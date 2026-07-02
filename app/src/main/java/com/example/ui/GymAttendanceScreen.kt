@@ -56,6 +56,15 @@ fun GymAttendanceScreen(viewModel: GymViewModel, onBack: () -> Unit) {
     val members by viewModel.members.collectAsStateWithLifecycle()
     val todayCheckIns by viewModel.todayCheckIns.collectAsStateWithLifecycle()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbarMsg by viewModel.snackbar.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(snackbarMsg) {
+        if (snackbarMsg.isNotEmpty()) {
+            android.widget.Toast.makeText(context, snackbarMsg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearSnackbar()
+        }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     val checkedInIds = todayCheckIns.map { it.memberId }.toSet()
     val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }

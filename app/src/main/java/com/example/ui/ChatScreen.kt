@@ -79,7 +79,7 @@ fun ChatScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(CyberBgPrimary).statusBarsPadding()) {
+    Column(modifier = Modifier.fillMaxSize().background(CyberBgPrimary).statusBarsPadding().imePadding()) {
         // ── Top bar ───────────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth()

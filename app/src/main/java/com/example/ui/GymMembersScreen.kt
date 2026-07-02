@@ -68,6 +68,15 @@ fun GymMembersScreen(
     val members by viewModel.members.collectAsStateWithLifecycle()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbarMsg by viewModel.snackbar.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(snackbarMsg) {
+        if (snackbarMsg.isNotEmpty()) {
+            android.widget.Toast.makeText(context, snackbarMsg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearSnackbar()
+        }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf("All") }
     var showAddSheet by remember { mutableStateOf(false) }

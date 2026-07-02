@@ -166,15 +166,20 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
     val isGymOwner = userPreferences.userRole == "gym_owner"
 
     val navController = rememberNavController()
-    val items = if (isGymOwner || entitlements.gymUnlocked)
-        listOf(Screen.Home, Screen.Gym, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
-    else
-        listOf(Screen.Home, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
+    // Always 5 tabs (Instagram-style) — Gym lives in the Home top bar + quick access
+    val items = listOf(Screen.Home, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
+    val gymAvailable = isGymOwner || entitlements.gymUnlocked
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    // Screens where nav bar should be hidden (fullscreen flows)
-    val hideNavRoutes = setOf("login", "register", "onboarding", "role_picker", "client_onboarding", "client_nav", "splash", "upgrade_plans")
+    // Screens where nav bar should be hidden (fullscreen flows: auth, chat, editors, paywall)
+    val hideNavRoutes = setOf(
+        "login", "register", "onboarding", "role_picker", "client_onboarding", "client_nav", "splash",
+        "upgrade_plans",
+        "coach_chat/{chatId}/{memberName}/{memberPhone}",
+        "coach_chat_new/{memberId}/{memberName}/{memberPhone}",
+        "diet_editor/{clientId}"
+    )
     val showBottomBar = currentRoute != null && currentRoute !in hideNavRoutes
 
     Scaffold(
@@ -349,7 +354,9 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onClientClick   = { clientId -> navController.navigate("client/$clientId") },
                         onChatClick     = { navController.navigate("coach_chat_list") },
                         onLibraryClick  = { navController.navigate(Screen.Library.route) },
-                        chatUnreadCount = totalUnread
+                        chatUnreadCount = totalUnread,
+                        showGym         = gymAvailable,
+                        onGymClick      = { navController.navigate(Screen.Gym.route) }
                     )
                 }
                 composable(Screen.Clients.route) {
@@ -616,7 +623,14 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
     var sharedMealPlan by remember { mutableStateOf<WeeklyMealPlan?>(null) }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomBar = currentRoute != null
+    // Hide bottom nav on fullscreen experiences: camera, chats, AI coach (keyboard-heavy)
+    val hideNavRoutes = setOf(
+        "food_scanner",
+        "nutrition_coach",
+        "member_chat_open/{chatId}/{coachName}",
+        "member_chat_new/{coachId}/{coachName}"
+    )
+    val showBottomBar = currentRoute != null && currentRoute !in hideNavRoutes
 
     Scaffold(
         modifier = Modifier.fillMaxSize().background(CyberBgPrimary),

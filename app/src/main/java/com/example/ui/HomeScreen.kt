@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
@@ -83,7 +84,9 @@ fun HomeScreen(
     onClientClick: (String) -> Unit = {},
     onChatClick: () -> Unit = {},
     onLibraryClick: () -> Unit = {},
-    chatUnreadCount: Int = 0
+    chatUnreadCount: Int = 0,
+    showGym: Boolean = false,
+    onGymClick: () -> Unit = {}
 ) {
     val signals by viewModel.signals.collectAsStateWithLifecycle()
     val clients by viewModel.clients.collectAsStateWithLifecycle()
@@ -177,6 +180,31 @@ fun HomeScreen(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(8.dp).background(CyberSuccess, CircleShape))
+
+                    // Gym Suite entry — lives in the top bar (bottom nav stays 5 tabs)
+                    if (showGym) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable { onGymClick() }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .align(Alignment.Center)
+                                    .clip(CircleShape)
+                                    .background(CyberAccent.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Storefront,
+                                    contentDescription = "My Gym",
+                                    tint = CyberAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
 
                     // Chat icon with unread badge
                     Box(
@@ -351,6 +379,15 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f),
                     onClick = onLibraryClick
                 )
+                if (showGym) {
+                    QuickAccessTile(
+                        icon  = Icons.Filled.Storefront,
+                        label = "My Gym",
+                        tint  = CyberAccent,
+                        modifier = Modifier.weight(1f),
+                        onClick = onGymClick
+                    )
+                }
             }
         }
 

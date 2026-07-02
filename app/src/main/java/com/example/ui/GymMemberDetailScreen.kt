@@ -83,8 +83,45 @@ fun GymMemberDetailScreen(
     var showEditSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    // Action feedback — check-ins, saves, payment confirmations
+    val snackbarMsg by viewModel.snackbar.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(snackbarMsg) {
+        if (snackbarMsg.isNotEmpty()) {
+            android.widget.Toast.makeText(context, snackbarMsg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearSnackbar()
+        }
+    }
+
     val m = member ?: return
     val dateFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    // After a payment is recorded, offer to share the receipt immediately
+    val lastReceipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
+    lastReceipt?.let { receipt ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearLastReceipt() },
+            containerColor = CyberBgCardElevated,
+            title = { Text("Payment recorded ✓", color = CyberSuccess, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "${receipt.receiptNo} · ₹${"%,d".format(receipt.amountInr)} · ${receipt.planName}\n" +
+                    "Membership extended to ${dateFmt.format(Date(receipt.periodEndMillis))}.",
+                    color = CyberTextSecondary, lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    shareReceipt(context, m.phone, viewModel.receiptText(receipt))
+                    viewModel.clearLastReceipt()
+                }) { Text("Share Receipt 💬", color = CyberAccent, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearLastReceipt() }) {
+                    Text("Done", color = CyberTextMuted)
+                }
+            }
+        )
+    }
 
     if (showPaymentSheet) {
         RecordPaymentSheet(
