@@ -44,6 +44,21 @@ service cloud.firestore {
       match /measurements/{measurementId} { allow read, write: if request.auth.uid == coachId; }
       match /notes/{noteId}               { allow read, write: if request.auth.uid == coachId; }
       match /revenue_snapshots/{snapId}   { allow read, write: if request.auth.uid == coachId; }
+
+      // Gym Suite — gym owners manage their gym data under their own tree
+      match /gym_members/{memberId}       { allow read, write: if request.auth.uid == coachId; }
+      match /gym_plans/{planId}           { allow read, write: if request.auth.uid == coachId; }
+      match /gym_payments/{paymentId}     { allow read, write: if request.auth.uid == coachId; }
+      match /gym_checkins/{checkinId}     { allow read, write: if request.auth.uid == coachId; }
+    }
+
+    // Upgrade requests — user creates/updates their own; admin panel processes
+    match /upgrade_requests/{requestId} {
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null
+        && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // Trainer public profiles — any authenticated user reads, only owner writes

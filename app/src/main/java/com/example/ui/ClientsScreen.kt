@@ -78,16 +78,26 @@ enum class SortMode(val label: String, val emoji: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onChatClick: ((memberId: String, memberName: String, memberPhone: String) -> Unit)? = null) {
+fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onChatClick: ((memberId: String, memberName: String, memberPhone: String) -> Unit)? = null, onUpgradeClick: () -> Unit = {}) {
     val allClients by viewModel.clients.collectAsStateWithLifecycle()
     val programs by viewModel.programs.collectAsStateWithLifecycle()
     val payments by viewModel.payments.collectAsStateWithLifecycle()
     val loggedTodayIds by viewModel.clientsLoggedToday.collectAsStateWithLifecycle()
+    val currentPlan by viewModel.currentPlan.collectAsStateWithLifecycle()
+    val remoteConfig by viewModel.remoteConfig.collectAsStateWithLifecycle()
+
+    // Tier-based client limit (admin-tunable via remote config; Business = unlimited)
+    val clientLimit = when (currentPlan) {
+        com.example.data.SubscriptionPlan.STARTER -> remoteConfig.maxClientsStarter
+        com.example.data.SubscriptionPlan.PRO     -> remoteConfig.maxClientsPro
+        com.example.data.SubscriptionPlan.BUSINESS -> Int.MAX_VALUE
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf("All") }
     var sortMode by remember { mutableStateOf(SortMode.CONSISTENCY_LOW) }
     var showAddSheet by remember { mutableStateOf(false) }
+    var showLimitDialog by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
     val filters = listOf("All", "Active", "At Risk", "New", "Paused")
 
@@ -147,6 +157,32 @@ fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onC
         )
     }
 
+    if (showLimitDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showLimitDialog = false },
+            containerColor = CyberBgCardElevated,
+            title = { Text("Client limit reached", color = CyberTextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Your ${currentPlan.displayName} plan includes up to $clientLimit clients. " +
+                    "Upgrade to add more and unlock revenue analytics.",
+                    color = CyberTextSecondary
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showLimitDialog = false
+                    onUpgradeClick()
+                }) { Text("View Plans", color = CyberAccent, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showLimitDialog = false }) {
+                    Text("Not now", color = CyberTextMuted)
+                }
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(CyberBgPrimary),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 16.dp),
@@ -168,7 +204,10 @@ fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onC
                 Text("Members", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberAccent)
-                        .clickable { showAddSheet = true },
+                        .clickable {
+                            if (allClients.size >= clientLimit) showLimitDialog = true
+                            else showAddSheet = true
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "Add Client", tint = CyberAccentDark, modifier = Modifier.size(18.dp))

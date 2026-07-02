@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -87,6 +88,7 @@ sealed class Screen(
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     object Home : Screen("home", "Home", Icons.Filled.Home)
+    object Gym : Screen("gym", "Gym", Icons.Filled.Storefront)
     object Clients : Screen("clients", "Members", Icons.Filled.SupervisorAccount)
     object Programs : Screen("programs", "Programs", Icons.Filled.Checklist)
     object Billing : Screen("billing", "Revenue", Icons.Filled.AttachMoney)
@@ -158,13 +160,21 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
         return
     }
 
+    // Entitlements drive tier-differentiated UI (Gym tab, locked features)
+    LaunchedEffect(Unit) { com.example.data.EntitlementManager.start(userPreferences) }
+    val entitlements by com.example.data.EntitlementManager.entitlements.collectAsState()
+    val isGymOwner = userPreferences.userRole == "gym_owner"
+
     val navController = rememberNavController()
-    val items = listOf(Screen.Home, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
+    val items = if (isGymOwner || entitlements.gymUnlocked)
+        listOf(Screen.Home, Screen.Gym, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
+    else
+        listOf(Screen.Home, Screen.Clients, Screen.Programs, Screen.Billing, Screen.Bookings)
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     // Screens where nav bar should be hidden (fullscreen flows)
-    val hideNavRoutes = setOf("login", "register", "onboarding", "role_picker", "client_onboarding", "client_nav", "splash")
+    val hideNavRoutes = setOf("login", "register", "onboarding", "role_picker", "client_onboarding", "client_nav", "splash", "upgrade_plans")
     val showBottomBar = currentRoute != null && currentRoute !in hideNavRoutes
 
     Scaffold(
@@ -240,6 +250,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                             // Bind to the authenticated UID — wipes prefs if a different user logged in
                             val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
                             userPreferences.bindToUser(uid)
+                            com.example.data.EntitlementManager.start(userPreferences)
                             viewModel.syncFromCloud()
                             val role = userPreferences.userRole
                             val dest = when {
@@ -262,6 +273,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onRegisterSuccess = { isNewUser ->
                             val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
                             userPreferences.bindToUser(uid)
+                            com.example.data.EntitlementManager.start(userPreferences)
                             viewModel.syncFromCloud()
                             val role = userPreferences.userRole
                             val dest = when {
@@ -314,7 +326,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onBack = { navController.popBackStack() },
                         onLogout = {
                             com.example.data.AuthRepository.signOut(profileContext)
-                            viewModel.logout()
+                            viewModel.logout(com.example.data.GymRepository.getInstance(profileContext))
                             navController.navigate("login") {
                                 popUpTo(0) { inclusive = true }
                             }
@@ -322,6 +334,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onPrivacyPolicyClick = { navController.navigate("privacy_policy") },
                         onTermsClick = { navController.navigate("privacy_policy") },
                         onDeleteAccountClick = { /* TODO: show delete account dialog */ },
+                        onManagePlanClick = { navController.navigate("upgrade_plans") },
                     )
                 }
                 composable("privacy_policy") {
@@ -345,7 +358,8 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onClientClick = { clientId -> navController.navigate("client/$clientId") },
                         onChatClick = { memberId, memberName, memberPhone ->
                             navController.navigate("coach_chat_new/$memberId/${Uri.encode(memberName)}/${Uri.encode(memberPhone)}")
-                        }
+                        },
+                        onUpgradeClick = { navController.navigate("upgrade_plans") }
                     )
                 }
                 composable(Screen.Programs.route) {
@@ -360,8 +374,76 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onClientClick = { clientId -> navController.navigate("client/$clientId") }
                     )
                 }
-                composable(Screen.Billing.route) { BillingScreen(viewModel) }
+                composable(Screen.Billing.route) {
+                    BillingScreen(viewModel, onUpgradeClick = { navController.navigate("upgrade_plans") })
+                }
                 composable(Screen.Bookings.route) { CoachBookingsScreen(viewModel) }
+
+                // ─── Gym Suite (gym owners + Business plan) ────────────────────
+                composable(Screen.Gym.route) {
+                    val gymContext = LocalContext.current
+                    val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = GymViewModelFactory(
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                    )
+                    GymDashboardScreen(
+                        viewModel = gymVm,
+                        onMembersClick = { navController.navigate("gym_members") },
+                        onMemberClick = { id -> navController.navigate("gym_member/$id") },
+                        onPlansClick = { navController.navigate("gym_plans") },
+                        onAttendanceClick = { navController.navigate("gym_attendance") },
+                        onUpgradeClick = { navController.navigate("upgrade_plans") }
+                    )
+                }
+                composable("gym_members") {
+                    val gymContext = LocalContext.current
+                    val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = GymViewModelFactory(
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                    )
+                    GymMembersScreen(
+                        viewModel = gymVm,
+                        onBack = { navController.popBackStack() },
+                        onMemberClick = { id -> navController.navigate("gym_member/$id") }
+                    )
+                }
+                composable("gym_member/{memberId}") { backStack ->
+                    val memberId = backStack.arguments?.getString("memberId") ?: return@composable
+                    val gymContext = LocalContext.current
+                    val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = GymViewModelFactory(
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                    )
+                    GymMemberDetailScreen(
+                        viewModel = gymVm,
+                        memberId = memberId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("gym_plans") {
+                    val gymContext = LocalContext.current
+                    val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = GymViewModelFactory(
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                    )
+                    GymPlansScreen(viewModel = gymVm, onBack = { navController.popBackStack() })
+                }
+                composable("gym_attendance") {
+                    val gymContext = LocalContext.current
+                    val gymVm: GymViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = GymViewModelFactory(
+                            com.example.data.GymRepository.getInstance(gymContext), userPreferences)
+                    )
+                    GymAttendanceScreen(viewModel = gymVm, onBack = { navController.popBackStack() })
+                }
+
+                // ─── Plans & pricing ───────────────────────────────────────────
+                composable("upgrade_plans") {
+                    CoachUpgradeScreen(
+                        userPreferences = userPreferences,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("client/{clientId}") { backStack ->
                     val clientId = backStack.arguments?.getString("clientId") ?: return@composable
                     ClientDetailScreen(
@@ -520,7 +602,11 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
     val memberChatVm: ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
         key = "member_chat_global", factory = ChatViewModelFactory(userPreferences)
     )
-    LaunchedEffect(Unit) { memberChatVm.restartListeningThreads() }
+    LaunchedEffect(Unit) {
+        memberChatVm.restartListeningThreads()
+        com.example.data.EntitlementManager.start(userPreferences)
+    }
+    val entitlements by com.example.data.EntitlementManager.entitlements.collectAsState()
     val chatThreads by memberChatVm.threads.collectAsState()
     val memberUnread = chatThreads.sumOf { it.unreadMember }
 
@@ -694,20 +780,36 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 )
             }
             composable("nutrition_coach") {
-                NutritionCoachScreen(
-                    onBack          = { navController.popBackStack() },
-                    userPreferences = userPreferences
-                )
+                if (entitlements.memberPremium) {
+                    NutritionCoachScreen(
+                        onBack          = { navController.popBackStack() },
+                        userPreferences = userPreferences
+                    )
+                } else {
+                    MemberPremiumScreen(
+                        userPreferences = userPreferences,
+                        featureName = "AI Nutrition Coach",
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable("meal_planner") {
-                MealPlannerScreen(
-                    onBack            = { navController.popBackStack() },
-                    userPreferences   = userPreferences,
-                    onViewGroceryList = { plan ->
-                        sharedMealPlan = plan
-                        navController.navigate("grocery_list")
-                    }
-                )
+                if (entitlements.memberPremium) {
+                    MealPlannerScreen(
+                        onBack            = { navController.popBackStack() },
+                        userPreferences   = userPreferences,
+                        onViewGroceryList = { plan ->
+                            sharedMealPlan = plan
+                            navController.navigate("grocery_list")
+                        }
+                    )
+                } else {
+                    MemberPremiumScreen(
+                        userPreferences = userPreferences,
+                        featureName = "AI Meal Planner",
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable("grocery_list") {
                 val plan = sharedMealPlan

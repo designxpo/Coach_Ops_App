@@ -16,13 +16,18 @@ import androidx.room.RoomDatabase
         ClientNote::class,
         RevenueSnapshot::class,
         WaterEntry::class,
+        GymMember::class,
+        GymPlan::class,
+        GymPayment::class,
+        GymCheckIn::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun coachDao(): CoachDao
     abstract fun waterDao(): WaterDao
+    abstract fun gymDao(): GymDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

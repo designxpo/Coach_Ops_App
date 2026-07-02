@@ -620,10 +620,12 @@ class MainViewModel(
         _clientDietPlans.value = _clientDietPlans.value.filter { it.id != planId }
     }
 
-    fun logout() {
+    fun logout(gymRepository: com.example.data.GymRepository? = null) {
+        com.example.data.EntitlementManager.stop()
         viewModelScope.launch {
             com.example.data.AuthRepository.signOut()
             repository.clearAllLocalData()   // await Room wipe before clearing prefs
+            gymRepository?.clearAllLocalData()
             userPreferences.clearLocalSession()
         }
     }

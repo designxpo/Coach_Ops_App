@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.Payment
+import com.example.data.PlanFeature
 import com.example.data.RevenueSnapshot
+import com.example.data.has
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -68,10 +70,12 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun BillingScreen(viewModel: MainViewModel) {
+fun BillingScreen(viewModel: MainViewModel, onUpgradeClick: () -> Unit = {}) {
     val payments by viewModel.payments.collectAsStateWithLifecycle()
     val clients by viewModel.clients.collectAsStateWithLifecycle()
     val snapshots by viewModel.revenueSnapshots.collectAsStateWithLifecycle()
+    val currentPlan by viewModel.currentPlan.collectAsStateWithLifecycle()
+    val hasAnalytics = currentPlan.has(PlanFeature.REVENUE_ANALYTICS)
 
     val totalMrr = clients.sumOf { it.mrr }
     val activeCount = payments.count { it.mandateStatus == "ACTIVE" }
@@ -172,13 +176,23 @@ fun BillingScreen(viewModel: MainViewModel) {
             }
         }
 
-        // MRR Trend Chart
-        if (snapshots.size >= 2) {
+        // MRR Trend Chart (Pro+) — Starter sees an upgrade card instead
+        if (!hasAnalytics) {
+            item {
+                LockedFeatureCard(
+                    title = "Revenue Analytics",
+                    description = "MRR trend chart, 30-day forecast & collection confidence",
+                    requiredPlanName = "PRO",
+                    onUpgradeClick = onUpgradeClick
+                )
+            }
+        }
+        if (hasAnalytics && snapshots.size >= 2) {
             item { MrrTrendChart(snapshots) }
         }
 
-        // Revenue Forecast Card
-        item {
+        // Revenue Forecast Card (Pro+)
+        if (hasAnalytics) item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

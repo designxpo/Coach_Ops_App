@@ -303,6 +303,7 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     fun updateClientName(name: String) { userPreferences.coachName = name }
 
     fun logout(context: android.content.Context) {
+        com.example.data.EntitlementManager.stop()
         com.example.data.AuthRepository.signOut(context)
         userPreferences.clearLocalSession()
     }

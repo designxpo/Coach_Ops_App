@@ -116,7 +116,7 @@ fun LoginScreen(
                             // Validate stored role — also check coaches collection for legacy accounts
                             val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
                             val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
-                            if (resolvedRole != null && resolvedRole != selectedRole) {
+                            if (resolvedRole != null && (resolvedRole == "client") != (selectedRole == "client")) {
                                 com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                                 errorMessage = if (resolvedRole == "client")
                                     "This is a Member account. Please select \"I'm a Member\" to sign in."
@@ -313,7 +313,7 @@ fun LoginScreen(
                                 com.example.data.FirestoreSync.restoreOnboardingIfNeeded(uid, userPreferences)
                                 val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
                                 val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
-                                if (resolvedRole != null && resolvedRole != selectedRole) {
+                                if (resolvedRole != null && (resolvedRole == "client") != (selectedRole == "client")) {
                                     com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                                     errorMessage = if (resolvedRole == "client")
                                         "This is a Member account. Please select \"I'm a Member\" to sign in."
@@ -382,7 +382,7 @@ fun LoginScreen(
                                 val storedRole = com.example.data.FirestoreSync.getUserRole(uid)
                                 // Legacy accounts (pre-fix) have no role field — infer from coaches collection
                                 val resolvedRole = if (storedRole == null && com.example.data.FirestoreSync.hasCoachData(uid)) "coach" else storedRole
-                                if (resolvedRole != null && resolvedRole != selectedRole) {
+                                if (resolvedRole != null && (resolvedRole == "client") != (selectedRole == "client")) {
                                     // Wrong role selected — sign out and show a clear error
                                     com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                                     errorMessage = if (resolvedRole == "client")

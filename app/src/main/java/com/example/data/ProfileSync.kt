@@ -35,7 +35,10 @@ object ProfileSync {
                 "specialty"          to prefs.coachSpecialty,
                 "clientRange"        to prefs.coachClientRange,
                 "challenge"          to prefs.coachChallenge,
-                "role"               to "coach",
+                "role"               to prefs.userRole.ifEmpty { "coach" },
+                "gymName"            to prefs.gymName,
+                "gymAddress"         to prefs.gymAddress,
+                "gymGstin"           to prefs.gymGstin,
                 "onboardingComplete" to prefs.onboardingComplete,
                 "subscriptionPlan"   to prefs.subscriptionPlan,
                 "profilePhotoUrl"    to prefs.profilePhotoUrl,
@@ -86,8 +89,8 @@ object ProfileSync {
             (d["profilePhotoUrl"] as? String)?.let { if (it.isNotEmpty()) prefs.profilePhotoUrl = it }
             restoreHealth(d, prefs)
 
-            // ── Role-specific ────────────────────────────────────────────────────
-            if (role == "coach") {
+            // ── Role-specific ("coach" and "gym_owner" share the coach shell) ───
+            if (role != "client") {
                 val name = d["displayName"] as? String ?: ""
                 if (name.isNotEmpty()) prefs.coachName = name
                 val email = d["email"] as? String ?: ""
@@ -99,6 +102,12 @@ object ProfileSync {
                 prefs.coachChallenge   = d["challenge"]   as? String ?: prefs.coachChallenge
                 val plan = d["subscriptionPlan"] as? String ?: ""
                 if (plan.isNotEmpty()) prefs.subscriptionPlan = plan
+
+                // Gym-owner profile
+                (d["gymName"]    as? String)?.let { if (it.isNotEmpty()) prefs.gymName = it }
+                (d["gymAddress"] as? String)?.let { if (it.isNotEmpty()) prefs.gymAddress = it }
+                (d["gymGstin"]   as? String)?.let { if (it.isNotEmpty()) prefs.gymGstin = it }
+                (d["gymTrialStartedAt"] as? Long)?.let { if (it > 0L) prefs.gymTrialStartedAt = it }
 
                 // Also restore trainer marketplace profile
                 restoreTrainerProfile(uid, prefs)

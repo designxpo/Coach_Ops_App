@@ -192,7 +192,7 @@ object FirestoreSync {
                 val role = userDoc.getString("role") ?: ""
                 val name = userDoc.getString("displayName") ?: ""
                 val email = userDoc.getString("email") ?: ""
-                if (role == "coach") {
+                if (role == "coach" || role == "gym_owner") {
                     if (name.isNotEmpty() && userPreferences.coachName.isEmpty()) userPreferences.coachName = name
                     if (email.isNotEmpty() && userPreferences.coachEmail.isEmpty()) userPreferences.coachEmail = email
                 } else if (role == "client") {

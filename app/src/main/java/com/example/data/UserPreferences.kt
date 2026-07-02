@@ -100,6 +100,29 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getString("admin_pin", "") ?: ""
         set(value) { prefs.edit().putString("admin_pin", value).apply() }
 
+    // ─── Member premium (client-side tier) — cache of user_records.memberPremium ─
+    var memberPremium: Boolean
+        get() = prefs.getBoolean("member_premium", false)
+        set(value) { prefs.edit().putBoolean("member_premium", value).apply() }
+
+    // ─── Gym owner profile ────────────────────────────────────────────────────
+    var gymName: String
+        get() = prefs.getString("gym_name", "") ?: ""
+        set(value) { prefs.edit().putString("gym_name", value).apply() }
+
+    var gymAddress: String
+        get() = prefs.getString("gym_address", "") ?: ""
+        set(value) { prefs.edit().putString("gym_address", value).apply() }
+
+    var gymGstin: String
+        get() = prefs.getString("gym_gstin", "") ?: ""
+        set(value) { prefs.edit().putString("gym_gstin", value).apply() }
+
+    // Cache of user_records.gymTrialStartedAt (0 = trial never started)
+    var gymTrialStartedAt: Long
+        get() = prefs.getLong("gym_trial_started_at", 0L)
+        set(value) { prefs.edit().putLong("gym_trial_started_at", value).apply() }
+
     // ─── Per-day macro goals ──────────────────────────────────────────────────
     var trainingDayCalories: Int
         get() = prefs.getInt("macro_training_calories", 2200)

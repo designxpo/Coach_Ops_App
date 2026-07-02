@@ -118,7 +118,7 @@ fun RegisterScreen(
                             } else {
                                 if (userPreferences.coachName.isEmpty()) userPreferences.coachName = displayName
                                 // Write role to Firestore — prevents login role-bypass
-                                com.example.data.FirestoreSync.setUserRole("coach")
+                                com.example.data.FirestoreSync.setUserRole(selectedRole.ifEmpty { "coach" })
                             }
                             userPreferences.coachEmail = authResult.user.email ?: ""
                             userPreferences.userRole = selectedRole
@@ -149,7 +149,11 @@ fun RegisterScreen(
             Text("Create Account", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text(
-                if (selectedRole == "client") "Find your perfect trainer" else "Set up your coaching profile",
+                when (selectedRole) {
+                    "client"    -> "Find your perfect trainer"
+                    "gym_owner" -> "Digitize your gym operations"
+                    else        -> "Set up your coaching profile"
+                },
                 fontSize = 14.sp, color = CyberTextMuted
             )
         }
@@ -268,7 +272,7 @@ fun RegisterScreen(
                                 } else {
                                     userPreferences.coachName = name.trim()
                                     // Write role to Firestore — prevents login role-bypass
-                                    com.example.data.FirestoreSync.setUserRole("coach")
+                                    com.example.data.FirestoreSync.setUserRole(selectedRole.ifEmpty { "coach" })
                                 }
                                 userPreferences.coachEmail = result.user.email ?: email.trim()
                                 // coachPhone is the shared phone field; no separate clientPhone field exists in UserPreferences
@@ -328,6 +332,15 @@ fun RolePickerScreen(
             title = "I'm a Coach",
             subtitle = "Manage members, programs and grow your fitness business",
             onClick = { onRoleSelected("coach") }
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        RoleCard(
+            emoji = "🏢",
+            title = "I Own a Gym",
+            subtitle = "Manage members, fees, attendance & billing — 30-day free trial",
+            onClick = { onRoleSelected("gym_owner") }
         )
 
         Spacer(Modifier.height(16.dp))

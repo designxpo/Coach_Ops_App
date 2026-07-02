@@ -67,7 +67,8 @@ fun ProfileScreen(
     onPrivacyPolicyClick: () -> Unit = {},
     onTermsClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
-    onAdminAccess: () -> Unit = {}  // reserved for future deep-link
+    onAdminAccess: () -> Unit = {},  // reserved for future deep-link
+    onManagePlanClick: () -> Unit = {}
 ) {
     val clients by viewModel.clients.collectAsStateWithLifecycle()
     val programs by viewModel.programs.collectAsStateWithLifecycle()
@@ -293,10 +294,11 @@ fun ProfileScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(Color(currentPlan.color).copy(alpha = 0.18f))
+                            .clickable { onManagePlanClick() }
                             .padding(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            "${currentPlan.emoji} ${currentPlan.displayName} Plan",
+                            "${currentPlan.emoji} ${currentPlan.displayName} Plan · Upgrade ›",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(currentPlan.color)
