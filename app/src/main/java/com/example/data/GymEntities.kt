@@ -18,6 +18,7 @@ data class GymMember(
     val joinDateMillis: Long = System.currentTimeMillis(),
     val planId: String = "",                 // active membership plan
     val planName: String = "",
+    val planPriceInr: Int = 0,               // renewal amount — prefills member's UPI payment
     val planStartMillis: Long = 0L,
     val planEndMillis: Long = 0L,            // 0 = no active plan
     val status: String = "ACTIVE",           // ACTIVE, EXPIRED, FROZEN, LEFT

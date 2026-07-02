@@ -162,6 +162,7 @@ class GymRepository(private val dao: GymDao) {
         val updated = member.copy(
             planId = plan.id,
             planName = plan.name,
+            planPriceInr = plan.priceInr,
             planStartMillis = if (member.planStartMillis == 0L) now else member.planStartMillis,
             planEndMillis = periodEnd,
             status = "ACTIVE"

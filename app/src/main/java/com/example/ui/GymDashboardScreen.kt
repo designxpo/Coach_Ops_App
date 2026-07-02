@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -87,9 +89,40 @@ fun GymDashboardScreen(
     val entitlements by viewModel.entitlements.collectAsStateWithLifecycle()
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val members by viewModel.members.collectAsStateWithLifecycle()
+    val claims by viewModel.paymentClaims.collectAsStateWithLifecycle()
 
     var showSetupSheet by remember { mutableStateOf(false) }
     var setupDone by remember { mutableStateOf(viewModel.gymSetupComplete) }
+
+    // Action feedback (claim confirmations etc.)
+    val dashContext = LocalContext.current
+    val snackbarMsg by viewModel.snackbar.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(snackbarMsg) {
+        if (snackbarMsg.isNotEmpty()) {
+            android.widget.Toast.makeText(dashContext, snackbarMsg, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearSnackbar()
+        }
+    }
+
+    val prefs = viewModel.userPreferences
+    val setupSheet: @Composable () -> Unit = {
+        GymSetupSheet(
+            initialName = prefs.gymName,
+            initialAddress = prefs.gymAddress,
+            initialGstin = prefs.gymGstin,
+            initialUpiId = prefs.gymUpiId,
+            initialCity = prefs.gymCity,
+            initialLat = prefs.gymLat,
+            initialLng = prefs.gymLng,
+            isEdit = setupDone,
+            onDismiss = { showSetupSheet = false },
+            onSave = { name, address, gstin, upiId, city, lat, lng ->
+                viewModel.saveGymProfile(name, address, gstin, upiId, city, lat, lng)
+                setupDone = true
+                showSetupSheet = false
+            }
+        )
+    }
 
     // ── State 1: locked ────────────────────────────────────────────────────────
     if (!entitlements.gymUnlocked) {
@@ -101,34 +134,18 @@ fun GymDashboardScreen(
                 showSetupSheet = true
             }
         )
-        if (showSetupSheet) {
-            GymSetupSheet(
-                onDismiss = { showSetupSheet = false },
-                onSave = { name, address, gstin ->
-                    viewModel.saveGymProfile(name, address, gstin)
-                    setupDone = true
-                    showSetupSheet = false
-                }
-            )
-        }
+        if (showSetupSheet) setupSheet()
         return
     }
 
     // ── State 2: unlocked but gym profile missing ─────────────────────────────
     if (!setupDone) {
         GymSetupEmptyState(onSetupClick = { showSetupSheet = true })
-        if (showSetupSheet) {
-            GymSetupSheet(
-                onDismiss = { showSetupSheet = false },
-                onSave = { name, address, gstin ->
-                    viewModel.saveGymProfile(name, address, gstin)
-                    setupDone = true
-                    showSetupSheet = false
-                }
-            )
-        }
+        if (showSetupSheet) setupSheet()
         return
     }
+
+    if (showSetupSheet) setupSheet()
 
     // ── State 3: dashboard ────────────────────────────────────────────────────
     val expiringMembers = members
@@ -159,6 +176,31 @@ fun GymDashboardScreen(
                     fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary,
                     modifier = Modifier.weight(1f)
                 )
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberBgCard)
+                        .clickable { showSetupSheet = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Filled.Settings,
+                        contentDescription = "Gym settings",
+                        tint = CyberTextSecondary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+
+        // ── UPI payment confirmations from members ─────────────────────────────
+        if (claims.isNotEmpty()) {
+            item {
+                Text("Payment Confirmations", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+            }
+            claims.forEach { claim ->
+                item(key = "claim_${claim.id}") {
+                    PaymentClaimCard(
+                        claim = claim,
+                        onConfirm = { viewModel.confirmClaim(claim) },
+                        onReject = { viewModel.rejectClaim(claim) }
+                    )
+                }
             }
         }
 
@@ -375,38 +417,164 @@ private fun GymSetupEmptyState(onSetupClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GymSetupSheet(onDismiss: () -> Unit, onSave: (name: String, address: String, gstin: String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var gstin by remember { mutableStateOf("") }
+fun GymSetupSheet(
+    initialName: String = "",
+    initialAddress: String = "",
+    initialGstin: String = "",
+    initialUpiId: String = "",
+    initialCity: String = "",
+    initialLat: Double = 0.0,
+    initialLng: Double = 0.0,
+    isEdit: Boolean = false,
+    onDismiss: () -> Unit,
+    onSave: (name: String, address: String, gstin: String, upiId: String,
+             city: String, lat: Double, lng: Double) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    var name by remember { mutableStateOf(initialName) }
+    var address by remember { mutableStateOf(initialAddress) }
+    var gstin by remember { mutableStateOf(initialGstin) }
+    var upiId by remember { mutableStateOf(initialUpiId) }
+
+    // Location — same Places autocomplete + GPS system as the trainer marketplace
+    var cityQuery by remember { mutableStateOf(initialCity) }
+    var pickedCity by remember { mutableStateOf(initialCity) }
+    var pickedLat by remember { mutableStateOf(initialLat) }
+    var pickedLng by remember { mutableStateOf(initialLng) }
+    var suggestions by remember { mutableStateOf<List<com.example.data.NearbyArea>>(emptyList()) }
+    var locating by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(cityQuery) {
+        if (cityQuery.length < 2 || cityQuery == pickedCity) { suggestions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(400)   // debounce typing
+        suggestions = com.example.data.GeoUtils.searchLocations(context, cityQuery)
+    }
+
+    fun useDeviceLocation() {
+        locating = true
+        scope.launch {
+            val coords = com.example.data.GeoUtils.getDeviceLocation(context)
+            if (coords != null) {
+                val label = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.data.GeoUtils.reverseGeocode(context, coords.first, coords.second)
+                }
+                pickedLat = coords.first
+                pickedLng = coords.second
+                pickedCity = label
+                cityQuery = label
+                suggestions = emptyList()
+            }
+            locating = false
+        }
+    }
+
+    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) useDeviceLocation() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = CyberBgCardElevated
     ) {
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-            Text("Gym Profile", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text("Shown on receipts sent to members", fontSize = 13.sp, color = CyberTextMuted)
-            Spacer(Modifier.height(20.dp))
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)
+        ) {
+            item {
+                Text(if (isEdit) "Gym Settings" else "Gym Profile",
+                    fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                Spacer(Modifier.height(4.dp))
+                Text("Shown on receipts & used for member payments", fontSize = 13.sp, color = CyberTextMuted)
+                Spacer(Modifier.height(20.dp))
 
-            GymTextField(name, { name = it }, "Gym name *", "e.g. Iron Paradise Fitness")
-            Spacer(Modifier.height(12.dp))
-            GymTextField(address, { address = it }, "Address / area", "e.g. Andheri West, Mumbai")
-            Spacer(Modifier.height(12.dp))
-            GymTextField(gstin, { gstin = it }, "GSTIN (optional)", "Shown on receipts if provided")
-            Spacer(Modifier.height(24.dp))
+                GymTextField(name, { name = it }, "Gym name *", "e.g. Iron Paradise Fitness")
+                Spacer(Modifier.height(12.dp))
 
-            Button(
-                onClick = { if (name.isNotBlank()) onSave(name, address, gstin) },
-                enabled = name.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = CyberAccent, disabledContainerColor = CyberBgCard),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) {
-                Text("Save & Start", fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    color = if (name.isNotBlank()) CyberAccentDark else CyberTextMuted)
+                // ── Location (autocomplete via marketplace map system) ─────────
+                GymTextField(cityQuery, { cityQuery = it }, "Location / area *", "Type to search — e.g. Andheri West")
+                suggestions.forEach { area ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberBgCard)
+                            .clickable {
+                                scope.launch {
+                                    val coords = if (area.placeId.isNotEmpty())
+                                        com.example.data.GeoUtils.resolvePlace(area.placeId, context)
+                                    else area.lat to area.lng
+                                    pickedLat = coords?.first ?: area.lat
+                                    pickedLng = coords?.second ?: area.lng
+                                    pickedCity = area.name
+                                    cityQuery = area.name
+                                    suggestions = emptyList()
+                                }
+                            }
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("📍", fontSize = 14.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(area.name, fontSize = 13.sp, color = CyberTextPrimary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(CyberAccent.copy(alpha = 0.12f))
+                        .clickable(enabled = !locating) {
+                            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (granted) useDeviceLocation()
+                            else locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (locating) "⏳ Locating…" else "📍 Use current location",
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberAccent)
+                }
+                if (pickedCity.isNotEmpty() && pickedLat != 0.0) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("✓ Location set: $pickedCity", fontSize = 11.sp, color = CyberSuccess)
+                }
+
+                Spacer(Modifier.height(12.dp))
+                GymTextField(address, { address = it }, "Full address (optional)", "Building, street, landmark")
+                Spacer(Modifier.height(12.dp))
+
+                // ── UPI collection ─────────────────────────────────────────────
+                GymTextField(upiId, { upiId = it }, "UPI ID for fee collection", "e.g. ironparadise@okhdfcbank")
+                Text(
+                    "💰 Members can pay fees from their app straight to your bank — 0% commission",
+                    fontSize = 11.sp, color = CyberTextMuted, lineHeight = 16.sp,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                GymTextField(gstin, { gstin = it }, "GSTIN (optional)", "Shown on receipts if provided")
+                Spacer(Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        if (name.isNotBlank()) onSave(name, address, gstin, upiId,
+                            pickedCity.ifEmpty { cityQuery }, pickedLat, pickedLng)
+                    },
+                    enabled = name.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberAccent, disabledContainerColor = CyberBgCard),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text(if (isEdit) "Save Changes" else "Save & Start",
+                        fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                        color = if (name.isNotBlank()) CyberAccentDark else CyberTextMuted)
+                }
             }
         }
     }
@@ -470,6 +638,51 @@ private fun GymActionCard(modifier: Modifier, icon: ImageVector, label: String, 
     ) {
         Icon(icon, contentDescription = null, tint = CyberAccent, modifier = Modifier.size(20.dp))
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+    }
+}
+
+@Composable
+fun PaymentClaimCard(claim: PaymentClaim, onConfirm: () -> Unit, onReject: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(CyberBgCard)
+            .border(1.dp, CyberAccent.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("📱", fontSize = 20.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("${claim.memberName} says they paid", fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                Text("₹${"%,d".format(claim.amountInr)} · ${claim.planName} · via UPI",
+                    fontSize = 12.sp, color = CyberTextSecondary)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("Check your UPI app for the credit, then confirm to extend their membership.",
+            fontSize = 11.sp, color = CyberTextMuted, lineHeight = 15.sp)
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = CyberAccent),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("✓ Received", fontWeight = FontWeight.Bold, color = CyberAccentDark, fontSize = 13.sp)
+            }
+            Button(
+                onClick = onReject,
+                colors = ButtonDefaults.buttonColors(containerColor = CyberBgCardElevated),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Not received", fontWeight = FontWeight.Bold, color = CyberDanger, fontSize = 13.sp)
+            }
+        }
     }
 }
 

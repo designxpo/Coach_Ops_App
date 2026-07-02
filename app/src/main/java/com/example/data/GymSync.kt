@@ -19,8 +19,9 @@ object GymSync {
         db.collection("coaches").document(it).collection(name)
     }
 
-    /** Set by GymViewModel so the membership index can carry the gym's name. */
+    /** Set by GymViewModel so the membership index can carry the gym's identity. */
     var gymName: String = ""
+    var gymUpiId: String = ""
 
     fun normalizePhone(raw: String): String = raw.filter { it.isDigit() }.takeLast(10)
 
@@ -31,6 +32,7 @@ object GymSync {
             "id" to m.id, "name" to m.name, "phone" to m.phone,
             "gender" to m.gender, "joinDateMillis" to m.joinDateMillis,
             "planId" to m.planId, "planName" to m.planName,
+            "planPriceInr" to m.planPriceInr,
             "planStartMillis" to m.planStartMillis, "planEndMillis" to m.planEndMillis,
             "status" to m.status, "notes" to m.notes
         ))
@@ -58,8 +60,10 @@ object GymSync {
             "ownerUid" to u,
             "phone" to p,
             "gymName" to gymName,
+            "upiId" to gymUpiId,
             "memberName" to m.name,
             "planName" to m.planName,
+            "renewalAmountInr" to m.planPriceInr,
             "planEndMillis" to m.planEndMillis,
             "status" to m.status,
             "updatedAt" to System.currentTimeMillis()
@@ -123,6 +127,7 @@ object GymSync {
                     joinDateMillis = d.getLong("joinDateMillis") ?: 0L,
                     planId = d.getString("planId") ?: "",
                     planName = d.getString("planName") ?: "",
+                    planPriceInr = (d.getLong("planPriceInr") ?: 0L).toInt(),
                     planStartMillis = d.getLong("planStartMillis") ?: 0L,
                     planEndMillis = d.getLong("planEndMillis") ?: 0L,
                     status = d.getString("status") ?: "ACTIVE",

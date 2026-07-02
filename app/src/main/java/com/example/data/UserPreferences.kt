@@ -118,6 +118,23 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getString("gym_gstin", "") ?: ""
         set(value) { prefs.edit().putString("gym_gstin", value).apply() }
 
+    // UPI ID for direct fee collection (money goes straight to owner's bank)
+    var gymUpiId: String
+        get() = prefs.getString("gym_upi_id", "") ?: ""
+        set(value) { prefs.edit().putString("gym_upi_id", value).apply() }
+
+    var gymCity: String
+        get() = prefs.getString("gym_city", "") ?: ""
+        set(value) { prefs.edit().putString("gym_city", value).apply() }
+
+    var gymLat: Double
+        get() = prefs.getFloat("gym_lat", 0f).toDouble()
+        set(v) { prefs.edit().putFloat("gym_lat", v.toFloat()).apply() }
+
+    var gymLng: Double
+        get() = prefs.getFloat("gym_lng", 0f).toDouble()
+        set(v) { prefs.edit().putFloat("gym_lng", v.toFloat()).apply() }
+
     // Cache of user_records.gymTrialStartedAt (0 = trial never started)
     var gymTrialStartedAt: Long
         get() = prefs.getLong("gym_trial_started_at", 0L)

@@ -84,6 +84,12 @@ fun ClientDashboardScreen(viewModel: ClientViewModel) {
         memberships.forEach { ms ->
             GymMembershipCard(
                 membership = ms,
+                onClaimSubmitted = {
+                    // Optimistically flip the card into "awaiting confirmation"
+                    memberships = memberships.map {
+                        if (it.ownerUid == ms.ownerUid) it.copy(claimStatus = "PENDING") else it
+                    }
+                },
                 modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
             )
         }
@@ -138,13 +144,18 @@ fun ClientDashboardScreen(viewModel: ClientViewModel) {
 @Composable
 private fun GymMembershipCard(
     membership: com.example.data.GymMembershipLookup.Membership,
+    onClaimSubmitted: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val dateFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    var submitting by remember { mutableStateOf(false) }
+
     val (statusColor, statusText) = when {
         membership.planEndMillis <= 0L -> CyberTextMuted to "No active plan"
-        membership.isExpired           -> CyberDanger to "Expired — renew at the gym"
-        membership.daysLeft <= 7       -> CyberWarning to "${membership.daysLeft} day(s) left — renew soon"
+        membership.isExpired           -> CyberDanger to "Expired"
+        membership.daysLeft <= 7       -> CyberWarning to "${membership.daysLeft} day(s) left"
         else                           -> CyberSuccess to "${membership.daysLeft} days left"
     }
 
@@ -180,6 +191,92 @@ private fun GymMembershipCard(
                 fontSize = 12.sp, color = CyberTextSecondary
             )
         }
+
+        // ── Pay from app: UPI straight to the gym's bank ──────────────────────
+        when {
+            membership.claimStatus == "PENDING" -> {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyberWarning.copy(alpha = 0.12f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Text("⏳ Payment sent — awaiting gym confirmation",
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberWarning)
+                }
+            }
+            membership.canPayInApp && (membership.isExpired || membership.daysLeft <= 7) -> {
+                if (membership.claimStatus == "REJECTED") {
+                    Spacer(Modifier.height(8.dp))
+                    Text("⚠️ Gym couldn't confirm your last payment — contact them or pay again",
+                        fontSize = 11.sp, color = CyberDanger, lineHeight = 15.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberAccent)
+                            .clickable { launchUpiPayment(context, membership) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (membership.renewalAmountInr > 0)
+                                "Pay ₹${"%,d".format(membership.renewalAmountInr)} via UPI"
+                            else "Pay via UPI",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2D4800)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberBgCardElevated)
+                            .clickable(enabled = !submitting) {
+                                submitting = true
+                                scope.launch {
+                                    val ok = com.example.data.GymMembershipLookup.submitPaymentClaim(membership)
+                                    submitting = false
+                                    if (ok) onClaimSubmitted()
+                                    else android.widget.Toast.makeText(context,
+                                        "Couldn't notify gym — check connection", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (submitting) "…" else "I've paid ✓",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("Pays directly to the gym's UPI. After paying, tap \"I've paid\" so the gym can confirm.",
+                    fontSize = 10.sp, color = CyberTextMuted, lineHeight = 14.sp)
+            }
+        }
+    }
+}
+
+/** Opens the member's UPI app (GPay/PhonePe/Paytm…) with gym VPA + amount prefilled. */
+private fun launchUpiPayment(
+    context: android.content.Context,
+    ms: com.example.data.GymMembershipLookup.Membership
+) {
+    val uri = android.net.Uri.parse(
+        "upi://pay?pa=${android.net.Uri.encode(ms.upiId)}" +
+        "&pn=${android.net.Uri.encode(ms.gymName)}" +
+        (if (ms.renewalAmountInr > 0) "&am=${ms.renewalAmountInr}" else "") +
+        "&cu=INR" +
+        "&tn=${android.net.Uri.encode("${ms.planName} fee - ${ms.memberName}")}"
+    )
+    try {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+    } catch (_: Exception) {
+        android.widget.Toast.makeText(context, "No UPI app found on this device", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
