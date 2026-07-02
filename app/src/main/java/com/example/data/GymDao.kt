@@ -31,6 +31,10 @@ interface GymDao {
     @Query("DELETE FROM gym_members WHERE id = :memberId")
     suspend fun deleteMember(memberId: String)
 
+    // Renewals-due window for the owner's daily reminder notification
+    @Query("SELECT * FROM gym_members WHERE status = 'ACTIVE' AND planEndMillis > 0 AND planEndMillis BETWEEN :from AND :to ORDER BY planEndMillis ASC")
+    suspend fun getMembersExpiringBetween(from: Long, to: Long): List<GymMember>
+
     // ─── Plans ────────────────────────────────────────────────────────────────
     @Query("SELECT * FROM gym_plans WHERE isActive = 1 ORDER BY durationDays ASC")
     fun getActivePlans(): Flow<List<GymPlan>>

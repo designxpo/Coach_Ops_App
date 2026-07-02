@@ -302,6 +302,9 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     fun updateClientCity(city: String) { userPreferences.clientCity = city }
     fun updateClientName(name: String) { userPreferences.coachName = name }
 
+    /** Phone used to auto-match this member's gym membership (shared phone field). */
+    fun userPhone(): String = userPreferences.coachPhone
+
     fun logout(context: android.content.Context) {
         com.example.data.EntitlementManager.stop()
         com.example.data.AuthRepository.signOut(context)

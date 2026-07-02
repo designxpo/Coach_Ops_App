@@ -14,15 +14,21 @@ class NotificationWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val repo = CoachRepository.getInstance(context)
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
         ensureChannel(nm)
 
+        val prefs = com.example.data.UserPreferences.getInstance(context)
+        var notifId = 1000
+
+        if (prefs.userRole == "client") {
+            notifId = notifyMemberGymExpiry(nm, prefs, notifId)
+            return Result.success()
+        }
+
+        // ── Coach / gym owner alerts ──────────────────────────────────────────
+        val repo = CoachRepository.getInstance(context)
         val lowConsistency = repo.getLowConsistencyClients()
         val overduePayments = repo.getOverduePayments()
-
-        var notifId = 1000
 
         lowConsistency.forEach { client ->
             nm.notify(notifId++, NotificationCompat.Builder(context, CHANNEL_ID)
@@ -45,7 +51,60 @@ class NotificationWorker(
                 .build())
         }
 
+        notifyGymRenewalsDue(nm, notifId)
         return Result.success()
+    }
+
+    /** Gym owner: daily digest of memberships expiring in ≤3 days or lapsed in the last 7. */
+    private suspend fun notifyGymRenewalsDue(nm: NotificationManager, startId: Int) {
+        try {
+            val now = System.currentTimeMillis()
+            val expiring = com.example.data.GymRepository.getInstance(context)
+                .getMembersExpiringBetween(now - 7 * 86400000L, now + 3 * 86400000L)
+            if (expiring.isEmpty()) return
+
+            val names = expiring.take(3).joinToString(", ") { it.name }
+            val extra = if (expiring.size > 3) " +${expiring.size - 3} more" else ""
+            nm.notify(startId, NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("🏋️ ${expiring.size} gym renewal(s) due")
+                .setContentText("$names$extra — collect fees & send reminders")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .build())
+        } catch (_: Exception) { /* gym tables absent for plain coaches — nothing to do */ }
+    }
+
+    /** Member: reminds them in their own app when their gym plan is about to lapse. */
+    private suspend fun notifyMemberGymExpiry(
+        nm: NotificationManager,
+        prefs: com.example.data.UserPreferences,
+        startId: Int
+    ): Int {
+        var id = startId
+        try {
+            val memberships = com.example.data.GymMembershipLookup.findByPhone(prefs.coachPhone)
+            memberships.forEach { ms ->
+                if (ms.planEndMillis <= 0L) return@forEach
+                val daysLeft = ms.daysLeft
+                val message = when {
+                    ms.isExpired && daysLeft >= -3 ->
+                        "Your ${ms.gymName} membership has expired — renew today to keep training!"
+                    !ms.isExpired && daysLeft <= 3 ->
+                        "Your ${ms.gymName} ${ms.planName} plan expires in $daysLeft day(s) — renew in advance!"
+                    else -> return@forEach
+                }
+                nm.notify(id++, NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle("🏋️ Gym fee reminder")
+                    .setContentText(message)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .build())
+            }
+        } catch (_: Exception) { /* offline — retry on next daily run */ }
+        return id
     }
 
     private fun ensureChannel(nm: NotificationManager) {

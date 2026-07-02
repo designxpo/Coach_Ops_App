@@ -51,19 +51,58 @@ class GymRepository(private val dao: GymDao) {
         GymSync.saveMember(member)
     }
 
+    /**
+     * Registers a member and (optionally) records the joining fee in one step.
+     * Plan validity is auto-calculated from the joining date, so the owner
+     * never types dates or amounts by hand.
+     */
+    suspend fun registerMember(
+        member: GymMember,
+        plan: GymPlan?,
+        collectPayment: Boolean,
+        amountInr: Int,
+        method: String
+    ): GymPayment? {
+        dao.insertMember(member)
+        GymSync.saveMember(member)
+        if (!collectPayment || plan == null || amountInr <= 0) return null
+
+        val receiptNo = "RCP-%04d".format(dao.getPaymentCount() + 1)
+        val payment = GymPayment(
+            id = UUID.randomUUID().toString(),
+            memberId = member.id,
+            memberName = member.name,
+            amountInr = amountInr,
+            method = method,
+            dateMillis = System.currentTimeMillis(),
+            planId = plan.id,
+            planName = plan.name,
+            periodStartMillis = member.planStartMillis,
+            periodEndMillis = member.planEndMillis,
+            receiptNo = receiptNo,
+            notes = "Joining payment"
+        )
+        dao.insertPayment(payment)
+        GymSync.savePayment(payment)
+        return payment
+    }
+
     suspend fun updateMember(member: GymMember) {
         dao.updateMember(member)
         GymSync.saveMember(member)
     }
 
-    suspend fun deleteMember(memberId: String) {
-        dao.deletePaymentsForMember(memberId)
-        dao.deleteCheckInsForMember(memberId)
-        dao.deleteMember(memberId)
-        GymSync.deletePaymentsByMember(memberId)
-        GymSync.deleteCheckInsByMember(memberId)
-        GymSync.deleteMember(memberId)
+    suspend fun deleteMember(member: GymMember) {
+        dao.deletePaymentsForMember(member.id)
+        dao.deleteCheckInsForMember(member.id)
+        dao.deleteMember(member.id)
+        GymSync.deletePaymentsByMember(member.id)
+        GymSync.deleteCheckInsByMember(member.id)
+        GymSync.deleteMember(member.id, member.phone)
     }
+
+    suspend fun getMembersExpiringBetween(from: Long, to: Long): List<GymMember> =
+        dao.getMembersExpiringBetween(from, to)
 
     // ─── Plans ────────────────────────────────────────────────────────────────
 

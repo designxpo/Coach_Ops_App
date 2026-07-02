@@ -100,8 +100,8 @@ fun GymMembersScreen(
         GymMemberSheet(
             plans = plans,
             onDismiss = { showAddSheet = false },
-            onSave = { name, phone, gender, plan, notes ->
-                viewModel.addMember(name, phone, gender, plan, notes)
+            onSave = { name, phone, gender, plan, notes, joinDate, collectPayment, amount, method ->
+                viewModel.addMember(name, phone, gender, plan, notes, joinDate, collectPayment, amount, method)
                 showAddSheet = false
             }
         )
@@ -274,13 +274,42 @@ fun GymMemberSheet(
     plans: List<GymPlan>,
     existing: GymMember? = null,
     onDismiss: () -> Unit,
-    onSave: (name: String, phone: String, gender: String, plan: GymPlan?, notes: String) -> Unit
+    onSave: (name: String, phone: String, gender: String, plan: GymPlan?, notes: String,
+             joinDateMillis: Long, collectPayment: Boolean, amountInr: Int, method: String) -> Unit
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var phone by remember { mutableStateOf(existing?.phone ?: "") }
     var gender by remember { mutableStateOf(existing?.gender ?: "") }
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
     var selectedPlan by remember { mutableStateOf<GymPlan?>(null) }
+
+    // Joining date — plan validity & fee schedule auto-calculate from this
+    var joinDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var collectPayment by remember { mutableStateOf(true) }
+    var amountText by remember { mutableStateOf("") }
+    var payMethod by remember { mutableStateOf("UPI") }
+    val dateFmt = remember { java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault()) }
+
+    if (showDatePicker) {
+        val dateState = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = joinDateMillis)
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    dateState.selectedDateMillis?.let { joinDateMillis = it }
+                    showDatePicker = false
+                }) { Text("OK", color = CyberAccent, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel", color = CyberTextMuted)
+                }
+            }
+        ) {
+            androidx.compose.material3.DatePicker(state = dateState, showModeToggle = false)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -320,7 +349,29 @@ fun GymMemberSheet(
                     }
                 }
 
-                // Plan selector — only when adding (renewals happen via Record Payment)
+                // Joining date + plan selector — only when adding (renewals via Collect Fee)
+                if (existing == null) {
+                    Spacer(Modifier.height(18.dp))
+                    Text("Joining date", fontSize = 13.sp, color = CyberTextMuted)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(CyberBgCard)
+                            .clickable { showDatePicker = true }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("📅", fontSize = 16.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(dateFmt.format(java.util.Date(joinDateMillis)),
+                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = CyberTextPrimary, modifier = Modifier.weight(1f))
+                        Text("Change", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CyberAccent)
+                    }
+                }
+
                 if (existing == null && plans.isNotEmpty()) {
                     Spacer(Modifier.height(18.dp))
                     Text("Membership plan (optional)", fontSize = 13.sp, color = CyberTextMuted)
@@ -333,7 +384,10 @@ fun GymMemberSheet(
                                 .padding(vertical = 4.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (active) CyberAccent.copy(alpha = 0.12f) else CyberBgCard)
-                                .clickable { selectedPlan = if (active) null else plan }
+                                .clickable {
+                                    selectedPlan = if (active) null else plan
+                                    amountText = if (active) "" else plan.priceInr.toString()
+                                }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -347,12 +401,59 @@ fun GymMemberSheet(
                                 color = if (active) CyberAccent else CyberTextSecondary)
                         }
                     }
-                    if (selectedPlan != null) {
+
+                    // Auto fee collection — validity computed from joining date
+                    selectedPlan?.let { plan ->
+                        val validTill = joinDateMillis + plan.durationDays * 86400000L
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "💡 Remember to record the joining payment from the member's page",
-                            fontSize = 11.sp, color = CyberTextMuted, lineHeight = 16.sp,
-                            modifier = Modifier.padding(top = 4.dp)
+                            "✅ Valid ${dateFmt.format(java.util.Date(joinDateMillis))} → ${dateFmt.format(java.util.Date(validTill))} · next fee auto-reminded",
+                            fontSize = 11.sp, color = CyberSuccess, lineHeight = 16.sp
                         )
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (collectPayment) CyberAccent.copy(alpha = 0.10f) else CyberBgCard)
+                                .clickable { collectPayment = !collectPayment }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(if (collectPayment) "☑" else "☐", fontSize = 18.sp,
+                                color = if (collectPayment) CyberAccent else CyberTextMuted)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Collect joining fee now", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                    color = CyberTextPrimary)
+                                Text("Receipt is generated automatically", fontSize = 11.sp, color = CyberTextMuted)
+                            }
+                        }
+                        if (collectPayment) {
+                            Spacer(Modifier.height(12.dp))
+                            GymTextField(
+                                amountText,
+                                { amountText = it.filter { c -> c.isDigit() }.take(7) },
+                                "Amount (₹)",
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("UPI" to "📱 UPI", "CASH" to "💵 Cash", "CARD" to "💳 Card").forEach { (key, label) ->
+                                    val active = payMethod == key
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .background(if (active) CyberAccent.copy(alpha = 0.15f) else CyberBgCard)
+                                            .clickable { payMethod = key }
+                                            .padding(horizontal = 14.dp, vertical = 9.dp)
+                                    ) {
+                                        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                            color = if (active) CyberAccent else CyberTextSecondary)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -360,17 +461,29 @@ fun GymMemberSheet(
                 GymTextField(notes, { notes = it }, "Notes (optional)", "Injuries, goals, referrals…")
                 Spacer(Modifier.height(24.dp))
 
+                val payAmount = amountText.toIntOrNull() ?: 0
+                val payValid = !collectPayment || selectedPlan == null || payAmount > 0
                 Button(
-                    onClick = { if (name.isNotBlank()) onSave(name, phone, gender, selectedPlan, notes) },
-                    enabled = name.isNotBlank(),
+                    onClick = {
+                        if (name.isNotBlank() && payValid) onSave(
+                            name, phone, gender, selectedPlan, notes,
+                            joinDateMillis, collectPayment && selectedPlan != null, payAmount, payMethod
+                        )
+                    },
+                    enabled = name.isNotBlank() && payValid,
                     colors = ButtonDefaults.buttonColors(containerColor = CyberAccent, disabledContainerColor = CyberBgCard),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
                     Text(
-                        if (existing == null) "Add Member" else "Save Changes",
+                        when {
+                            existing != null -> "Save Changes"
+                            collectPayment && selectedPlan != null && payAmount > 0 ->
+                                "Add Member · Collect ₹${"%,d".format(payAmount)}"
+                            else -> "Add Member"
+                        },
                         fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                        color = if (name.isNotBlank()) CyberAccentDark else CyberTextMuted
+                        color = if (name.isNotBlank() && payValid) CyberAccentDark else CyberTextMuted
                     )
                 }
             }

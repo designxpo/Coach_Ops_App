@@ -19,6 +19,11 @@ object GymSync {
         db.collection("coaches").document(it).collection(name)
     }
 
+    /** Set by GymViewModel so the membership index can carry the gym's name. */
+    var gymName: String = ""
+
+    fun normalizePhone(raw: String): String = raw.filter { it.isDigit() }.takeLast(10)
+
     // ─── Members ──────────────────────────────────────────────────────────────
 
     fun saveMember(m: GymMember) {
@@ -29,10 +34,36 @@ object GymSync {
             "planStartMillis" to m.planStartMillis, "planEndMillis" to m.planEndMillis,
             "status" to m.status, "notes" to m.notes
         ))
+        upsertMembershipIndex(m)
     }
 
-    fun deleteMember(memberId: String) {
+    fun deleteMember(memberId: String, phone: String = "") {
         col("gym_members")?.document(memberId)?.delete()
+        val u = uid ?: return
+        val p = normalizePhone(phone)
+        if (p.length == 10) {
+            db.collection("gym_memberships").document("${u}_$p").delete()
+        }
+    }
+
+    // ─── Membership index — lets the member's own app find their gym plan ────
+    // Keyed by phone so a member account (matched by phone) can see expiry and
+    // get in-app renewal reminders.
+
+    private fun upsertMembershipIndex(m: GymMember) {
+        val u = uid ?: return
+        val p = normalizePhone(m.phone)
+        if (p.length != 10) return
+        db.collection("gym_memberships").document("${u}_$p").set(mapOf(
+            "ownerUid" to u,
+            "phone" to p,
+            "gymName" to gymName,
+            "memberName" to m.name,
+            "planName" to m.planName,
+            "planEndMillis" to m.planEndMillis,
+            "status" to m.status,
+            "updatedAt" to System.currentTimeMillis()
+        ))
     }
 
     // ─── Plans ────────────────────────────────────────────────────────────────

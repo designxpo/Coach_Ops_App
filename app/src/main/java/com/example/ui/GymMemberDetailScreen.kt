@@ -140,7 +140,7 @@ fun GymMemberDetailScreen(
             plans = plans,
             existing = m,
             onDismiss = { showEditSheet = false },
-            onSave = { name, phone, gender, _, notes ->
+            onSave = { name, phone, gender, _, notes, _, _, _, _ ->
                 viewModel.updateMember(m.copy(name = name, phone = phone, gender = gender, notes = notes))
                 showEditSheet = false
             }
@@ -156,7 +156,7 @@ fun GymMemberDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteDialog = false
-                    viewModel.deleteMember(m.id)
+                    viewModel.deleteMember(m)
                     onBack()
                 }) { Text("Remove", color = CyberDanger, fontWeight = FontWeight.Bold) }
             },

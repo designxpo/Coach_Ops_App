@@ -60,6 +60,7 @@ class GymViewModel(
 
     init {
         EntitlementManager.start(userPreferences)
+        com.example.data.GymSync.gymName = userPreferences.gymName
         viewModelScope.launch { repository.syncFromFirestoreIfEmpty() }
     }
 
@@ -96,6 +97,7 @@ class GymViewModel(
         userPreferences.gymName = name.trim()
         userPreferences.gymAddress = address.trim()
         userPreferences.gymGstin = gstin.trim().uppercase()
+        com.example.data.GymSync.gymName = userPreferences.gymName
 
         // Mirror to user_records so the admin panel sees gym businesses
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -116,23 +118,35 @@ class GymViewModel(
 
     // ─── Members ──────────────────────────────────────────────────────────────
 
-    fun addMember(name: String, phone: String, gender: String, plan: GymPlan?, notes: String) {
+    fun addMember(
+        name: String,
+        phone: String,
+        gender: String,
+        plan: GymPlan?,
+        notes: String,
+        joinDateMillis: Long = System.currentTimeMillis(),
+        collectPayment: Boolean = false,
+        amountInr: Int = 0,
+        method: String = "UPI"
+    ) {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
             val member = GymMember(
                 id = UUID.randomUUID().toString(),
                 name = name.trim(),
                 phone = phone.trim(),
                 gender = gender,
-                joinDateMillis = now,
+                joinDateMillis = joinDateMillis,
                 planId = plan?.id ?: "",
                 planName = plan?.name ?: "",
-                planStartMillis = if (plan != null) now else 0L,
-                planEndMillis = if (plan != null) now + plan.durationDays * 86400000L else 0L,
+                planStartMillis = if (plan != null) joinDateMillis else 0L,
+                planEndMillis = if (plan != null) joinDateMillis + plan.durationDays * 86400000L else 0L,
                 notes = notes.trim()
             )
-            repository.addMember(member)
-            _snackbar.value = "${member.name} added"
+            val payment = repository.registerMember(member, plan, collectPayment, amountInr, method)
+            _snackbar.value = if (payment != null)
+                "${member.name} added · ₹${"%,d".format(payment.amountInr)} recorded (${payment.receiptNo})"
+            else
+                "${member.name} added"
         }
     }
 
@@ -140,9 +154,9 @@ class GymViewModel(
         viewModelScope.launch { repository.updateMember(member) }
     }
 
-    fun deleteMember(memberId: String) {
+    fun deleteMember(member: GymMember) {
         viewModelScope.launch {
-            repository.deleteMember(memberId)
+            repository.deleteMember(member)
             _snackbar.value = "Member removed"
         }
     }

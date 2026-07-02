@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,7 +57,14 @@ import java.util.Locale
 fun ClientDashboardScreen(viewModel: ClientViewModel) {
     val bookings by viewModel.myBookings.collectAsState()
 
-    LaunchedEffect(Unit) { viewModel.loadMyBookings() }
+    // Gym membership (auto-matched by phone number) — plan status + renewal countdown
+    var memberships by remember {
+        mutableStateOf<List<com.example.data.GymMembershipLookup.Membership>>(emptyList())
+    }
+    LaunchedEffect(Unit) {
+        viewModel.loadMyBookings()
+        memberships = com.example.data.GymMembershipLookup.findByPhone(viewModel.userPhone())
+    }
 
     val upcoming = bookings.filter { it.status in listOf("PENDING", "CONFIRMED") }
     val past     = bookings.filter { it.status in listOf("COMPLETED", "DECLINED", "CANCELLED") }
@@ -71,6 +79,13 @@ fun ClientDashboardScreen(viewModel: ClientViewModel) {
             Text("My Bookings", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
             Spacer(Modifier.height(4.dp))
             Text("${bookings.size} total sessions", fontSize = 13.sp, color = CyberTextMuted)
+        }
+
+        memberships.forEach { ms ->
+            GymMembershipCard(
+                membership = ms,
+                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
+            )
         }
 
         if (bookings.isEmpty()) {
@@ -116,6 +131,54 @@ fun ClientDashboardScreen(viewModel: ClientViewModel) {
             }
 
             item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun GymMembershipCard(
+    membership: com.example.data.GymMembershipLookup.Membership,
+    modifier: Modifier = Modifier
+) {
+    val dateFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val (statusColor, statusText) = when {
+        membership.planEndMillis <= 0L -> CyberTextMuted to "No active plan"
+        membership.isExpired           -> CyberDanger to "Expired — renew at the gym"
+        membership.daysLeft <= 7       -> CyberWarning to "${membership.daysLeft} day(s) left — renew soon"
+        else                           -> CyberSuccess to "${membership.daysLeft} days left"
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(CyberBgCard)
+            .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("🏋️", fontSize = 22.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("MY GYM MEMBERSHIP", fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    color = CyberTextMuted, letterSpacing = 0.8.sp)
+                Text(membership.gymName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(statusColor.copy(alpha = 0.14f))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(statusText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = statusColor)
+            }
+        }
+        if (membership.planName.isNotEmpty() && membership.planEndMillis > 0L) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${membership.planName} · valid till ${dateFmt.format(Date(membership.planEndMillis))}",
+                fontSize = 12.sp, color = CyberTextSecondary
+            )
         }
     }
 }

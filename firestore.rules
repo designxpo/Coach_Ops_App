@@ -52,6 +52,16 @@ service cloud.firestore {
       match /gym_checkins/{checkinId}     { allow read, write: if request.auth.uid == coachId; }
     }
 
+    // Gym membership index — owner writes their members' plan status;
+    // members read it (matched by phone) for in-app renewal reminders
+    match /gym_memberships/{docId} {
+      allow create, update: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+      allow read: if request.auth != null;
+    }
+
     // Upgrade requests — user creates/updates their own; admin panel processes
     match /upgrade_requests/{requestId} {
       allow create, update: if request.auth != null
