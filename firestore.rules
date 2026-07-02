@@ -144,7 +144,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasAll(['name', 'email', 'role', 'signedUpAt'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
         && request.resource.data.email is string && request.resource.data.email.size() <= 200
-        && request.resource.data.role in ['coach', 'member'];
+        && request.resource.data.role in ['coach', 'member', 'gym_owner'];
       allow read, delete: if isAdmin();
     }
 

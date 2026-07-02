@@ -299,7 +299,7 @@ section{position:relative}
 .cta__form--full{max-width:560px;flex-direction:column;align-items:stretch}
 .ea-fields{display:flex;flex-direction:column;gap:10px}
 .ea-fields input{flex:unset;min-width:unset;width:100%;border-radius:16px}
-.ea-role-wrap{display:flex;gap:12px;justify-content:center}
+.ea-role-wrap{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 .ea-role{display:flex;align-items:center;gap:8px;padding:12px 28px;border-radius:999px;border:1px solid var(--glass-border);background:rgba(255,255,255,.05);color:var(--muted);font-size:.95rem;cursor:pointer;transition:border-color .2s,background .2s,color .2s}
 .ea-role:has(input:checked){border-color:var(--lime);background:rgba(185,245,1,.1);color:var(--ink)}
 .ea-role input{position:absolute;opacity:0;pointer-events:none}
@@ -314,7 +314,7 @@ section{position:relative}
 .footer__social{display:flex;gap:10px}
 .footer__social a{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.05);border:1px solid var(--glass-border);color:var(--muted);transition:.25s;font-size:.9rem}
 .footer__social a:hover{color:var(--lime);border-color:rgba(185,245,1,.4);transform:translateY(-2px)}
-.footer__cols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.footer__cols{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
 .footer__col h4{font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);margin-bottom:16px}
 .footer__col a{display:block;color:var(--muted);font-size:.93rem;padding:6px 0;transition:color .2s}
 .footer__col a:hover{color:var(--lime)}
@@ -334,7 +334,7 @@ section{position:relative}
 .phone__tag--member{background:rgba(20,20,22,.7);color:var(--lime);border:1px solid rgba(185,245,1,.5);left:auto;right:14px}
 
 /* ===================== AUDIENCE SPLIT ===================== */
-.split{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:22px}
 .split-card{display:flex;flex-direction:column;padding:34px 30px;transition:transform .35s var(--ease),border-color .35s}
 .split-card:hover{transform:translateY(-6px);border-color:rgba(185,245,1,.4)}
 .split-card--hl{background:linear-gradient(165deg, rgba(185,245,1,.14), rgba(185,245,1,.02));border-color:rgba(185,245,1,.3)}
