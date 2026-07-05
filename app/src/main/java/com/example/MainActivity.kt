@@ -41,6 +41,9 @@ class MainActivity : ComponentActivity() {
         }
         requestNotificationPermissionIfNeeded()
         registerFcmToken()
+        // Capture the pedometer delta on every app launch — steps walked while
+        // the app was closed are credited the moment it opens (see StepCounterManager)
+        com.example.data.StepCounterManager.getInstance(applicationContext).start()
     }
 
     // Register FCM token as soon as auth is ready — avoids the race where

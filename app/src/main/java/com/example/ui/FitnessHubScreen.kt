@@ -45,6 +45,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -516,7 +517,22 @@ fun FitnessHubScreen(
                 }
                 val stepPermLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
-                ) { granted -> hasStepPermission = granted }
+                ) { granted ->
+                    hasStepPermission = granted
+                    // The pre-grant registration is silently dead — re-register now
+                    if (granted) healthViewModel.restartStepCounter()
+                }
+
+                // Ask once automatically so auto-tracking works out of the box
+                LaunchedEffect(Unit) {
+                    if (healthViewModel.isStepCounterAvailable && !hasStepPermission) {
+                        val permPrefs = context.getSharedPreferences("step_counter", android.content.Context.MODE_PRIVATE)
+                        if (!permPrefs.getBoolean("perm_auto_asked", false)) {
+                            permPrefs.edit().putBoolean("perm_auto_asked", true).apply()
+                            stepPermLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                        }
+                    }
+                }
 
                 val autoSteps = healthViewModel.isStepCounterAvailable && hasStepPermission
 

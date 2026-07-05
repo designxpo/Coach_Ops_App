@@ -48,7 +48,7 @@ class HealthViewModel(
             viewModelScope.launch {
                 stepCounter.dailySteps.collect { steps ->
                     val current = _todayLog.value
-                    if (steps != current.stepsCount) {
+                    if (steps > current.stepsCount) {
                         val log = current.copy(
                             stepsCount     = steps,
                             caloriesBurned = (steps * 0.04f).toInt()
@@ -62,10 +62,13 @@ class HealthViewModel(
         }
     }
 
+    /** Call right after ACTIVITY_RECOGNITION is granted — retries the (dead) registration. */
+    fun restartStepCounter() = stepCounter.start()
+
     override fun onCleared() {
         super.onCleared()
-        stepCounter.stop()
-        // Flush final step count to Firestore
+        // Listener stays registered for the app's lifetime (singleton, negligible
+        // battery — it's a hardware counter). Just flush the final count.
         viewModelScope.launch {
             try { repo.saveLog(_todayLog.value.copy(date = repo.todayKey())) } catch (_: Exception) {}
         }
@@ -77,7 +80,7 @@ class HealthViewModel(
                 val today = repo.todayKey()
                 val log   = repo.getLog(today)
                 _todayLog.value     = log
-                stepCounter.setBaseline(log.stepsCount)
+                stepCounter.mergeExternal(log.stepsCount)
                 _weekLogs.value     = repo.getLast7Days()
                 _measurements.value = repo.getMeasurements()
                 _photos.value       = repo.getProgressPhotos()
@@ -211,7 +214,7 @@ class HealthViewModelFactory(
         @Suppress("UNCHECKED_CAST")
         return HealthViewModel(
             HealthRepository(uid),
-            StepCounterManager(context.applicationContext),
+            StepCounterManager.getInstance(context.applicationContext),
         ) as T
     }
 }
