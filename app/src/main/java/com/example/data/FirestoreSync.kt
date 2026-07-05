@@ -132,6 +132,25 @@ object FirestoreSync {
             ), com.google.firebase.firestore.SetOptions.merge())
     }
 
+    /**
+     * Reports the running app version on every launch so the admin panel can
+     * track update adoption. versionHistory accumulates every version this
+     * user has ever run (arrayUnion — no duplicates), so old-version records
+     * are never lost when an update ships.
+     */
+    fun saveAppVersion() {
+        val u = uid ?: return
+        db.collection("user_records").document(u)
+            .set(mapOf(
+                "appVersion"          to com.example.BuildConfig.VERSION_NAME,
+                "appVersionCode"      to com.example.BuildConfig.VERSION_CODE,
+                "appVersionUpdatedAt" to System.currentTimeMillis(),
+                "versionHistory"      to com.google.firebase.firestore.FieldValue.arrayUnion(
+                    com.example.BuildConfig.VERSION_NAME),
+                "lastActiveAt"        to System.currentTimeMillis()
+            ), com.google.firebase.firestore.SetOptions.merge())
+    }
+
     /** Persists FCM token so the admin panel can send push notifications to this device.
      *  Never sets 'role' — role is owned by registerClientRecord / updateProfileRecord. */
     fun saveFcmToken(token: String) {

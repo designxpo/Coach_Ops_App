@@ -56,6 +56,9 @@ class MainActivity : ComponentActivity() {
                 FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                     FirestoreSync.saveFcmToken(token)
                 }
+                // Report the running version on every launch — powers the
+                // admin panel's update-adoption tracking
+                FirestoreSync.saveAppVersion()
             }
         }
     }

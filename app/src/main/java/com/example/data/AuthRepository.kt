@@ -25,7 +25,8 @@ object AuthRepository {
     private val auth = FirebaseAuth.getInstance()
     private val db   = FirebaseFirestore.getInstance()
 
-    private const val APP_VERSION  = "1.0.0"
+    // Real build version — never hardcode, or every release reports the same number
+    private val APP_VERSION = com.example.BuildConfig.VERSION_NAME
     private const val WEB_CLIENT_ID =
         "566108244280-npl53hil8beahuj6i75hi0h80lgaatc0.apps.googleusercontent.com"
 
