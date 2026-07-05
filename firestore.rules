@@ -110,8 +110,9 @@ service cloud.firestore {
     match /client_fitness/{clientId} {
       allow read, write: if request.auth != null && request.auth.uid == clientId;
 
-      match /goals/{goalId}  { allow read, write: if request.auth.uid == clientId; }
-      match /logs/{logId}    { allow read, write: if request.auth.uid == clientId; }
+      match /goals/{goalId}       { allow read, write: if request.auth.uid == clientId; }
+      match /logs/{logId}         { allow read, write: if request.auth.uid == clientId; }
+      match /food_diary/{entryId} { allow read, write: if request.auth.uid == clientId; }
     }
 
     // Direct chat between coach and member

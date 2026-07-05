@@ -556,6 +556,42 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                 nutrition?.let { n ->
                     Spacer(Modifier.height(20.dp))
                     NutritionResultCard(n)
+
+                    // ── Log to the daily food diary ────────────────────────────
+                    Spacer(Modifier.height(12.dp))
+                    var loggedName by remember { mutableStateOf("") }
+                    val diaryScope = rememberCoroutineScope()
+                    val isLogged = loggedName == n.foodName
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isLogged) CyberSuccess.copy(0.15f) else CyberAccent)
+                            .clickable(enabled = !isLogged) {
+                                diaryScope.launch {
+                                    val entry = com.example.data.FoodDiary.entryFrom(
+                                        n,
+                                        source = when (mode) {
+                                            ScanMode.BARCODE -> "BARCODE"
+                                            ScanMode.VOICE   -> "VOICE"
+                                            else             -> "AI"
+                                        }
+                                    )
+                                    com.example.data.AppDatabase.getInstance(context)
+                                        .foodDiaryDao().insert(entry)
+                                    com.example.data.FoodDiary.syncSave(entry)
+                                    loggedName = n.foodName
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (isLogged) "✓ Added to today's diary" else "🍽  Add to Food Diary",
+                            fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = if (isLogged) CyberSuccess else CyberAccentDark
+                        )
+                    }
                 }
             }
 

@@ -685,6 +685,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onHealthMetricsClick = { navController.navigate("health_metrics") },
                     onMyDietClick        = { navController.navigate("my_diet") },
                     onFoodScanClick         = { navController.navigate("food_scanner") },
+                    onFoodDiaryClick        = { navController.navigate("food_diary") },
                     onBodyMeasurementsClick = { navController.navigate("body_measurements") },
                     onProgressPhotosClick   = { navController.navigate("progress_photos") },
                     onCycleTrackerClick     = { navController.navigate("cycle_tracker") },
@@ -789,6 +790,15 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
             }
             composable("food_scanner") {
                 FoodScannerScreen(onBack = { navController.popBackStack() })
+            }
+            composable("food_diary") {
+                val db = remember { AppDatabase.getInstance(context) }
+                FoodDiaryScreen(
+                    onBack          = { navController.popBackStack() },
+                    userPreferences = userPreferences,
+                    db              = db,
+                    onAddFood       = { navController.navigate("food_scanner") }
+                )
             }
             composable("water_tracker") {
                 val db = remember { AppDatabase.getInstance(context) }

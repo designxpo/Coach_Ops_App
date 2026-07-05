@@ -105,6 +105,7 @@ fun FitnessHubScreen(
     onHealthMetricsClick: () -> Unit = {},
     onMyDietClick: () -> Unit = {},
     onFoodScanClick: () -> Unit = {},
+    onFoodDiaryClick: () -> Unit = {},
     onBodyMeasurementsClick: () -> Unit = {},
     onProgressPhotosClick: () -> Unit = {},
     onCycleTrackerClick: () -> Unit = {},
@@ -914,7 +915,14 @@ fun FitnessHubScreen(
                         modifier = Modifier.weight(1f),
                         onClick  = onHealthConnectClick
                     )
-                    Spacer(Modifier.weight(1f))
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=180&fit=crop",
+                        title    = "Food Diary",
+                        subtitle = "Calories · Cheat meals",
+                        color    = Color(0xFF7C2D12),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onFoodDiaryClick
+                    )
                 }
             }
         }
