@@ -520,7 +520,10 @@ fun FitnessHubScreen(
                 ) { granted ->
                     hasStepPermission = granted
                     // The pre-grant registration is silently dead — re-register now
-                    if (granted) healthViewModel.restartStepCounter()
+                    if (granted) {
+                        healthViewModel.restartStepCounter()
+                        com.example.StepTrackingService.startIfEnabled(context)
+                    }
                 }
 
                 // Ask once automatically so auto-tracking works out of the box
@@ -631,6 +634,39 @@ fun FitnessHubScreen(
                                 }
                             }
                             Text("${log.waterGlasses}/8 glasses", fontSize = 10.sp, color = CyberTextMuted)
+                        }
+                    }
+
+                    // Live tracking banner toggle (steps count even when app is closed)
+                    if (healthViewModel.isStepCounterAvailable) {
+                        val livePrefs = remember { com.example.data.UserPreferences.getInstance(context) }
+                        var liveEnabled by remember { mutableStateOf(livePrefs.liveTrackingEnabled) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(CyberBgCard)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("📌 Live tracking banner", fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+                                Text("Counts steps with the app closed · quick water logging",
+                                    fontSize = 10.sp, color = CyberTextMuted)
+                            }
+                            androidx.compose.material3.Switch(
+                                checked = liveEnabled,
+                                onCheckedChange = { on ->
+                                    liveEnabled = on
+                                    livePrefs.liveTrackingEnabled = on
+                                    if (on) com.example.StepTrackingService.startIfEnabled(context)
+                                    else com.example.StepTrackingService.stop(context)
+                                },
+                                colors = androidx.compose.material3.SwitchDefaults.colors(
+                                    checkedThumbColor = CyberAccent,
+                                    checkedTrackColor = CyberAccent.copy(alpha = 0.35f)
+                                )
+                            )
                         }
                     }
 
