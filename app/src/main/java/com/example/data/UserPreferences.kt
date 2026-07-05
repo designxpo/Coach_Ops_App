@@ -173,11 +173,6 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getInt("macro_rest_fat", 60)
         set(v) { prefs.edit().putInt("macro_rest_fat", v).apply() }
 
-    // ─── Water goal ───────────────────────────────────────────────────────────
-    var dailyWaterGoalMl: Int
-        get() = prefs.getInt("water_goal_ml", 2500)
-        set(v) { prefs.edit().putInt("water_goal_ml", v).apply() }
-
     // ─── Live tracking (pinned notification with steps/water) ────────────────
     var liveTrackingEnabled: Boolean
         get() = prefs.getBoolean("live_tracking_enabled", true)

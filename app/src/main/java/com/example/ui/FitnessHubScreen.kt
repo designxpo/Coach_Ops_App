@@ -109,7 +109,6 @@ fun FitnessHubScreen(
     onBodyMeasurementsClick: () -> Unit = {},
     onProgressPhotosClick: () -> Unit = {},
     onCycleTrackerClick: () -> Unit = {},
-    onWaterTrackerClick: () -> Unit = {},
     onNutritionCoachClick: () -> Unit = {},
     onMealPlannerClick: () -> Unit = {},
     onHealthConnectClick: () -> Unit = {}
@@ -874,12 +873,12 @@ fun FitnessHubScreen(
                         onClick  = onFoodScanClick
                     )
                     QuickLinkCard(
-                        imageUrl = "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=300&h=180&fit=crop",
-                        title    = "Water Tracker",
-                        subtitle = "Daily hydration",
-                        color    = Color(0xFF0C4A6E),
+                        imageUrl = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=180&fit=crop",
+                        title    = "Food Diary",
+                        subtitle = "Calories · Cheat meals",
+                        color    = Color(0xFF7C2D12),
                         modifier = Modifier.weight(1f),
-                        onClick  = onWaterTrackerClick
+                        onClick  = onFoodDiaryClick
                     )
                 }
                 Row(
@@ -915,14 +914,7 @@ fun FitnessHubScreen(
                         modifier = Modifier.weight(1f),
                         onClick  = onHealthConnectClick
                     )
-                    QuickLinkCard(
-                        imageUrl = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=180&fit=crop",
-                        title    = "Food Diary",
-                        subtitle = "Calories · Cheat meals",
-                        color    = Color(0xFF7C2D12),
-                        modifier = Modifier.weight(1f),
-                        onClick  = onFoodDiaryClick
-                    )
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }

@@ -15,19 +15,17 @@ import androidx.room.RoomDatabase
         BodyMeasurement::class,
         ClientNote::class,
         RevenueSnapshot::class,
-        WaterEntry::class,
         GymMember::class,
         GymPlan::class,
         GymPayment::class,
         GymCheckIn::class,
         FoodDiaryEntry::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun coachDao(): CoachDao
-    abstract fun waterDao(): WaterDao
     abstract fun gymDao(): GymDao
     abstract fun foodDiaryDao(): FoodDiaryDao
 
