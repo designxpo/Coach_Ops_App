@@ -355,12 +355,26 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                                     )
                                 )
                                 .clickable(enabled = !isAnalyzing) {
-                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a food name or meal")
-                                        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                                    // Some devices (no Google app / de-Googled OEMs) have no speech
+                                    // recognizer — launching blindly crashes with ActivityNotFound
+                                    if (!android.speech.SpeechRecognizer.isRecognitionAvailable(context)) {
+                                        android.widget.Toast.makeText(context,
+                                            "Voice input isn't available on this device — install/enable the Google app",
+                                            android.widget.Toast.LENGTH_LONG).show()
+                                    } else {
+                                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a food name or meal")
+                                            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                                        }
+                                        try {
+                                            speechLauncher.launch(intent)
+                                        } catch (_: Exception) {
+                                            android.widget.Toast.makeText(context,
+                                                "Couldn't open voice input on this device",
+                                                android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     }
-                                    speechLauncher.launch(intent)
                                 },
                             contentAlignment = Alignment.Center
                         ) {
