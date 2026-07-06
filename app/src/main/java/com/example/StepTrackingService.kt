@@ -38,6 +38,7 @@ class StepTrackingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var waterToday = 0
     private var lastShownSteps = -1
+    private var lastWaterFetchMs = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -121,6 +122,30 @@ class StepTrackingService : Service() {
     private fun notifyUpdate(steps: Int) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         try { nm.notify(NOTIF_ID, buildNotification(steps)) } catch (_: Exception) { }
+        refreshWaterIfStale()
+    }
+
+    /** Water logged in the app should reflect on the banner within ~5 minutes. */
+    private fun refreshWaterIfStale() {
+        val now = System.currentTimeMillis()
+        if (now - lastWaterFetchMs < 5 * 60 * 1000L) return
+        lastWaterFetchMs = now
+        scope.launch(Dispatchers.IO) {
+            try {
+                val prefs = UserPreferences.getInstance(this@StepTrackingService)
+                if (prefs.userId.isEmpty()) return@launch
+                val repo = HealthRepository(prefs.userId)
+                val fresh = repo.getLog(repo.todayKey()).waterGlasses
+                if (fresh != waterToday) {
+                    waterToday = fresh
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    try {
+                        nm.notify(NOTIF_ID, buildNotification(
+                            StepCounterManager.getInstance(this@StepTrackingService).dailySteps.value))
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     private fun buildNotification(steps: Int): android.app.Notification {

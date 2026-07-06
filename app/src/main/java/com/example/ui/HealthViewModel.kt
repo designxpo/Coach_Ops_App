@@ -79,8 +79,15 @@ class HealthViewModel(
             try {
                 val today = repo.todayKey()
                 val log   = repo.getLog(today)
-                _todayLog.value     = log
+                // Merge cloud + live pedometer — never let a stale cloud zero
+                // overwrite steps the sensor already counted (the banner and
+                // the app must always agree)
                 stepCounter.mergeExternal(log.stepsCount)
+                val liveSteps = stepCounter.dailySteps.value
+                _todayLog.value = log.copy(
+                    stepsCount     = maxOf(log.stepsCount, liveSteps),
+                    caloriesBurned = maxOf(log.caloriesBurned, (liveSteps * 0.04f).toInt())
+                )
                 _weekLogs.value     = repo.getLast7Days()
                 _measurements.value = repo.getMeasurements()
                 _photos.value       = repo.getProgressPhotos()
@@ -91,7 +98,12 @@ class HealthViewModel(
 
     fun refreshToday() {
         viewModelScope.launch {
-            _todayLog.value = repo.getLog(repo.todayKey())
+            val log = repo.getLog(repo.todayKey())
+            val liveSteps = stepCounter.dailySteps.value
+            _todayLog.value = log.copy(
+                stepsCount     = maxOf(log.stepsCount, liveSteps),
+                caloriesBurned = maxOf(log.caloriesBurned, (liveSteps * 0.04f).toInt())
+            )
             _weekLogs.value = repo.getLast7Days()
         }
     }
