@@ -87,6 +87,7 @@ fun ProfileScreen(
 
     var showEditSheet by remember { mutableStateOf(false) }
     var showMarketplaceSheet by remember { mutableStateOf(false) }
+    var showReportSheet by remember { mutableStateOf(false) }
     var publishBanner by remember { mutableStateOf("") }   // "" = hidden, else message
     var publishBannerOk by remember { mutableStateOf(true) }
     val publishState by viewModel.publishState.collectAsState()
@@ -424,6 +425,23 @@ fun ProfileScreen(
             }
         }
 
+        // Support
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(CyberBgCard)
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text("Support", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary,
+                        modifier = Modifier.padding(bottom = 12.dp))
+                    LegalLinkRow(label = "Report a Problem", onClick = { showReportSheet = true })
+                }
+            }
+        }
+
         // Legal
         item {
             Box(
@@ -472,10 +490,15 @@ fun ProfileScreen(
         item {
             Spacer(Modifier.height(8.dp))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("ProCoach India v1.0  ·  Build 1", fontSize = 11.sp, color = CyberTextMuted)
+                Text(
+                    "ProCoach India v${com.example.BuildConfig.VERSION_NAME}  ·  Build ${com.example.BuildConfig.VERSION_CODE}",
+                    fontSize = 11.sp, color = CyberTextMuted
+                )
             }
         }
     }
+
+    if (showReportSheet) ReportIssueSheet(onDismiss = { showReportSheet = false })
 }
 
 @Composable

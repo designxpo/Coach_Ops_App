@@ -307,8 +307,11 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
 
     fun logout(context: android.content.Context) {
         com.example.data.EntitlementManager.stop()
-        com.example.data.AuthRepository.signOut(context)
-        userPreferences.clearLocalSession()
+        viewModelScope.launch {
+            FirestoreSync.clearFcmToken()    // before signOut — needs auth to write
+            com.example.data.AuthRepository.signOut(context)
+            userPreferences.clearLocalSession()
+        }
     }
 }
 

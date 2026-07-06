@@ -75,6 +75,11 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="procoach_push" />
+        <!-- Status-bar icon for background pushes: adaptive launcher icons
+             render as a grey square and crash some Android 8.0 devices -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
 
         <!-- FileProvider for camera photo capture (food scanner) -->
         <provider

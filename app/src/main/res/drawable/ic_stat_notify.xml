@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar notification icon: must be white-on-transparent (the system
+     alpha-masks it). Adaptive launcher icons render as a grey square here
+     and crash some Android 8.0 devices — never use ic_launcher for this. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M20.57,14.86L22,13.43 20.57,12 17,15.57 8.43,7 12,3.43 10.57,2 9.14,3.43 7.71,2 5.57,4.14 4.14,2.71 2.71,4.14l1.43,1.43L2.71,7 4.14,8.43 2.71,9.86 4.14,11.29 7.71,7.71 16.29,16.29 12.71,19.86 14.14,21.29 15.57,19.86 17,21.29 19.14,19.14 20.57,20.57 22,19.14l-1.43,-1.43L22,16.29z"/>
+</vector>

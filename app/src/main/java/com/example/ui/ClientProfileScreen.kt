@@ -79,6 +79,7 @@ fun ClientProfileScreen(
     var name by remember { mutableStateOf(viewModel.clientName) }
     var city by remember { mutableStateOf(viewModel.clientCity) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showReportSheet by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
 
     // ── Location state ────────────────────────────────────────────────────────
@@ -470,6 +471,21 @@ fun ClientProfileScreen(
 
         Spacer(Modifier.height(16.dp))
 
+        // Report a problem
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CyberBgCard)
+                .clickable { showReportSheet = true }
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Report a Problem", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+        }
+
+        Spacer(Modifier.height(12.dp))
+
         // Logout
         Box(
             modifier = Modifier
@@ -486,6 +502,8 @@ fun ClientProfileScreen(
 
         Spacer(Modifier.height(32.dp))
     }
+
+    if (showReportSheet) ReportIssueSheet(onDismiss = { showReportSheet = false })
 }
 
 @Composable

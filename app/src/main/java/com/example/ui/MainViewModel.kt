@@ -623,6 +623,7 @@ class MainViewModel(
     fun logout(gymRepository: com.example.data.GymRepository? = null) {
         com.example.data.EntitlementManager.stop()
         viewModelScope.launch {
+            FirestoreSync.clearFcmToken()    // before signOut — needs auth to write
             com.example.data.AuthRepository.signOut()
             repository.clearAllLocalData()   // await Room wipe before clearing prefs
             gymRepository?.clearAllLocalData()

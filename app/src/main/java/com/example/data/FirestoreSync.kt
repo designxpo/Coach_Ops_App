@@ -162,6 +162,22 @@ object FirestoreSync {
             ), com.google.firebase.firestore.SetOptions.merge())
     }
 
+    /**
+     * MUST run before signOut(): removes this device's push token from the
+     * account and invalidates it. Otherwise pushes targeted at the old account
+     * keep landing on this device after another user logs in.
+     */
+    suspend fun clearFcmToken() {
+        val u = uid ?: return
+        try {
+            db.collection("user_records").document(u)
+                .set(mapOf("fcmToken" to com.google.firebase.firestore.FieldValue.delete()),
+                    com.google.firebase.firestore.SetOptions.merge())
+                .await()
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken().await()
+        } catch (_: Exception) { /* offline logout still proceeds */ }
+    }
+
     /** Persists subscription plan so admin panel can target Pro/Business users. */
     fun saveSubscriptionPlan(plan: String) {
         val u = uid ?: return

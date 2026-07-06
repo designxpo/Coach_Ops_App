@@ -32,7 +32,7 @@ class NotificationWorker(
 
         lowConsistency.forEach { client ->
             nm.notify(notifId++, NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle("${client.name} needs attention")
                 .setContentText("Consistency at ${client.consistencyScore}% — reach out now")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -43,7 +43,7 @@ class NotificationWorker(
         if (overduePayments.isNotEmpty()) {
             val total = overduePayments.sumOf { it.amount }
             nm.notify(notifId++, NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle("${overduePayments.size} payment(s) need follow-up")
                 .setContentText("₹${"%,d".format(total)} outstanding — send reminders today")
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -66,7 +66,7 @@ class NotificationWorker(
             val names = expiring.take(3).joinToString(", ") { it.name }
             val extra = if (expiring.size > 3) " +${expiring.size - 3} more" else ""
             nm.notify(startId, NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle("🏋️ ${expiring.size} gym renewal(s) due")
                 .setContentText("$names$extra — collect fees & send reminders")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -95,7 +95,7 @@ class NotificationWorker(
                     else -> return@forEach
                 }
                 nm.notify(id++, NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(R.drawable.ic_stat_notify)
                     .setContentTitle("🏋️ Gym fee reminder")
                     .setContentText(message)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(message))

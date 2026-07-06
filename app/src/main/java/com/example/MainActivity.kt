@@ -42,6 +42,12 @@ class MainActivity : ComponentActivity() {
                 CoachOpsApp(repository, userPreferences, featureFlagManager)
             }
         }
+        // Create the push channel NOW: background FCM messages are displayed by
+        // the SDK itself and land on a "Miscellaneous" fallback channel if this
+        // doesn't exist before the first push arrives
+        ProCoachMessagingService.ensureChannel(
+            getSystemService(android.app.NotificationManager::class.java)
+        )
         requestNotificationPermissionIfNeeded()
         registerFcmToken()
         // Capture the pedometer delta on every app launch — steps walked while
@@ -53,9 +59,14 @@ class MainActivity : ComponentActivity() {
 
     // Register FCM token as soon as auth is ready — avoids the race where
     // FirebaseMessaging.token resolves before Firebase Auth restores the session.
+    // Self-removing: a permanent listener stacks one copy per activity
+    // recreation and fires duplicate writes on every later sign-in.
     private fun registerFcmToken() {
-        FirebaseAuth.getInstance().addAuthStateListener { auth ->
-            if (auth.currentUser != null) {
+        val auth = FirebaseAuth.getInstance()
+        auth.addAuthStateListener(object : FirebaseAuth.AuthStateListener {
+            override fun onAuthStateChanged(a: FirebaseAuth) {
+                if (a.currentUser == null) return
+                a.removeAuthStateListener(this)
                 FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                     FirestoreSync.saveFcmToken(token)
                 }
@@ -63,7 +74,7 @@ class MainActivity : ComponentActivity() {
                 // admin panel's update-adoption tracking
                 FirestoreSync.saveAppVersion()
             }
-        }
+        })
     }
 
     private fun requestNotificationPermissionIfNeeded() {

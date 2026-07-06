@@ -165,7 +165,7 @@ class StepTrackingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_myplaces)
+            .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle("🏃 ${"%,d".format(steps)} steps today")
             .setContentText("🔥 $kcal kcal · 💧 $waterToday glasses · $pct% of ${"%,d".format(STEP_GOAL)}")
             .setProgress(STEP_GOAL, steps.coerceAtMost(STEP_GOAL), false)
