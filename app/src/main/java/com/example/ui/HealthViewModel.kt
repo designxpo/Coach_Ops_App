@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.UserBodyStats
 import com.example.data.CycleEntry
 import com.example.data.DailyHealthLog
+import com.example.data.HealthConnectManager
 import com.example.data.HealthRepository
 import com.example.data.ProgressPhoto
 import com.example.data.StepCounterManager
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 class HealthViewModel(
     private val repo: HealthRepository,
     private val stepCounter: StepCounterManager,
+    private val healthConnect: HealthConnectManager? = null,
 ) : ViewModel() {
 
     private val _todayLog  = MutableStateFlow(DailyHealthLog())
@@ -74,9 +76,24 @@ class HealthViewModel(
         }
     }
 
+    /**
+     * Pulls today's Health Connect steps (watch/band/Google Fit) into the local
+     * counter so they show on the home dashboard — not only on the HC screen.
+     * Must run BEFORE liveSteps is read: loadAll/refreshToday take
+     * maxOf(cloud, liveSteps), so merging first is what makes HC steps flow
+     * into todayLog.
+     */
+    private suspend fun mergeHealthConnectSteps() {
+        val hc = healthConnect ?: return
+        if (!hc.isAvailable() || !hc.hasStepsPermission()) return
+        val steps = hc.readTodaySummary().stepsToday
+        if (steps > 0) stepCounter.mergeExternal(steps.toInt())
+    }
+
     private fun loadAll() {
         viewModelScope.launch {
             try {
+                mergeHealthConnectSteps()
                 val today = repo.todayKey()
                 val log   = repo.getLog(today)
                 // Merge cloud + live pedometer — never let a stale cloud zero
@@ -98,6 +115,7 @@ class HealthViewModel(
 
     fun refreshToday() {
         viewModelScope.launch {
+            try { mergeHealthConnectSteps() } catch (_: Exception) { }
             val log = repo.getLog(repo.todayKey())
             val liveSteps = stepCounter.dailySteps.value
             _todayLog.value = log.copy(
@@ -227,6 +245,7 @@ class HealthViewModelFactory(
         return HealthViewModel(
             HealthRepository(uid),
             StepCounterManager.getInstance(context.applicationContext),
+            HealthConnectManager(context.applicationContext),
         ) as T
     }
 }

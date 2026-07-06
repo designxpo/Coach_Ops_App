@@ -1,21 +1,14 @@
 package com.example.ui
 
-// ============================================================
-// AndroidManifest.xml — add before closing </manifest>:
-//
-//   <uses-permission android:name="android.permission.health.READ_STEPS" />
-//   <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
-//   <uses-permission android:name="android.permission.health.READ_EXERCISE" />
-//
-// Inside <application>:
-//   <activity
-//       android:name="androidx.health.connect.client.permission.HealthDataRequestPermissionsActivity"
-//       android:exported="true" />
-// ============================================================
+// Permissions are requested via PermissionController.createRequestPermissionResultContract();
+// no local permissions activity is declared (the intent targets the Health Connect app on
+// Android 13-, and the platform itself on 14+). Manifest declares the health.READ_* permissions,
+// the <queries> entry, PermissionsRationaleActivity and the ViewPermissionUsageActivity alias.
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -95,7 +89,9 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
         isAvailable = manager.isAvailable()
         needsUpdate = manager.needsUpdate()
         if (isAvailable) {
-            hasPermissions = manager.hasPermissions()
+            // "Connected" = at least one permission granted. An all-or-nothing
+            // gate would dead-end users who granted only steps.
+            hasPermissions = manager.hasAnyPermission()
             if (hasPermissions) {
                 val s = manager.readTodaySummary()
                 summary = s
@@ -192,7 +188,11 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
                     !hasPermissions -> ConnectCard(
                         onConnect = {
                             permissionLauncher.launch(manager.permissions)
-                        }
+                        },
+                        // Exit hatch: after two dialog cancels Android stops
+                        // showing the request — without this link the Connect
+                        // button is dead forever
+                        onManage = { openHealthConnectSettings(context) }
                     )
                     else -> ConnectedStatusBadge()
                 }
@@ -201,27 +201,39 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
                 if (isAvailable && hasPermissions) {
                     val s = summary
                     if (s != null) {
-                        HealthStatCard(
-                            icon = Icons.Filled.DirectionsWalk,
-                            iconTint = CyberAccent,
-                            label = "Steps Today",
-                            value = "%,d".format(s.stepsToday),
-                            unit = "steps"
-                        )
-                        HealthStatCard(
-                            icon = Icons.Filled.LocalFireDepartment,
-                            iconTint = Color(0xFFFF7043),
-                            label = "Calories Burned Today",
-                            value = "%.0f".format(s.caloriesBurnedToday),
-                            unit = "kcal"
-                        )
-                        HealthStatCard(
-                            icon = Icons.Filled.FitnessCenter,
-                            iconTint = CyberSuccess,
-                            label = "Workouts This Week",
-                            value = s.workoutsThisWeek.toString(),
-                            unit = "sessions"
-                        )
+                        if (s.errored) {
+                            ReadErrorCard(onRetry = { scope.launch { refresh() } })
+                        } else {
+                            // Each card only for the metric the user actually granted
+                            if (s.hasStepsPermission) HealthStatCard(
+                                icon = Icons.Filled.DirectionsWalk,
+                                iconTint = CyberAccent,
+                                label = "Steps Today",
+                                value = "%,d".format(s.stepsToday),
+                                unit = "steps"
+                            )
+                            if (s.hasCaloriesPermission) HealthStatCard(
+                                icon = Icons.Filled.LocalFireDepartment,
+                                iconTint = Color(0xFFFF7043),
+                                label = "Calories Burned Today",
+                                value = "%.0f".format(s.caloriesBurnedToday),
+                                unit = "kcal"
+                            )
+                            if (s.hasWorkoutsPermission) HealthStatCard(
+                                icon = Icons.Filled.FitnessCenter,
+                                iconTint = CyberSuccess,
+                                label = "Workouts This Week",
+                                value = s.workoutsThisWeek.toString(),
+                                unit = "sessions"
+                            )
+                        }
+                        // Partial grant — offer the missing permissions
+                        if (!s.hasStepsPermission || !s.hasCaloriesPermission || !s.hasWorkoutsPermission) {
+                            PartialGrantCard(
+                                onGrant = { permissionLauncher.launch(manager.permissions) },
+                                onManage = { openHealthConnectSettings(context) }
+                            )
+                        }
                     }
                 }
 
@@ -311,7 +323,7 @@ private fun NotInstalledCard(context: Context, needsUpdate: Boolean) {
 }
 
 @Composable
-private fun ConnectCard(onConnect: () -> Unit) {
+private fun ConnectCard(onConnect: () -> Unit, onManage: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -345,6 +357,113 @@ private fun ConnectCard(onConnect: () -> Unit) {
                 color = Color(0xFF0A0A0A)
             )
         }
+        Text(
+            "Dialog not appearing? Manage in Health Connect →",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CyberTextSecondary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onManage() }
+                .padding(vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ReadErrorCard(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberBgCard)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            "Couldn't read health data",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = CyberTextPrimary
+        )
+        Text(
+            "Health Connect didn't respond. This is usually temporary — try again.",
+            fontSize = 13.sp,
+            color = CyberTextSecondary,
+            lineHeight = 20.sp
+        )
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = CyberAccent),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Retry", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0A0A0A))
+        }
+    }
+}
+
+@Composable
+private fun PartialGrantCard(onGrant: () -> Unit, onManage: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberBgCard)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "Some data types aren't shared yet",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = CyberTextPrimary
+        )
+        Text(
+            "Grant the remaining permissions to see all your stats here.",
+            fontSize = 12.sp,
+            color = CyberTextSecondary,
+            lineHeight = 18.sp
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "Grant now",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CyberAccent,
+                modifier = Modifier.clickable { onGrant() }.padding(vertical = 4.dp)
+            )
+            Text(
+                "Manage in Health Connect",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CyberTextSecondary,
+                modifier = Modifier.clickable { onManage() }.padding(vertical = 4.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Deep-link to this app's own permission toggles in Health Connect.
+ * The one recovery path when the system permission dialog stops appearing
+ * (Android permanently suppresses it after repeated cancels).
+ */
+private fun openHealthConnectSettings(context: Context) {
+    try {
+        val intent = if (Build.VERSION.SDK_INT >= 34) {
+            Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
+                .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+        } else {
+            Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        // Some OEM builds don't resolve the per-app screen — fall back to the
+        // general Health Connect settings page
+        try {
+            context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+        } catch (_: Exception) { }
     }
 }
 
