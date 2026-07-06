@@ -80,6 +80,7 @@ fun ClientProfileScreen(
     var city by remember { mutableStateOf(viewModel.clientCity) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
 
     // ── Location state ────────────────────────────────────────────────────────
@@ -500,10 +501,29 @@ fun ClientProfileScreen(
             Text("Sign Out", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberDanger)
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // Play policy: account deletion must be reachable in-app for members too
+        Text(
+            "Delete My Account",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CyberDanger.copy(alpha = 0.8f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDeleteDialog = true }
+                .padding(vertical = 8.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+
+        Spacer(Modifier.height(24.dp))
     }
 
     if (showReportSheet) ReportIssueSheet(onDismiss = { showReportSheet = false })
+    if (showDeleteDialog) DeleteAccountDialog(
+        onDismiss = { showDeleteDialog = false },
+        onDeleted = onLogout   // session is gone — reuse logout to wipe local state + navigate
+    )
 }
 
 @Composable

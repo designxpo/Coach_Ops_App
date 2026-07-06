@@ -88,6 +88,7 @@ fun ProfileScreen(
     var showEditSheet by remember { mutableStateOf(false) }
     var showMarketplaceSheet by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var publishBanner by remember { mutableStateOf("") }   // "" = hidden, else message
     var publishBannerOk by remember { mutableStateOf(true) }
     val publishState by viewModel.publishState.collectAsState()
@@ -458,7 +459,7 @@ fun ProfileScreen(
                     HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
                     LegalLinkRow(label = "Terms of Service", onClick = onTermsClick)
                     HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
-                    LegalLinkRow(label = "Delete My Account", onClick = onDeleteAccountClick, danger = true)
+                    LegalLinkRow(label = "Delete My Account", onClick = { showDeleteDialog = true }, danger = true)
                 }
             }
         }
@@ -499,6 +500,10 @@ fun ProfileScreen(
     }
 
     if (showReportSheet) ReportIssueSheet(onDismiss = { showReportSheet = false })
+    if (showDeleteDialog) DeleteAccountDialog(
+        onDismiss = { showDeleteDialog = false },
+        onDeleted = onLogout   // session is gone — reuse logout to wipe local state + navigate
+    )
 }
 
 @Composable
