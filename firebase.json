@@ -7,5 +7,10 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "website",
+    "ignore": ["firebase.json", "**/.*", "README.md"],
+    "cleanUrls": true
   }
 }

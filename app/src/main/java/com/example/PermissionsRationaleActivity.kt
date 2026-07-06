@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,14 +57,29 @@ class PermissionsRationaleActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                RationaleContent(onDone = { finish() })
+                RationaleContent(
+                    onDone = { finish() },
+                    onOpenPrivacyPolicy = {
+                        try {
+                            startActivity(android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(PRIVACY_POLICY_URL)
+                            ))
+                        } catch (_: Exception) { /* no browser — rare */ }
+                    }
+                )
             }
         }
+    }
+
+    companion object {
+        /** Same policy entered in the Play Console Data Safety form. */
+        const val PRIVACY_POLICY_URL = "https://coachops-27a73.web.app/privacy"
     }
 }
 
 @Composable
-private fun RationaleContent(onDone: () -> Unit) {
+private fun RationaleContent(onDone: () -> Unit, onOpenPrivacyPolicy: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -117,6 +133,17 @@ private fun RationaleContent(onDone: () -> Unit) {
             fontSize = 13.sp,
             color = CyberTextMuted,
             lineHeight = 20.sp
+        )
+
+        Text(
+            "Read our full privacy policy →",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CyberAccent,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenPrivacyPolicy() }
+                .padding(vertical = 6.dp)
         )
 
         Spacer(Modifier.height(4.dp))

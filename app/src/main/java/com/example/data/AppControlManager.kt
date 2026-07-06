@@ -17,14 +17,27 @@ data class AppControlState(
 )
 
 data class RemoteConfig(
-    val maxClientsStarter:          Int = 10,
-    val maxClientsPro:              Int = 50,
-    val maxClientsBusiness:         Int = 200,
+    // Client caps per tier — 0 means unlimited. Defaults MUST match the
+    // SubscriptionPlan enum (Starter 5 · Pro 20 · Business unlimited) so a
+    // missing remote_config doc changes nothing.
+    val maxClientsStarter:          Int = 5,
+    val maxClientsPro:              Int = 20,
+    val maxClientsBusiness:         Int = 0,
     val consistencyRedThreshold:    Int = 40,
     val consistencyYellowThreshold: Int = 70,
     val checkInAlertDays:           Int = 5,
     val trialDays:                  Int = 14
-)
+) {
+    /** Effective client cap for a plan — the admin portal's Remote Config knob. */
+    fun maxClientsFor(plan: SubscriptionPlan): Int {
+        val raw = when (plan) {
+            SubscriptionPlan.STARTER  -> maxClientsStarter
+            SubscriptionPlan.PRO      -> maxClientsPro
+            SubscriptionPlan.BUSINESS -> maxClientsBusiness
+        }
+        return if (raw <= 0) Int.MAX_VALUE else raw   // 0 = unlimited
+    }
+}
 
 object AppControlManager {
 
@@ -62,9 +75,9 @@ object AppControlManager {
                 if (err != null || snap == null || !snap.exists()) { callback(RemoteConfig()); return@addSnapshotListener }
                 val d = snap.data ?: return@addSnapshotListener
                 remoteConfig = RemoteConfig(
-                    maxClientsStarter          = (d["maxClientsStarter"]          as? Long)?.toInt() ?: 10,
-                    maxClientsPro              = (d["maxClientsPro"]              as? Long)?.toInt() ?: 50,
-                    maxClientsBusiness         = (d["maxClientsBusiness"]         as? Long)?.toInt() ?: 200,
+                    maxClientsStarter          = (d["maxClientsStarter"]          as? Long)?.toInt() ?: 5,
+                    maxClientsPro              = (d["maxClientsPro"]              as? Long)?.toInt() ?: 20,
+                    maxClientsBusiness         = (d["maxClientsBusiness"]         as? Long)?.toInt() ?: 0,
                     consistencyRedThreshold    = (d["consistencyRedThreshold"]    as? Long)?.toInt() ?: 40,
                     consistencyYellowThreshold = (d["consistencyYellowThreshold"] as? Long)?.toInt() ?: 70,
                     checkInAlertDays           = (d["checkInAlertDays"]           as? Long)?.toInt() ?: 5,
@@ -110,9 +123,9 @@ object AppControlManager {
             val rcDoc = db.collection("admin_config").document("remote_config").get().await()
             rcDoc.data?.let { d ->
                 remoteConfig = RemoteConfig(
-                    maxClientsStarter          = (d["maxClientsStarter"]          as? Long)?.toInt() ?: 10,
-                    maxClientsPro              = (d["maxClientsPro"]              as? Long)?.toInt() ?: 50,
-                    maxClientsBusiness         = (d["maxClientsBusiness"]         as? Long)?.toInt() ?: 200,
+                    maxClientsStarter          = (d["maxClientsStarter"]          as? Long)?.toInt() ?: 5,
+                    maxClientsPro              = (d["maxClientsPro"]              as? Long)?.toInt() ?: 20,
+                    maxClientsBusiness         = (d["maxClientsBusiness"]         as? Long)?.toInt() ?: 0,
                     consistencyRedThreshold    = (d["consistencyRedThreshold"]    as? Long)?.toInt() ?: 40,
                     consistencyYellowThreshold = (d["consistencyYellowThreshold"] as? Long)?.toInt() ?: 70,
                     checkInAlertDays           = (d["checkInAlertDays"]           as? Long)?.toInt() ?: 5,

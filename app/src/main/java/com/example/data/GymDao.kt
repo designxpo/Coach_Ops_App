@@ -61,6 +61,12 @@ interface GymDao {
     @Query("SELECT COUNT(*) FROM gym_payments")
     suspend fun getPaymentCount(): Int
 
+    // Highest receipt number issued so far ("RCP-0042" → 42). Basing the next
+    // receipt on MAX instead of COUNT means a deleted payment can never cause
+    // a duplicate receipt number.
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTR(receiptNo, 5) AS INTEGER)), 0) FROM gym_payments")
+    suspend fun getMaxReceiptNumber(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: GymPayment)
 

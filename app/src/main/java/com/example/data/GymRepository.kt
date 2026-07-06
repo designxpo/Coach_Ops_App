@@ -67,7 +67,7 @@ class GymRepository(private val dao: GymDao) {
         GymSync.saveMember(member)
         if (!collectPayment || plan == null || amountInr <= 0) return null
 
-        val receiptNo = "RCP-%04d".format(dao.getPaymentCount() + 1)
+        val receiptNo = "RCP-%04d".format(dao.getMaxReceiptNumber() + 1)
         val payment = GymPayment(
             id = UUID.randomUUID().toString(),
             memberId = member.id,
@@ -141,7 +141,7 @@ class GymRepository(private val dao: GymDao) {
         val periodStart = if (member.planEndMillis > now) member.planEndMillis else now
         val periodEnd   = periodStart + plan.durationDays * 86400000L
 
-        val receiptNo = "RCP-%04d".format(dao.getPaymentCount() + 1)
+        val receiptNo = "RCP-%04d".format(dao.getMaxReceiptNumber() + 1)
         val payment = GymPayment(
             id = UUID.randomUUID().toString(),
             memberId = member.id,

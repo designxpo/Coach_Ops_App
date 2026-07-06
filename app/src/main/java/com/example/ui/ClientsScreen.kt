@@ -85,9 +85,10 @@ fun ClientsScreen(viewModel: MainViewModel, onClientClick: (String) -> Unit, onC
     val loggedTodayIds by viewModel.clientsLoggedToday.collectAsStateWithLifecycle()
     val currentPlan by viewModel.currentPlan.collectAsStateWithLifecycle()
 
-    // Tier-based client limit — matches the plan card exactly:
-    // Starter 5 · Pro 20 · Business unlimited
-    val clientLimit = currentPlan.maxClients
+    // Tier-based client limit (Starter 5 · Pro 20 · Business unlimited),
+    // live-tunable from the admin portal's Remote Config page (0 = unlimited)
+    val remoteConfig by viewModel.remoteConfig.collectAsStateWithLifecycle()
+    val clientLimit = remoteConfig.maxClientsFor(currentPlan)
 
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf("All") }

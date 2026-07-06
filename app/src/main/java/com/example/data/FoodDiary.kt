@@ -72,11 +72,15 @@ object FoodDiary {
     // "cheat meals this week" honestly. The user can always toggle the tag.
     private val CHEAT_KEYWORDS = listOf(
         "gulab", "jalebi", "barfi", "ladoo", "laddu", "halwa", "rasgulla", "rasmalai",
-        "ice cream", "cake", "pastry", "brownie", "donut", "chocolate", "kheer",
+        "ice cream", "cake", "cupcake", "pancake", "pastry", "brownie", "donut", "chocolate", "kheer",
         "samosa", "pakora", "kachori", "vada pav", "chole bhature", "bhatura",
         "pizza", "burger", "french fries", "fries", "spring roll", "frankie",
         "chips", "maggi", "momo", "pav bhaji", "dabeli", "puri"
     )
+
+    // Whole-word matching — "cake" must not flag "pancake" (its own keyword now),
+    // "puri" must not flag "purine"
+    private val CHEAT_REGEXES = CHEAT_KEYWORDS.map { Regex("\\b${Regex.escape(it)}\\b") }
 
     fun dayKey(date: Date = Date()): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
@@ -91,8 +95,12 @@ object FoodDiary {
         }
     }
 
-    fun looksLikeCheatMeal(name: String, calories: Int): Boolean =
-        calories >= 650 || CHEAT_KEYWORDS.any { name.lowercase().contains(it) }
+    // 800 kcal, not 650: a normal full Indian dinner (dal + rice + sabzi + roti)
+    // commonly lands 650–750 and shouldn't be branded a cheat meal
+    fun looksLikeCheatMeal(name: String, calories: Int): Boolean {
+        val n = name.lowercase()
+        return calories >= 800 || CHEAT_REGEXES.any { it.containsMatchIn(n) }
+    }
 
     /** Builds an entry from a scanner result — meal bucket and cheat flag auto-set. */
     fun entryFrom(n: FoodNutrition, source: String): FoodDiaryEntry =
