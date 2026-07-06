@@ -44,7 +44,7 @@ object SupabaseStorage {
     /** User profile photo — both coach and member */
     suspend fun uploadProfilePhoto(context: Context, uri: Uri): String {
         val uid = requireUid()
-        val path = SupabaseConfig.userProfilePath(uid)
+        val path = "${SupabaseConfig.userProfilePath(uid)}/${uniqueName()}"
         val url  = upload(context, uri, path)
         // Mirror to user_records for cross-device restore
         db.collection("user_records").document(uid)
@@ -55,16 +55,29 @@ object SupabaseStorage {
     /** Coach marketplace profile/hero photo */
     suspend fun uploadTrainerPhoto(context: Context, uri: Uri): String {
         val uid  = requireUid()
-        val path = SupabaseConfig.trainerProfilePath(uid)
+        val path = "${SupabaseConfig.trainerProfilePath(uid)}/${uniqueName()}"
         return upload(context, uri, path)
     }
 
     /** Coach portfolio work image */
     suspend fun uploadPortfolioPhoto(context: Context, uri: Uri, index: Int): String {
         val uid  = requireUid()
-        val path = SupabaseConfig.portfolioPath(uid, index)
+        val path = "${SupabaseConfig.portfolioPath(uid, index)}/${uniqueName()}"
         return upload(context, uri, path)
     }
+
+    /**
+     * A fresh, unguessable filename for every upload.
+     *
+     * WHY: the bucket's anon role can INSERT new objects but NOT update or
+     * delete existing ones (that's the "new row violates row-level security
+     * policy" 403 users hit when changing a photo). Writing to a brand-new
+     * path every time makes each upload a clean INSERT, so re-uploads always
+     * succeed. The returned public URL is what we persist and display, so the
+     * changing path is invisible to the rest of the app.
+     */
+    private fun uniqueName(): String =
+        "${System.currentTimeMillis()}_${(0..9999).random()}.jpg"
 
     // ─── Core upload ──────────────────────────────────────────────────────────
 
