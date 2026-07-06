@@ -102,6 +102,14 @@ class StepCounterManager private constructor(private val appContext: Context) : 
 
     @Synchronized
     override fun onSensorChanged(event: SensorEvent) {
+        // Sensor callbacks fire constantly for the app's whole lifetime —
+        // any exception here would crash the entire process
+        try {
+            handleReading(event)
+        } catch (_: Exception) { }
+    }
+
+    private fun handleReading(event: SensorEvent) {
         val current = event.values[0].toLong()
         val today = dayKey()
         val storedDay = prefs.getString("day", "") ?: ""

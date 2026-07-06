@@ -30,6 +30,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First thing: every crash gets written to files/crash_log.txt before
+        // reaching Crashlytics — no crash is ever untraceable again
+        com.example.data.CrashLogger.install(this)
         enableEdgeToEdge()
         val repository = CoachRepository.getInstance(applicationContext)
         val userPreferences = UserPreferences.getInstance(applicationContext)

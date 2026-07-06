@@ -95,7 +95,10 @@ fun FoodDiaryScreen(
         }
     }
 
-    val entries by dao.entriesForDate(dateKey).collectAsState(initial = emptyList())
+    // remember() is critical: creating a new Flow every recomposition would
+    // resubscribe endlessly (recomposition storm)
+    val entriesFlow = remember(dateKey) { dao.entriesForDate(dateKey) }
+    val entries by entriesFlow.collectAsState(initial = emptyList())
 
     // Cheat meals in the current week (Mon–Sun containing the viewed day)
     var weekCheatCount by remember { mutableIntStateOf(0) }

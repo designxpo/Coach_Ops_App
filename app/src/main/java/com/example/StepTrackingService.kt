@@ -63,14 +63,18 @@ class StepTrackingService : Service() {
         val mgr = StepCounterManager.getInstance(this)
         mgr.start()
 
-        // Live-update the banner as steps arrive
+        // Live-update the banner as steps arrive. Everything is guarded: an
+        // exception in this always-running service would kill the whole app
+        // process regardless of which screen the user is on.
         scope.launch {
-            mgr.dailySteps.collect { s ->
-                if (s != lastShownSteps) {
-                    lastShownSteps = s
-                    notifyUpdate(s)
+            try {
+                mgr.dailySteps.collect { s ->
+                    if (s != lastShownSteps) {
+                        lastShownSteps = s
+                        notifyUpdate(s)
+                    }
                 }
-            }
+            } catch (_: Exception) { /* banner stops updating; app keeps running */ }
         }
         // Load today's water once so the banner shows it
         scope.launch(Dispatchers.IO) {
@@ -123,9 +127,10 @@ class StepTrackingService : Service() {
         val pct = ((steps * 100) / STEP_GOAL).coerceIn(0, 100)
         val kcal = (steps * 0.04f).toInt()
 
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent(this, MainActivity::class.java)
         val openIntent = PendingIntent.getActivity(
-            this, 0,
-            packageManager.getLaunchIntentForPackage(packageName),
+            this, 0, launchIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val waterIntent = PendingIntent.getService(
