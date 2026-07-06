@@ -19,6 +19,13 @@
     <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
+    <!-- Android 11+ package visibility: without this the Health Connect app is
+         invisible to us and getSdkStatus() reports "not installed" even when
+         it IS installed (Android 13 and below; on 14+ it's part of the OS) -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -79,10 +86,26 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-        <!-- Health Connect permission activity -->
+        <!-- Health Connect requires an in-app rationale screen. Android 14+
+             AUTO-DENIES the permission request if these two entries are
+             missing — the Connect button silently does nothing. -->
         <activity
-            android:name="androidx.health.connect.client.permission.HealthDataRequestPermissionsActivity"
-            android:exported="true" />
+            android:name=".PermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
     </application>
 
 </manifest>

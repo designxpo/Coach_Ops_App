@@ -48,7 +48,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,10 +62,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.health.connect.client.HealthConnectClient
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.health.connect.client.PermissionController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.data.HealthConnectManager
 import com.example.data.HealthSummary
+import com.example.data.StepCounterManager
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberBgCard
 import com.example.ui.theme.CyberBgCardElevated
@@ -83,32 +86,45 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
     val scope = rememberCoroutineScope()
 
     var isAvailable by remember { mutableStateOf(false) }
+    var needsUpdate by remember { mutableStateOf(false) }
     var hasPermissions by remember { mutableStateOf(false) }
     var summary by remember { mutableStateOf<HealthSummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = PermissionController.createRequestPermissionResultContract()
-    ) { _ ->
-        scope.launch {
-            hasPermissions = manager.hasPermissions()
-            if (hasPermissions) {
-                summary = manager.readTodaySummary()
-            }
-            isLoading = false
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        isLoading = true
+    suspend fun refresh() {
         isAvailable = manager.isAvailable()
+        needsUpdate = manager.needsUpdate()
         if (isAvailable) {
             hasPermissions = manager.hasPermissions()
             if (hasPermissions) {
-                summary = manager.readTodaySummary()
+                val s = manager.readTodaySummary()
+                summary = s
+                // Watch / Google Fit steps flow into the app's own counter
+                // (max-merge — never decreases the local pedometer count)
+                if (s.stepsToday > 0) {
+                    StepCounterManager.getInstance(context).mergeExternal(s.stepsToday.toInt())
+                }
             }
         }
         isLoading = false
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { _ ->
+        scope.launch { refresh() }
+    }
+
+    // Re-check on every return to this screen — the user may have just
+    // installed/updated Health Connect from the Play Store or granted
+    // permissions in its settings
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) scope.launch { refresh() }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Column(
@@ -172,7 +188,7 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
 
                 // Status card
                 when {
-                    !isAvailable -> NotInstalledCard(context)
+                    !isAvailable -> NotInstalledCard(context, needsUpdate)
                     !hasPermissions -> ConnectCard(
                         onConnect = {
                             permissionLauncher.launch(manager.permissions)
@@ -240,7 +256,7 @@ fun HealthConnectScreen(onBack: () -> Unit, context: Context) {
 }
 
 @Composable
-private fun NotInstalledCard(context: Context) {
+private fun NotInstalledCard(context: Context, needsUpdate: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -250,31 +266,42 @@ private fun NotInstalledCard(context: Context) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            "Health Connect not installed",
+            if (needsUpdate) "Health Connect needs an update" else "Health Connect not installed",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = CyberTextPrimary
         )
         Text(
-            "Health Connect is required to sync your fitness data. Install it from the Play Store to get started.",
+            if (needsUpdate)
+                "Your Health Connect version is too old to sync. Update it from the Play Store, then come back here."
+            else
+                "Health Connect is required to sync your fitness data. Install it from the Play Store to get started.",
             fontSize = 13.sp,
             color = CyberTextSecondary,
             lineHeight = 20.sp
         )
         Button(
             onClick = {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    data = Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")
-                    setPackage("com.android.vending")
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")
+                        setPackage("com.android.vending")
+                    }
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    // No Play Store (rare) — open in browser instead
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata")))
+                    } catch (_: Exception) { }
                 }
-                context.startActivity(intent)
             },
             colors = ButtonDefaults.buttonColors(containerColor = CyberDanger),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                "Install Health Connect",
+                if (needsUpdate) "Update Health Connect" else "Install Health Connect",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White

@@ -31,6 +31,10 @@ class HealthConnectManager(private val context: Context) {
     fun isAvailable(): Boolean =
         HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
 
+    /** Health Connect is present but too old — must be updated from the Play Store. */
+    fun needsUpdate(): Boolean =
+        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
+
     suspend fun hasPermissions(): Boolean = try {
         client.permissionController.getGrantedPermissions().containsAll(permissions)
     } catch (_: Exception) { false }
