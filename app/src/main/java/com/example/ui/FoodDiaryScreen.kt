@@ -80,6 +80,7 @@ fun FoodDiaryScreen(
 ) {
     val dao = remember { db.foodDiaryDao() }
     val scope = rememberCoroutineScope()
+    var showTypeSheet by remember { mutableStateOf(false) }
 
     // Day being viewed (0 = today, -1 = yesterday…)
     var dayOffset by remember { mutableIntStateOf(0) }
@@ -125,6 +126,21 @@ fun FoodDiaryScreen(
     val carbTarget = userPreferences.trainingDayCarbsG
     val fatTarget = userPreferences.trainingDayFatG
 
+    if (showTypeSheet) {
+        TypeFoodSheet(
+            dateKey = dateKey,
+            onDismiss = { showTypeSheet = false },
+            onOpenScanner = { showTypeSheet = false; onAddFood() },
+            onSave = { entry ->
+                scope.launch {
+                    dao.insert(entry)
+                    FoodDiary.syncSave(entry)
+                }
+                showTypeSheet = false
+            }
+        )
+    }
+
     val totalCal = entries.sumOf { it.calories }
     val totalPro = entries.sumOf { it.proteinG.toDouble() }.toInt()
     val totalCarb = entries.sumOf { it.carbsG.toDouble() }.toInt()
@@ -155,7 +171,7 @@ fun FoodDiaryScreen(
                     color = CyberTextPrimary, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberAccent)
-                        .clickable { onAddFood() },
+                        .clickable { showTypeSheet = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "Log food",
@@ -293,7 +309,7 @@ fun FoodDiaryScreen(
                     Spacer(Modifier.height(16.dp))
                     Box(
                         modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(CyberAccent)
-                            .clickable { onAddFood() }.padding(horizontal = 20.dp, vertical = 12.dp)
+                            .clickable { showTypeSheet = true }.padding(horizontal = 20.dp, vertical = 12.dp)
                     ) {
                         Text("+ Log Food", fontWeight = FontWeight.Bold, color = CyberAccentDark, fontSize = 14.sp)
                     }
@@ -335,6 +351,142 @@ fun FoodDiaryScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// ─── Type-to-log sheet: "2 roti and dal" → parsed nutrition → diary ──────────
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun TypeFoodSheet(
+    dateKey: String,
+    onDismiss: () -> Unit,
+    onOpenScanner: () -> Unit,
+    onSave: (FoodDiaryEntry) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var analyzing by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<com.example.data.FoodNutrition?>(null) }
+    var error by remember { mutableStateOf("") }
+    var mealType by remember { mutableStateOf(FoodDiary.mealTypeForNow()) }
+
+    fun analyze() {
+        error = ""; result = null
+        val local = com.example.data.LocalFoodParser.parse(query)
+        if (local.isSuccess) { result = local.getOrNull(); return }
+        // Unknown locally — try the free USDA database
+        scope.launch {
+            analyzing = true
+            val usda = com.example.data.UsdaFoodService.search(query)
+            analyzing = false
+            usda.fold(
+                onSuccess = { result = it },
+                onFailure = { e -> error = e.message?.take(160) ?: "Food not recognised — try \"2 roti and dal\"" }
+            )
+        }
+    }
+
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = CyberBgCardElevated
+    ) {
+        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+            Text("Log Food", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("Type what you ate — quantities work too", fontSize = 13.sp, color = CyberTextMuted)
+            Spacer(Modifier.height(16.dp))
+
+            GymTextField(query, { query = it; result = null; error = "" },
+                "What did you eat?", "e.g. 2 roti and dal, 200g paneer")
+
+            if (error.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("⚠ $error", fontSize = 12.sp, color = CyberDanger, lineHeight = 16.sp)
+            }
+
+            // Analyzed preview
+            result?.let { n ->
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CyberBgCard)
+                        .border(1.dp, CyberAccent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .padding(16.dp)
+                ) {
+                    Text(n.foodName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                    Text(n.servingSize, fontSize = 11.sp, color = CyberTextMuted)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "🔥 ${n.calories} kcal · 💪 %.1fg · ⚡ %.1fg · 🥑 %.1fg".format(n.proteinG, n.carbsG, n.fatG),
+                        fontSize = 13.sp, color = CyberTextSecondary
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Text("Meal", fontSize = 12.sp, color = CyberTextMuted)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MEAL_ORDER.forEach { (key, label) ->
+                        val active = mealType == key
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (active) CyberAccent.copy(alpha = 0.15f) else CyberBgCard)
+                                .clickable { mealType = key }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Text(label.substringAfter(" "), fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                color = if (active) CyberAccent else CyberTextSecondary)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            val r = result
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (query.isBlank()) CyberBgCard else CyberAccent)
+                    .clickable(enabled = query.isNotBlank() && !analyzing) {
+                        if (r == null) analyze()
+                        else onSave(
+                            FoodDiary.entryFrom(r, source = "TYPED")
+                                .copy(dateKey = dateKey, mealType = mealType)
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    analyzing -> androidx.compose.material3.CircularProgressIndicator(
+                        color = CyberAccentDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    r != null -> Text("✓ Add ${r.calories} kcal to diary", fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold, color = CyberAccentDark)
+                    else -> Text("Analyze", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = if (query.isBlank()) CyberTextMuted else CyberAccentDark)
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CyberBgCard)
+                    .clickable { onOpenScanner() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("📷  Scan / speak instead", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = CyberTextSecondary)
             }
         }
     }

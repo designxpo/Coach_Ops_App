@@ -74,13 +74,17 @@ class HealthRepository(private val uid: String) {
     }
 
     suspend fun saveLog(log: DailyHealthLog) {
-        daily().document(log.date).set(mapOf(
-            "stepsCount"     to log.stepsCount,
-            "waterGlasses"   to log.waterGlasses,
-            "sleepHours"     to log.sleepHours,
-            "moodRating"     to log.moodRating,
-            "caloriesBurned" to log.caloriesBurned
-        )).await()
+        // Guarded: a denied/failed cloud write must never crash the app
+        if (uid.isEmpty() || log.date.isEmpty()) return
+        try {
+            daily().document(log.date).set(mapOf(
+                "stepsCount"     to log.stepsCount,
+                "waterGlasses"   to log.waterGlasses,
+                "sleepHours"     to log.sleepHours,
+                "moodRating"     to log.moodRating,
+                "caloriesBurned" to log.caloriesBurned
+            )).await()
+        } catch (_: Exception) { }
     }
 
     suspend fun getLast7Days(): List<DailyHealthLog> {
@@ -114,16 +118,20 @@ class HealthRepository(private val uid: String) {
     }
 
     suspend fun saveMeasurement(m: UserBodyStats) {
-        val ref = if (m.id.isEmpty()) measure().document() else measure().document(m.id)
-        ref.set(mapOf(
-            "date"     to m.date,     "weightKg" to m.weightKg,
-            "chestCm"  to m.chestCm,  "waistCm"  to m.waistCm,
-            "hipsCm"   to m.hipsCm,   "armsCm"   to m.armsCm,
-            "thighsCm" to m.thighsCm, "notes"    to m.notes
-        )).await()
+        try {
+            val ref = if (m.id.isEmpty()) measure().document() else measure().document(m.id)
+            ref.set(mapOf(
+                "date"     to m.date,     "weightKg" to m.weightKg,
+                "chestCm"  to m.chestCm,  "waistCm"  to m.waistCm,
+                "hipsCm"   to m.hipsCm,   "armsCm"   to m.armsCm,
+                "thighsCm" to m.thighsCm, "notes"    to m.notes
+            )).await()
+        } catch (_: Exception) { }
     }
 
-    suspend fun deleteMeasurement(id: String) { measure().document(id).delete().await() }
+    suspend fun deleteMeasurement(id: String) {
+        try { measure().document(id).delete().await() } catch (_: Exception) { }
+    }
 
     // ── Progress photos ───────────────────────────────────────────────────────
 
@@ -142,12 +150,16 @@ class HealthRepository(private val uid: String) {
     }
 
     suspend fun saveProgressPhoto(photo: ProgressPhoto) {
-        photos().document().set(mapOf(
-            "date" to photo.date, "localPath" to photo.localPath, "notes" to photo.notes
-        )).await()
+        try {
+            photos().document().set(mapOf(
+                "date" to photo.date, "localPath" to photo.localPath, "notes" to photo.notes
+            )).await()
+        } catch (_: Exception) { }
     }
 
-    suspend fun deleteProgressPhoto(id: String) { photos().document(id).delete().await() }
+    suspend fun deleteProgressPhoto(id: String) {
+        try { photos().document(id).delete().await() } catch (_: Exception) { }
+    }
 
     // ── Cycle tracker ─────────────────────────────────────────────────────────
 
@@ -166,9 +178,13 @@ class HealthRepository(private val uid: String) {
     }
 
     suspend fun saveCycleEntry(entry: CycleEntry) {
-        val ref = if (entry.id.isEmpty()) cycle().document() else cycle().document(entry.id)
-        ref.set(mapOf("startDate" to entry.startDate, "endDate" to entry.endDate, "notes" to entry.notes)).await()
+        try {
+            val ref = if (entry.id.isEmpty()) cycle().document() else cycle().document(entry.id)
+            ref.set(mapOf("startDate" to entry.startDate, "endDate" to entry.endDate, "notes" to entry.notes)).await()
+        } catch (_: Exception) { }
     }
 
-    suspend fun deleteCycleEntry(id: String) { cycle().document(id).delete().await() }
+    suspend fun deleteCycleEntry(id: String) {
+        try { cycle().document(id).delete().await() } catch (_: Exception) { }
+    }
 }
