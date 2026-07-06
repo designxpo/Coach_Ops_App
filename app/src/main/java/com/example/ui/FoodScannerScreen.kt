@@ -87,7 +87,7 @@ import java.io.File
 private enum class ScanMode { AI, BARCODE, VOICE }
 
 @Composable
-fun FoodScannerScreen(onBack: () -> Unit) {
+fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
 
@@ -553,44 +553,66 @@ fun FoodScannerScreen(onBack: () -> Unit) {
                 enter   = fadeIn() + slideInVertically { it / 2 },
                 exit    = fadeOut()
             ) {
-                nutrition?.let { n ->
-                    Spacer(Modifier.height(20.dp))
-                    NutritionResultCard(n)
+                // AnimatedVisibility stacks children like a Box — a Column is
+                // required or the card and buttons render on top of each other
+                Column {
+                    nutrition?.let { n ->
+                        Spacer(Modifier.height(20.dp))
+                        NutritionResultCard(n)
 
-                    // ── Log to the daily food diary ────────────────────────────
-                    Spacer(Modifier.height(12.dp))
-                    var loggedName by remember { mutableStateOf("") }
-                    val diaryScope = rememberCoroutineScope()
-                    val isLogged = loggedName == n.foodName
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isLogged) CyberSuccess.copy(0.15f) else CyberAccent)
-                            .clickable(enabled = !isLogged) {
-                                diaryScope.launch {
-                                    val entry = com.example.data.FoodDiary.entryFrom(
-                                        n,
-                                        source = when (mode) {
-                                            ScanMode.BARCODE -> "BARCODE"
-                                            ScanMode.VOICE   -> "VOICE"
-                                            else             -> "AI"
-                                        }
-                                    )
-                                    com.example.data.AppDatabase.getInstance(context)
-                                        .foodDiaryDao().insert(entry)
-                                    com.example.data.FoodDiary.syncSave(entry)
-                                    loggedName = n.foodName
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            if (isLogged) "✓ Added to today's diary" else "🍽  Add to Food Diary",
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                            color = if (isLogged) CyberSuccess else CyberAccentDark
-                        )
+                        // ── Log to the daily food diary ────────────────────────
+                        Spacer(Modifier.height(12.dp))
+                        var loggedName by remember { mutableStateOf("") }
+                        val diaryScope = rememberCoroutineScope()
+                        val isLogged = loggedName == n.foodName
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isLogged) CyberSuccess.copy(0.15f) else CyberAccent)
+                                .clickable(enabled = !isLogged) {
+                                    diaryScope.launch {
+                                        val entry = com.example.data.FoodDiary.entryFrom(
+                                            n,
+                                            source = when (mode) {
+                                                ScanMode.BARCODE -> "BARCODE"
+                                                ScanMode.VOICE   -> "VOICE"
+                                                else             -> "AI"
+                                            }
+                                        )
+                                        com.example.data.AppDatabase.getInstance(context)
+                                            .foodDiaryDao().insert(entry)
+                                        com.example.data.FoodDiary.syncSave(entry)
+                                        loggedName = n.foodName
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (isLogged) "✓ Added to today's diary" else "🍽  Add to Food Diary",
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                color = if (isLogged) CyberSuccess else CyberAccentDark
+                            )
+                        }
+
+                        // After logging, take the user straight to their diary
+                        if (isLogged) {
+                            Spacer(Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(CyberBgCard)
+                                    .border(1.dp, CyberAccent.copy(0.35f), RoundedCornerShape(16.dp))
+                                    .clickable { onOpenDiary() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("📖  View Food Diary →", fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold, color = CyberAccent)
+                            }
+                        }
                     }
                 }
             }
@@ -655,9 +677,9 @@ private fun NutritionResultCard(n: FoodNutrition) {
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MacroChip("Protein", "${n.proteinG}g", Color(0xFF3B82F6), "💪", Modifier.weight(1f))
-            MacroChip("Carbs",   "${n.carbsG}g",   Color(0xFFF59E0B), "⚡", Modifier.weight(1f))
-            MacroChip("Fat",     "${n.fatG}g",     Color(0xFFEF4444), "🥑", Modifier.weight(1f))
+            MacroChip("Protein", "%.1fg".format(n.proteinG), Color(0xFF3B82F6), "💪", Modifier.weight(1f))
+            MacroChip("Carbs",   "%.1fg".format(n.carbsG),   Color(0xFFF59E0B), "⚡", Modifier.weight(1f))
+            MacroChip("Fat",     "%.1fg".format(n.fatG),     Color(0xFFEF4444), "🥑", Modifier.weight(1f))
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -666,7 +688,7 @@ private fun NutritionResultCard(n: FoodNutrition) {
                     Text("🌾", fontSize = 13.sp)
                     Text("Fiber", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextSecondary)
                 }
-                Text("${n.fiberG}g / 25g daily", fontSize = 12.sp, color = CyberTextMuted)
+                Text("%.1fg / 25g daily".format(n.fiberG), fontSize = 12.sp, color = CyberTextMuted)
             }
             LinearProgressIndicator(
                 progress      = { (n.fiberG / 25f).coerceIn(0f, 1f) },

@@ -788,7 +788,14 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 CycleTrackerScreen(viewModel = healthViewModel, onBack = { navController.popBackStack() })
             }
             composable("food_scanner") {
-                FoodScannerScreen(onBack = { navController.popBackStack() })
+                FoodScannerScreen(
+                    onBack      = { navController.popBackStack() },
+                    onOpenDiary = {
+                        navController.navigate("food_diary") {
+                            popUpTo("food_scanner") { inclusive = true }
+                        }
+                    }
+                )
             }
             composable("food_diary") {
                 val db = remember { AppDatabase.getInstance(context) }

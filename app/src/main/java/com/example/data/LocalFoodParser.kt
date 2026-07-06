@@ -262,7 +262,8 @@ object LocalFoodParser {
         var totalCarbs    = 0f
         var totalFat      = 0f
         var totalFiber    = 0f
-        val labels        = mutableListOf<String>()
+        val names         = mutableListOf<String>()
+        val servings      = mutableListOf<String>()
 
         for ((entry, grams) in items) {
             totalCalories += (entry.caloriesPer100g * grams / 100f).roundToInt()
@@ -270,16 +271,18 @@ object LocalFoodParser {
             totalCarbs    += entry.carbsPer100g    * grams / 100f
             totalFat      += entry.fatPer100g      * grams / 100f
             totalFiber    += entry.fiberPer100g    * grams / 100f
-            labels.add(
-                if (grams == entry.servingGrams.toFloat()) entry.servingLabel
-                else "${grams.roundToInt()}g ${entry.names.first()}"
+            val name = entry.names.first()
+            names.add(name.replaceFirstChar { it.uppercase() })
+            servings.add(
+                if (grams == entry.servingGrams.toFloat()) "${entry.servingLabel} $name"
+                else "${grams.roundToInt()}g $name"
             )
         }
 
         return Result.success(
             FoodNutrition(
-                foodName    = labels.joinToString(" + ").replaceFirstChar { it.uppercase() },
-                servingSize = "as entered",
+                foodName    = names.joinToString(" + "),
+                servingSize = servings.joinToString(", "),
                 calories    = totalCalories,
                 proteinG    = totalProtein,
                 carbsG      = totalCarbs,
