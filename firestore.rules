@@ -168,19 +168,20 @@ service cloud.firestore {
       match /food_diary/{entryId} { allow read, write: if request.auth.uid == clientId; }
     }
 
-    // Direct chat between coach and member
-    // chatId = {coachId}_{memberId} — deterministic, not publicly enumerable
+    // Direct chat between coach and member.
+    // chatId = "{coachId}_{memberId}"; Firebase Auth UIDs never contain '_',
+    // so splitting the id yields exactly the two participant uids. Gating on
+    // membership keeps message CONTENT private — previously any authenticated
+    // user could read any chat (coach uids are public via /trainers).
+    // App queries still pass: coaches query where coachId==me and members
+    // where memberId==me, so every returned doc has the requester in its id.
     match /chats/{chatId} {
-      // Any authenticated user can read/create (chatId is not guessable)
-      // Update restricted to participants once doc exists
-      allow read, create: if request.auth != null;
-      allow update: if request.auth != null &&
-        (resource.data.coachId == request.auth.uid ||
-         resource.data.memberId == request.auth.uid);
+      allow read, create, update: if request.auth != null
+        && request.auth.uid in chatId.split('_');
 
       match /messages/{messageId} {
-        allow read, create: if request.auth != null;
-        allow update: if request.auth != null;
+        allow read, create, update: if request.auth != null
+          && request.auth.uid in chatId.split('_');
         allow delete: if false;
       }
     }
