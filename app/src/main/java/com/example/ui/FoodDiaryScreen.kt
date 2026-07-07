@@ -64,7 +64,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val MEAL_ORDER = listOf(
+internal val MEAL_ORDER = listOf(
     "BREAKFAST" to "🌅 Breakfast",
     "LUNCH"     to "☀️ Lunch",
     "SNACKS"    to "🫖 Snacks",
@@ -81,6 +81,7 @@ fun FoodDiaryScreen(
     val dao = remember { db.foodDiaryDao() }
     val scope = rememberCoroutineScope()
     var showTypeSheet by remember { mutableStateOf(false) }
+    var showSupplementSheet by remember { mutableStateOf(false) }
 
     // Day being viewed (0 = today, -1 = yesterday…)
     var dayOffset by remember { mutableIntStateOf(0) }
@@ -131,12 +132,27 @@ fun FoodDiaryScreen(
             dateKey = dateKey,
             onDismiss = { showTypeSheet = false },
             onOpenScanner = { showTypeSheet = false; onAddFood() },
+            onOpenSupplements = { showTypeSheet = false; showSupplementSheet = true },
             onSave = { entry ->
                 scope.launch {
                     dao.insert(entry)
                     FoodDiary.syncSave(entry)
                 }
                 showTypeSheet = false
+            }
+        )
+    }
+
+    if (showSupplementSheet) {
+        SupplementPickerSheet(
+            dateKey = dateKey,
+            onDismiss = { showSupplementSheet = false },
+            onSave = { entry ->
+                scope.launch {
+                    dao.insert(entry)
+                    FoodDiary.syncSave(entry)
+                }
+                showSupplementSheet = false
             }
         )
     }
@@ -364,6 +380,7 @@ private fun TypeFoodSheet(
     dateKey: String,
     onDismiss: () -> Unit,
     onOpenScanner: () -> Unit,
+    onOpenSupplements: () -> Unit,
     onSave: (FoodDiaryEntry) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -377,6 +394,13 @@ private fun TypeFoodSheet(
         error = ""; result = null
         val local = com.example.data.LocalFoodParser.parse(query)
         if (local.isSuccess) { result = local.getOrNull(); return }
+        // Not a home food — a typed brand name ("on whey", "yoga bar") hits
+        // the built-in supplement database before going online
+        val supplement = com.example.data.SupplementDb.search(query).firstOrNull()
+        if (supplement != null) {
+            result = com.example.data.SupplementDb.toNutrition(supplement, 1f)
+            return
+        }
         // Unknown locally — try the free USDA database
         scope.launch {
             analyzing = true
@@ -476,17 +500,31 @@ private fun TypeFoodSheet(
             }
 
             Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(CyberBgCard)
-                    .clickable { onOpenScanner() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("📷  Scan / speak instead", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    color = CyberTextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CyberBgCard)
+                        .clickable { onOpenScanner() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📷  Scan / speak", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = CyberTextSecondary)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CyberBgCard)
+                        .clickable { onOpenSupplements() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("💪  Supplements", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = CyberTextSecondary)
+                }
             }
         }
     }
