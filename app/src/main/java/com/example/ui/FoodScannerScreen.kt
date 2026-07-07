@@ -95,11 +95,11 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
     var imageUri     by remember { mutableStateOf<Uri?>(null) }
     var imageBitmap  by remember { mutableStateOf<Bitmap?>(null) }
     var isAnalyzing  by remember { mutableStateOf(false) }
-    var nutrition    by remember { mutableStateOf<FoodNutrition?>(null) }
+    var results      by remember { mutableStateOf<List<FoodNutrition>>(emptyList()) }
     var errorMsg     by remember { mutableStateOf("") }
     var voiceQuery   by remember { mutableStateOf("") }
 
-    fun resetResult() { nutrition = null; errorMsg = "" }
+    fun resetResult() { results = emptyList(); errorMsg = "" }
 
     // Temp file URI for camera capture
     val tempFile = remember {
@@ -118,7 +118,7 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
             val result = MlKitFoodScanner.analyze(bmp)
             isAnalyzing = false
             result.fold(
-                onSuccess = { nutrition = it },
+                onSuccess = { results = listOf(it) },
                 onFailure = { e ->
                     errorMsg = e.message?.take(200)
                         ?: "Could not identify food. Try a clearer photo or use Voice mode."
@@ -140,14 +140,14 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
             val offResult = OpenFoodFactsService.lookup(barcode)
             if (offResult.isSuccess) {
                 isAnalyzing = false
-                nutrition = offResult.getOrNull()
+                results = listOfNotNull(offResult.getOrNull())
                 return@launch
             }
             // Open Food Facts missed — try USDA Branded Foods
             val usdaResult = UsdaFoodService.lookupBarcode(barcode)
             isAnalyzing = false
             usdaResult.fold(
-                onSuccess = { nutrition = it },
+                onSuccess = { results = listOf(it) },
                 onFailure = { e ->
                     errorMsg = e.message?.take(200) ?: "Product not found. Try AI Scan or Voice mode."
                 }
@@ -155,24 +155,21 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
         }
     }
 
-    // Voice — local DB instant + offline, USDA fallback for unknown foods
+    // Voice — splits multiple foods, applies quantity per food; offline DB +
+    // supplements first, USDA fallback for anything unknown.
     fun analyzeVoice(query: String) {
-        val localResult = LocalFoodParser.parse(query)
-        if (localResult.isSuccess) {
-            nutrition = localResult.getOrNull()
-            return
-        }
         scope.launch {
             isAnalyzing = true; resetResult()
-            val usdaResult = UsdaFoodService.search(query)
+            val analysis = com.example.data.FoodAnalyzer.analyze(query)
             isAnalyzing = false
-            usdaResult.fold(
-                onSuccess = { nutrition = it },
-                onFailure = { e ->
-                    errorMsg = e.message?.take(200)
-                        ?: "Food not recognised. Try: \"2 rotis\", \"a bowl of dal\", \"200g chicken\""
-                }
-            )
+            results = analysis.items
+            errorMsg = when {
+                analysis.items.isEmpty() ->
+                    "Food not recognised. Try: \"2 rotis and dal\", \"a bowl of curd rice\", \"200g chicken\""
+                analysis.unresolved.isNotEmpty() ->
+                    "Couldn't find: ${analysis.unresolved.joinToString(", ")}"
+                else -> ""
+            }
         }
     }
 
@@ -514,7 +511,7 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
                         ) {
                             Text("🔍", fontSize = 16.sp)
                             Text(
-                                if (nutrition != null) "Scan Again" else "Analyze Nutrition",
+                                if (results.isNotEmpty()) "Scan Again" else "Analyze Nutrition",
                                 fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccentDark
                             )
                         }
@@ -547,71 +544,75 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
                 }
             }
 
-            // ── Nutrition result card ─────────────────────────────────────────
+            // ── Nutrition result cards (one per food) ──────────────────────────
             AnimatedVisibility(
-                visible = nutrition != null,
+                visible = results.isNotEmpty(),
                 enter   = fadeIn() + slideInVertically { it / 2 },
                 exit    = fadeOut()
             ) {
                 // AnimatedVisibility stacks children like a Box — a Column is
                 // required or the card and buttons render on top of each other
                 Column {
-                    nutrition?.let { n ->
-                        Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(20.dp))
+                    results.forEach { n ->
                         NutritionResultCard(n)
-
-                        // ── Log to the daily food diary ────────────────────────
                         Spacer(Modifier.height(12.dp))
-                        var loggedName by remember { mutableStateOf("") }
-                        val diaryScope = rememberCoroutineScope()
-                        val isLogged = loggedName == n.foodName
+                    }
+
+                    // ── Log every recognised food to the daily diary ────────────
+                    var logged by remember(results) { mutableStateOf(false) }
+                    val diaryScope = rememberCoroutineScope()
+                    val totalCal = results.sumOf { it.calories }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (logged) CyberSuccess.copy(0.15f) else CyberAccent)
+                            .clickable(enabled = !logged) {
+                                diaryScope.launch {
+                                    val src = when (mode) {
+                                        ScanMode.BARCODE -> "BARCODE"
+                                        ScanMode.VOICE   -> "VOICE"
+                                        else             -> "AI"
+                                    }
+                                    val dao = com.example.data.AppDatabase.getInstance(context).foodDiaryDao()
+                                    results.forEach { n ->
+                                        val entry = com.example.data.FoodDiary.entryFrom(n, source = src)
+                                        dao.insert(entry)
+                                        com.example.data.FoodDiary.syncSave(entry)
+                                    }
+                                    logged = true
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            when {
+                                logged             -> "✓ Added to today's diary"
+                                results.size == 1  -> "🍽  Add to Food Diary"
+                                else               -> "🍽  Add ${results.size} items · $totalCal kcal"
+                            },
+                            fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = if (logged) CyberSuccess else CyberAccentDark
+                        )
+                    }
+
+                    // After logging, take the user straight to their diary
+                    if (logged) {
+                        Spacer(Modifier.height(10.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(48.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isLogged) CyberSuccess.copy(0.15f) else CyberAccent)
-                                .clickable(enabled = !isLogged) {
-                                    diaryScope.launch {
-                                        val entry = com.example.data.FoodDiary.entryFrom(
-                                            n,
-                                            source = when (mode) {
-                                                ScanMode.BARCODE -> "BARCODE"
-                                                ScanMode.VOICE   -> "VOICE"
-                                                else             -> "AI"
-                                            }
-                                        )
-                                        com.example.data.AppDatabase.getInstance(context)
-                                            .foodDiaryDao().insert(entry)
-                                        com.example.data.FoodDiary.syncSave(entry)
-                                        loggedName = n.foodName
-                                    }
-                                },
+                                .background(CyberBgCard)
+                                .border(1.dp, CyberAccent.copy(0.35f), RoundedCornerShape(16.dp))
+                                .clickable { onOpenDiary() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                if (isLogged) "✓ Added to today's diary" else "🍽  Add to Food Diary",
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                color = if (isLogged) CyberSuccess else CyberAccentDark
-                            )
-                        }
-
-                        // After logging, take the user straight to their diary
-                        if (isLogged) {
-                            Spacer(Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(CyberBgCard)
-                                    .border(1.dp, CyberAccent.copy(0.35f), RoundedCornerShape(16.dp))
-                                    .clickable { onOpenDiary() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("📖  View Food Diary →", fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold, color = CyberAccent)
-                            }
+                            Text("📖  View Food Diary →", fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold, color = CyberAccent)
                         }
                     }
                 }

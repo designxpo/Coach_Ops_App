@@ -294,6 +294,40 @@ object LocalFoodParser {
         )
     }
 
+    /**
+     * Like [parse], but returns ONE result per recognised food (quantity applied)
+     * instead of a single consolidated total. Empty if nothing matched.
+     */
+    fun parseEach(voiceText: String): List<FoodNutrition> {
+        val text = voiceText.lowercase().trim()
+        return extractItems(text).map { (entry, grams) ->
+            val mult    = grams / entry.servingGrams.toFloat()
+            val whole   = kotlin.math.abs(mult - mult.roundToInt()) < 0.02f
+            val name    = entry.names.first().replaceFirstChar { it.uppercase() }
+            val display = when {
+                grams == entry.servingGrams.toFloat() -> name
+                whole && mult >= 1f                   -> "${mult.roundToInt()}× $name"
+                else                                  -> "$name (${grams.roundToInt()}g)"
+            }
+            val serving = when {
+                grams == entry.servingGrams.toFloat() -> entry.servingLabel
+                whole && mult >= 1f                   -> "${mult.roundToInt()} × ${entry.servingLabel}"
+                else                                  -> "${grams.roundToInt()}g"
+            }
+            FoodNutrition(
+                foodName    = display,
+                servingSize = serving,
+                calories    = (entry.caloriesPer100g * grams / 100f).roundToInt(),
+                proteinG    = entry.proteinPer100g * grams / 100f,
+                carbsG      = entry.carbsPer100g   * grams / 100f,
+                fatG        = entry.fatPer100g     * grams / 100f,
+                fiberG      = entry.fiberPer100g   * grams / 100f,
+                confidence  = "high",
+                notes       = "Local database · offline"
+            )
+        }
+    }
+
     fun findFood(name: String): FoodEntry? {
         val lower = name.lowercase()
         return SORTED_DB.firstOrNull { e -> e.names.any { lower.contains(it) } }

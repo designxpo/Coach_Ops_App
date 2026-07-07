@@ -386,30 +386,26 @@ private fun TypeFoodSheet(
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var analyzing by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<com.example.data.FoodNutrition?>(null) }
+    var results by remember { mutableStateOf<List<com.example.data.FoodNutrition>>(emptyList()) }
     var error by remember { mutableStateOf("") }
     var mealType by remember { mutableStateOf(FoodDiary.mealTypeForNow()) }
 
     fun analyze() {
-        error = ""; result = null
-        val local = com.example.data.LocalFoodParser.parse(query)
-        if (local.isSuccess) { result = local.getOrNull(); return }
-        // Not a home food — a typed brand name ("on whey", "yoga bar") hits
-        // the built-in supplement database before going online
-        val supplement = com.example.data.SupplementDb.search(query).firstOrNull()
-        if (supplement != null) {
-            result = com.example.data.SupplementDb.toNutrition(supplement, 1f)
-            return
-        }
-        // Unknown locally — try the free USDA database
+        error = ""; results = emptyList()
         scope.launch {
             analyzing = true
-            val usda = com.example.data.UsdaFoodService.search(query)
+            // FoodAnalyzer splits "2 roti and dal" into separate foods, applies the
+            // quantity to each, and resolves via local DB → supplements → USDA.
+            val analysis = com.example.data.FoodAnalyzer.analyze(query)
             analyzing = false
-            usda.fold(
-                onSuccess = { result = it },
-                onFailure = { e -> error = e.message?.take(160) ?: "Food not recognised — try \"2 roti and dal\"" }
-            )
+            results = analysis.items
+            error = when {
+                analysis.items.isEmpty() ->
+                    "Food not recognised — try \"2 roti and dal\" or \"200g paneer\""
+                analysis.unresolved.isNotEmpty() ->
+                    "Couldn't find: ${analysis.unresolved.joinToString(", ")}"
+                else -> ""
+            }
         }
     }
 
@@ -424,7 +420,7 @@ private fun TypeFoodSheet(
             Text("Type what you ate — quantities work too", fontSize = 13.sp, color = CyberTextMuted)
             Spacer(Modifier.height(16.dp))
 
-            GymTextField(query, { query = it; result = null; error = "" },
+            GymTextField(query, { query = it; results = emptyList(); error = "" },
                 "What did you eat?", "e.g. 2 roti and dal, 200g paneer")
 
             if (error.isNotEmpty()) {
@@ -432,8 +428,8 @@ private fun TypeFoodSheet(
                 Text("⚠ $error", fontSize = 12.sp, color = CyberDanger, lineHeight = 16.sp)
             }
 
-            // Analyzed preview
-            result?.let { n ->
+            // Analyzed preview — one row per food, plus a total when there are several
+            if (results.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Column(
                     modifier = Modifier
@@ -441,15 +437,36 @@ private fun TypeFoodSheet(
                         .clip(RoundedCornerShape(16.dp))
                         .background(CyberBgCard)
                         .border(1.dp, CyberAccent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(n.foodName, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
-                    Text(n.servingSize, fontSize = 11.sp, color = CyberTextMuted)
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "🔥 ${n.calories} kcal · 💪 %.1fg · ⚡ %.1fg · 🥑 %.1fg".format(n.proteinG, n.carbsG, n.fatG),
-                        fontSize = 13.sp, color = CyberTextSecondary
-                    )
+                    results.forEach { n ->
+                        Column {
+                            Text(n.foodName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                            Text(n.servingSize, fontSize = 11.sp, color = CyberTextMuted)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "🔥 ${n.calories} kcal · 💪 %.1fg · ⚡ %.1fg · 🥑 %.1fg".format(n.proteinG, n.carbsG, n.fatG),
+                                fontSize = 12.sp, color = CyberTextSecondary
+                            )
+                        }
+                    }
+                    if (results.size > 1) {
+                        val tp = results.fold(0f) { a, n -> a + n.proteinG }
+                        val tc = results.fold(0f) { a, n -> a + n.carbsG }
+                        val tf = results.fold(0f) { a, n -> a + n.fatG }
+                        val tcal = results.sumOf { it.calories }
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(CyberAccent.copy(alpha = 0.15f)))
+                        Column {
+                            Text("Total · ${results.size} items", fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold, color = CyberAccent)
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "🔥 $tcal kcal · 💪 %.1fg · ⚡ %.1fg · 🥑 %.1fg".format(tp, tc, tf),
+                                fontSize = 12.sp, color = CyberTextSecondary
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -473,7 +490,8 @@ private fun TypeFoodSheet(
             }
 
             Spacer(Modifier.height(18.dp))
-            val r = result
+            val hasResults = results.isNotEmpty()
+            val totalCal = results.sumOf { it.calories }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -481,19 +499,26 @@ private fun TypeFoodSheet(
                     .clip(RoundedCornerShape(16.dp))
                     .background(if (query.isBlank()) CyberBgCard else CyberAccent)
                     .clickable(enabled = query.isNotBlank() && !analyzing) {
-                        if (r == null) analyze()
-                        else onSave(
-                            FoodDiary.entryFrom(r, source = "TYPED")
-                                .copy(dateKey = dateKey, mealType = mealType)
-                        )
+                        if (!hasResults) analyze()
+                        else {
+                            // Log each food as its own diary entry
+                            results.forEach { n ->
+                                onSave(
+                                    FoodDiary.entryFrom(n, source = "TYPED")
+                                        .copy(dateKey = dateKey, mealType = mealType)
+                                )
+                            }
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {
                 when {
                     analyzing -> androidx.compose.material3.CircularProgressIndicator(
                         color = CyberAccentDark, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    r != null -> Text("✓ Add ${r.calories} kcal to diary", fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold, color = CyberAccentDark)
+                    hasResults -> Text(
+                        if (results.size == 1) "✓ Add $totalCal kcal to diary"
+                        else "✓ Add ${results.size} items · $totalCal kcal",
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CyberAccentDark)
                     else -> Text("Analyze", fontSize = 15.sp, fontWeight = FontWeight.Bold,
                         color = if (query.isBlank()) CyberTextMuted else CyberAccentDark)
                 }
