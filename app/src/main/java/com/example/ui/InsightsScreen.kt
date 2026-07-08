@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.AppDatabase
 import com.example.data.ClientGoal
+import com.example.data.FitnessSync
 import com.example.data.HealthCalculator
 import com.example.data.HealthRepository
 import com.example.data.ProgressAnalytics
@@ -71,10 +72,16 @@ fun NutritionInsightsScreen(
         else emptyMap()
         val foods = runCatching { db.foodDiaryDao().entriesBetween(insightKeyDaysAgo(29), insightKeyDaysAgo(0)) }.getOrDefault(emptyList())
         val foodByDate = foods.groupBy { it.dateKey }
+        // Workouts logged in the Fitness section (last 30 days) → est. calories + training days
+        val sinceMs = System.currentTimeMillis() - 30L * 86_400_000L
+        val workouts = runCatching { FitnessSync.getLogsSince(sinceMs) }.getOrDefault(emptyList())
+        val wFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val workoutByDate = workouts.groupBy { wFmt.format(java.util.Date(it.dateMillis)) }
         days30 = (0 until 30).map { ago ->
             val d = insightKeyDaysAgo(ago)
             val f = foodByDate[d].orEmpty()
             val l = logsByDate[d]
+            val w = workoutByDate[d].orEmpty()
             DayData(
                 date = d,
                 caloriesIn = f.sumOf { it.calories },
@@ -85,6 +92,8 @@ fun NutritionInsightsScreen(
                 activeKcal = l?.caloriesBurned ?: 0,
                 waterGlasses = l?.waterGlasses ?: 0,
                 sleepHours = l?.sleepHours ?: 0f,
+                workoutKcal = w.sumOf { ProgressAnalytics.workoutKcal(it.durationSecs, it.setsCompleted, profile.weightKg) },
+                workoutCount = w.size,
             )
         }
         loading = false
@@ -149,7 +158,7 @@ fun NutritionInsightsScreen(
                 if (report.balanceSeries.size > 1) InsightBalanceChart(report, goal)
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Estimates use energy-balance math (≈7,700 kcal ≈ 1 kg) from your logged food, steps, water and sleep. " +
+                    "Estimates use energy-balance math (≈7,700 kcal ≈ 1 kg) from your logged food, workouts, steps, water and sleep. " +
                         "They're a guide, not a measurement — log consistently and record your weight for best accuracy.",
                     fontSize = 11.sp, color = CyberTextMuted, lineHeight = 16.sp
                 )

@@ -130,4 +130,27 @@ object FitnessSync {
                 } ?: emptyList())
             }
     }
+
+    /** One-shot fetch of workout logs on/after [sinceMillis] — used by Insights analytics. */
+    suspend fun getLogsSince(sinceMillis: Long): List<WorkoutLogEntry> {
+        val u = uid ?: return emptyList()
+        return try {
+            db.collection("client_fitness").document(u).collection("logs")
+                .whereGreaterThanOrEqualTo("dateMillis", sinceMillis)
+                .get().await().documents.mapNotNull { doc ->
+                    val d = doc.data ?: return@mapNotNull null
+                    WorkoutLogEntry(
+                        id            = d["id"] as? String ?: doc.id,
+                        exerciseId    = d["exerciseId"] as? String ?: "",
+                        exerciseName  = d["exerciseName"] as? String ?: "",
+                        dateMillis    = d["dateMillis"] as? Long ?: 0L,
+                        setsCompleted = (d["setsCompleted"] as? Long)?.toInt() ?: 0,
+                        repsCompleted = (d["repsCompleted"] as? Long)?.toInt() ?: 0,
+                        weightKg      = (d["weightKg"] as? Double)?.toFloat() ?: 0f,
+                        durationSecs  = (d["durationSecs"] as? Long)?.toInt() ?: 0,
+                        notes         = d["notes"] as? String ?: ""
+                    )
+                }
+        } catch (_: Exception) { emptyList() }
+    }
 }

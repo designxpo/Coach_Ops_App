@@ -29,7 +29,16 @@ object ProgressAnalytics {
         val activeKcal: Int,     // from the health log; 0 → derive from steps
         val waterGlasses: Int,
         val sleepHours: Float,
+        val workoutKcal: Int = 0,    // estimated calories from logged workouts that day
+        val workoutCount: Int = 0,   // number of exercises logged that day (>0 = trained)
     )
+
+    /** Estimate calories burned by a workout from its duration (or set count) + body weight. */
+    fun workoutKcal(durationSecs: Int, sets: Int, weightKg: Float): Int {
+        val w = if (weightKg > 0f) weightKg else 70f
+        val minutes = if (durationSecs > 0) durationSecs / 60f else sets * 2.25f
+        return (minutes * 6f * (w / 70f)).roundToInt().coerceIn(0, 1200)
+    }
 
     data class Metric(
         val label: String,
@@ -86,14 +95,19 @@ object ProgressAnalytics {
         val proteinTarget = if (proteinTargetG > 0) proteinTargetG.toFloat()
                             else if (weight > 0) weight * 1.6f else 100f
 
-        // Per-day TDEE: prefer BMR + real active calories (uses steps); else static TDEE.
+        // Per-day TDEE = resting + NEAT (steps) + logged workouts.
         fun dayTdee(d: DayData): Int {
             if (bmr > 0) {
                 val active = if (d.activeKcal > 0) d.activeKcal else (d.steps * STEP_KCAL).roundToInt()
-                return (bmr * 1.2f).roundToInt() + active
+                return (bmr * 1.2f).roundToInt() + active + d.workoutKcal
             }
-            return if (tdee > 0) tdee else 2000
+            return (if (tdee > 0) tdee else 2000) + d.workoutKcal
         }
+
+        // Training frequency across the whole period (not just food-logged days)
+        val trainedDays = days.count { it.workoutCount > 0 }
+        val periodWeeks = (days.size / 7f).coerceAtLeast(0.14f)
+        val workoutsPerWeek = trainedDays / periodWeeks
 
         val balances = logged.map { it.caloriesIn - dayTdee(it) }
         val cumulative = balances.sum()
@@ -119,9 +133,11 @@ object ProgressAnalytics {
             estFat    = estMass * fatFrac
             estMuscle = estMass * (1f - fatFrac)          // small (lean/water) loss
         } else if (estMass > 0f) {
-            // Gaining: cap the muscle share by a realistic natural rate
+            // Gaining: cap the muscle share by a realistic natural rate.
+            // Muscle growth needs resistance training — no workouts → surplus is fat.
             val capPerWeek = if (goal == ClientGoal.BUILD_MUSCLE) 0.5f else 0.25f
-            val maxMuscle  = capPerWeek * weeks * (if (proteinAdequate) 1f else 0.5f)
+            val trainingFactor = (workoutsPerWeek / 3f).coerceIn(0f, 1f)
+            val maxMuscle  = capPerWeek * weeks * (if (proteinAdequate) 1f else 0.5f) * trainingFactor
             estMuscle = min(estMass, maxMuscle)
             estFat    = estMass - estMuscle
         } else { estFat = 0f; estMuscle = 0f }
@@ -134,14 +150,15 @@ object ProgressAnalytics {
             else                     -> scoreMaintain(avgBal)         // near zero
         }
         val proteinScore = (avgProtein / proteinTarget).coerceIn(0f, 1f)
+        val workoutScore = (workoutsPerWeek / 4f).coerceIn(0f, 1f)
         val stepScore    = (avgSteps / stepGoal).coerceIn(0f, 1f)
         val waterScore   = (avgWater / 8f).coerceIn(0f, 1f)
         val sleepScore   = if (avgSleep in 7f..9f) 1f
                            else if (avgSleep <= 0f) 0.5f
                            else (avgSleep / 8f).coerceIn(0f, 1f)
 
-        val score = (calorieScore * 0.35f + proteinScore * 0.25f + stepScore * 0.15f +
-                     waterScore * 0.10f + sleepScore * 0.15f) * 100f
+        val score = (calorieScore * 0.30f + proteinScore * 0.20f + workoutScore * 0.15f +
+                     stepScore * 0.13f + waterScore * 0.10f + sleepScore * 0.12f) * 100f
         val scoreInt = score.roundToInt().coerceIn(0, 100)
 
         val verdict = when {
@@ -149,11 +166,12 @@ object ProgressAnalytics {
             scoreInt >= 50 -> "Almost there"
             else           -> "Off track"
         }
-        val detail = buildDetail(goal, avgBal, proteinAdequate, avgProtein, proteinTarget, avgSteps, stepGoal, avgSleep)
+        val detail = buildDetail(goal, avgBal, proteinAdequate, avgProtein, proteinTarget, avgSteps, stepGoal, avgSleep, workoutsPerWeek)
 
         val metrics = listOf(
             Metric("Calories", avgIn.toFloat(), avgTdee.toFloat(), "kcal", onTrack = calorieScore >= 0.6f),
             Metric("Protein", avgProtein, proteinTarget, "g", onTrack = proteinScore >= 0.85f),
+            Metric("Workouts/wk", workoutsPerWeek, 4f, "", onTrack = workoutScore >= 0.6f),
             Metric("Steps", avgSteps, stepGoal.toFloat(), "", onTrack = stepScore >= 0.75f),
             Metric("Water", avgWater, 8f, "glasses", onTrack = waterScore >= 0.75f),
             Metric("Sleep", avgSleep, 8f, "h", onTrack = avgSleep in 7f..9f),
@@ -197,17 +215,23 @@ object ProgressAnalytics {
 
     private fun buildDetail(
         goal: ClientGoal, avgBal: Int, proteinOk: Boolean, avgProtein: Float,
-        proteinTarget: Float, avgSteps: Float, stepGoal: Int, avgSleep: Float,
+        proteinTarget: Float, avgSteps: Float, stepGoal: Int, avgSleep: Float, workoutsPerWeek: Float,
     ): String {
         val tips = mutableListOf<String>()
         when (goal) {
             ClientGoal.LOSE_FAT -> if (avgBal >= 0)
                 tips += "You're eating around maintenance — a ${-(avgBal + 400)} kcal/day cut would drive fat loss."
-            ClientGoal.BUILD_MUSCLE -> if (avgBal < 100)
-                tips += "Add ~${(200 - avgBal).coerceAtLeast(100)} kcal/day — a slight surplus fuels muscle growth."
+            ClientGoal.BUILD_MUSCLE -> {
+                if (avgBal < 100)
+                    tips += "Add ~${(200 - avgBal).coerceAtLeast(100)} kcal/day — a slight surplus fuels muscle growth."
+                if (workoutsPerWeek < 2f)
+                    tips += "Train at least 3×/week — muscle only grows with resistance training, surplus alone becomes fat."
+            }
             else -> {}
         }
         if (!proteinOk) tips += "Protein is low (${avgProtein.roundToInt()}g vs ${proteinTarget.roundToInt()}g target) — key for keeping/adding muscle."
+        if (goal == ClientGoal.LOSE_FAT && workoutsPerWeek < 1.5f)
+            tips += "Add strength training — it protects muscle while you lose fat."
         if (avgSteps < stepGoal * 0.7f) tips += "Steps are under target — more daily movement widens your deficit."
         if (avgSleep in 0.1f..6.4f) tips += "Sleep under 7h blunts fat loss and recovery."
         return if (tips.isEmpty()) "Great consistency — keep it up and your goal trend will hold." else tips.joinToString(" ")
