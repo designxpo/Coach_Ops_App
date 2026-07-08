@@ -161,7 +161,11 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
     }
 
     // Entitlements drive tier-differentiated UI (Gym tab, locked features)
-    LaunchedEffect(Unit) { com.example.data.EntitlementManager.start(userPreferences) }
+    val billingContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        com.example.data.EntitlementManager.start(userPreferences)
+        com.example.data.BillingManager.init(billingContext)   // restores active subscriptions on launch
+    }
     val entitlements by com.example.data.EntitlementManager.entitlements.collectAsState()
     val isGymOwner = userPreferences.userRole == "gym_owner"
 

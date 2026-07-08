@@ -23,8 +23,8 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 4
-    versionName = "1.2.1"
+    versionCode = 5
+    versionName = "1.2.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -84,6 +84,7 @@ dependencies {
   implementation("com.google.mlkit:barcode-scanning:17.3.0")
   implementation("com.google.mlkit:image-labeling:17.0.9")
   implementation("androidx.health.connect:connect-client:1.1.0-rc01")
+  implementation("com.android.billingclient:billing-ktx:7.0.0")
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)

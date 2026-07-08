@@ -26,13 +26,18 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.BillingManager
 import com.example.data.EntitlementManager
 import com.example.data.SubscriptionPlan
 import com.example.data.UserPreferences
@@ -63,6 +69,12 @@ import com.example.ui.theme.CyberTextSecondary
  * which this app picks up in real time via EntitlementManager.
  */
 
+private fun Context.findActivity(): Activity? {
+    var c: Context? = this
+    while (c is ContextWrapper) { if (c is Activity) return c; c = c.baseContext }
+    return null
+}
+
 // ─── Coach / gym-owner plan upgrade ───────────────────────────────────────────
 
 @Composable
@@ -72,6 +84,11 @@ fun CoachUpgradeScreen(
 ) {
     val entitlements by EntitlementManager.entitlements.collectAsStateWithLifecycle()
     val currentPlan = entitlements.plan
+
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val offers by BillingManager.offers.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { BillingManager.init(context) }
 
     var requesting by remember { mutableStateOf<SubscriptionPlan?>(null) }
     var requestedPlans by remember { mutableStateOf(setOf<SubscriptionPlan>()) }
@@ -177,41 +194,54 @@ fun CoachUpgradeScreen(
 
                 if (isUpgrade) {
                     Spacer(Modifier.height(16.dp))
+                    val livePrice = offers[plan]?.formattedPrice
+                    // Primary: subscribe through Google Play Billing
                     Button(
-                        onClick = {
-                            requesting = plan
-                            EntitlementManager.requestUpgrade(
-                                requestedTier = plan.name,
-                                userName = userPreferences.coachName,
-                                userPhone = userPreferences.coachPhone
-                            ) { ok ->
-                                requesting = null
-                                if (ok) requestedPlans = requestedPlans + plan
-                            }
-                        },
-                        enabled = !isRequested && requesting == null,
+                        onClick = { if (activity != null) BillingManager.launchPurchase(activity, plan) },
+                        enabled = activity != null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (highlight) CyberAccent else CyberBgCardElevated,
-                            disabledContainerColor = CyberSuccess.copy(alpha = 0.15f)
+                            containerColor = if (highlight) CyberAccent else CyberBgCardElevated
                         ),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        when {
-                            requesting == plan -> CircularProgressIndicator(
-                                color = CyberAccent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            isRequested -> Text("✓ Request sent — we'll WhatsApp you", fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold, color = CyberSuccess)
-                            else -> Text("Upgrade to ${plan.displayName}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                color = if (highlight) CyberAccentDark else CyberTextPrimary)
-                        }
+                        Text(
+                            if (livePrice != null) "Subscribe · $livePrice/mo" else "Subscribe to ${plan.displayName}",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            color = if (highlight) CyberAccentDark else CyberTextPrimary
+                        )
                     }
+                    Spacer(Modifier.height(8.dp))
+                    // Fallback: manual activation (UPI / bank) handled by the admin panel
+                    Text(
+                        when {
+                            requesting == plan -> "Sending request…"
+                            isRequested -> "✓ Request sent — we'll WhatsApp you"
+                            else -> "Prefer UPI / bank transfer? Request manual activation"
+                        },
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        color = if (isRequested) CyberSuccess else CyberTextMuted,
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable(enabled = !isRequested && requesting == null) {
+                                requesting = plan
+                                EntitlementManager.requestUpgrade(
+                                    requestedTier = plan.name,
+                                    userName = userPreferences.coachName,
+                                    userPhone = userPreferences.coachPhone
+                                ) { ok ->
+                                    requesting = null
+                                    if (ok) requestedPlans = requestedPlans + plan
+                                }
+                            }
+                    )
                 }
             }
         }
 
         Text(
-            "🇮🇳 Pay via UPI, bank transfer or card. Our team activates your plan within a few hours of payment — you'll see it reflect instantly in the app.",
+            "Subscriptions are billed securely through Google Play and unlock instantly. " +
+                "Prefer UPI or bank transfer? Use “Request manual activation” and our team will activate your plan within a few hours.",
             fontSize = 12.sp, color = CyberTextMuted, lineHeight = 18.sp,
             modifier = Modifier.padding(vertical = 8.dp)
         )
