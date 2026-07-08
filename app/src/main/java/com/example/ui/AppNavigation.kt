@@ -803,7 +803,16 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onBack          = { navController.popBackStack() },
                     userPreferences = userPreferences,
                     db              = db,
-                    onAddFood       = { navController.navigate("food_scanner") }
+                    onAddFood       = { navController.navigate("food_scanner") },
+                    onOpenInsights  = { navController.navigate("insights") }
+                )
+            }
+            composable("insights") {
+                val db = remember { AppDatabase.getInstance(context) }
+                NutritionInsightsScreen(
+                    onBack          = { navController.popBackStack() },
+                    userPreferences = userPreferences,
+                    db              = db
                 )
             }
             composable("nutrition_coach") {

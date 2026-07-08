@@ -87,9 +87,12 @@ class HealthRepository(private val uid: String) {
         } catch (_: Exception) { }
     }
 
-    suspend fun getLast7Days(): List<DailyHealthLog> {
+    suspend fun getLast7Days(): List<DailyHealthLog> = getLastNDays(7)
+
+    /** Today back through the last [n] days (newest first). Used by Progress analytics. */
+    suspend fun getLastNDays(n: Int): List<DailyHealthLog> {
         val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        return (0..6).map { daysAgo ->
+        return (0 until n).map { daysAgo ->
             val cal = java.util.Calendar.getInstance()
             cal.add(java.util.Calendar.DAY_OF_YEAR, -daysAgo)
             getLog(fmt.format(cal.time))

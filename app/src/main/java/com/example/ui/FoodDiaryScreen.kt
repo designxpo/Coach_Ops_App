@@ -76,7 +76,8 @@ fun FoodDiaryScreen(
     onBack: () -> Unit,
     userPreferences: UserPreferences,
     db: AppDatabase,
-    onAddFood: () -> Unit
+    onAddFood: () -> Unit,
+    onOpenInsights: () -> Unit = {}
 ) {
     val dao = remember { db.foodDiaryDao() }
     val scope = rememberCoroutineScope()
@@ -185,6 +186,14 @@ fun FoodDiaryScreen(
                 Spacer(Modifier.width(12.dp))
                 Text("Food Diary", fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     color = CyberTextPrimary, modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberBgCard)
+                        .clickable { onOpenInsights() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📊", fontSize = 16.sp)
+                }
+                Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberAccent)
                         .clickable { showTypeSheet = true },
