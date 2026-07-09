@@ -127,7 +127,8 @@ object FirestoreSync {
         db.collection("user_records").document(uid)
             .set(mapOf(
                 "displayName"  to displayName,
-                "role"         to "coach",
+                // NOTE: never write 'role' here — this can be called for any role;
+                // role is owned by setUserRole / registerClientRecord / ProfileSync.
                 "lastActiveAt" to System.currentTimeMillis()
             ), com.google.firebase.firestore.SetOptions.merge())
     }
@@ -223,8 +224,13 @@ object FirestoreSync {
         try {
             val userDoc = db.collection("user_records").document(uid).get().await()
             if (userDoc.exists()) {
-                userPreferences.onboardingComplete = true
                 val role = userDoc.getString("role") ?: ""
+                // Doc existence is NOT proof of completed onboarding: AuthRepository.writeUserRecord
+                // auto-creates a role-less doc at the very first sign-in. Trust the explicit
+                // onboardingComplete flag when present; otherwise fall back to role presence
+                // (legacy accounts predate the flag but always wrote role at onboarding).
+                val complete = userDoc.getBoolean("onboardingComplete") ?: role.isNotEmpty()
+                if (complete) userPreferences.onboardingComplete = true
                 val name = userDoc.getString("displayName") ?: ""
                 val email = userDoc.getString("email") ?: ""
                 if (role == "coach" || role == "gym_owner") {
@@ -247,17 +253,20 @@ object FirestoreSync {
         }
     }
 
-    /** Called once after client completes onboarding — creates their admin record */
+    /** Called at member registration — creates their admin record with the correct
+     *  role immediately. onboardingComplete=false until ClientOnboarding finishes
+     *  (ProfileSync.saveMemberProfile flips it), so a mid-onboarding quit resumes. */
     fun registerClientRecord(name: String, email: String) {
         val uid = uid ?: return
         db.collection("user_records").document(uid)
             .set(mapOf(
-                "uid"          to uid,
-                "displayName"  to name,
-                "email"        to email,
-                "role"         to "client",
-                "joinedAt"     to System.currentTimeMillis(),
-                "lastActiveAt" to System.currentTimeMillis()
+                "uid"                to uid,
+                "displayName"        to name,
+                "email"              to email,
+                "role"               to "client",
+                "onboardingComplete" to false,
+                "joinedAt"           to System.currentTimeMillis(),
+                "lastActiveAt"       to System.currentTimeMillis()
             ), com.google.firebase.firestore.SetOptions.merge())
     }
 

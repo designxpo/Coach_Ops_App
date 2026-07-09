@@ -127,6 +127,12 @@ fun LoginScreen(
                             } else {
                                 val role = resolvedRole ?: selectedRole
                                 userPreferences.userRole = role
+                                // Backfill: if Firestore has no role yet (Google sign-in creates the
+                                // user_records doc without one), persist it now — otherwise the admin
+                                // panel defaults role-less users to "coach" even for members.
+                                if (storedRole == null) {
+                                    com.example.data.FirestoreSync.setUserRole(role)
+                                }
                                 if (userPreferences.coachName.isEmpty()) {
                                     userPreferences.coachName = authResult.user.displayName ?: ""
                                 }
@@ -326,6 +332,10 @@ fun LoginScreen(
                                     val role = resolvedRole ?: selectedRole
                                     userPreferences.coachEmail = result.user.email ?: email
                                     userPreferences.userRole = role
+                                    // Backfill role-less accounts so admin/other devices see the role
+                                    if (storedRole == null) {
+                                        com.example.data.FirestoreSync.setUserRole(role)
+                                    }
                                     userPreferences.onboardingComplete = resolvedRole != null
                                     ProfileSync.restoreProfile(uid, role, userPreferences)
                                     isLoading = false
@@ -397,6 +407,10 @@ fun LoginScreen(
                                     val role = resolvedRole ?: selectedRole
                                     userPreferences.coachEmail = result.user.email ?: email
                                     userPreferences.userRole = role
+                                    // Backfill role-less accounts so admin/other devices see the role
+                                    if (storedRole == null) {
+                                        com.example.data.FirestoreSync.setUserRole(role)
+                                    }
                                     userPreferences.onboardingComplete = resolvedRole != null
                                     // Pull all profile data (name, specialty, health etc.) from cloud
                                     ProfileSync.restoreProfile(uid, role, userPreferences)

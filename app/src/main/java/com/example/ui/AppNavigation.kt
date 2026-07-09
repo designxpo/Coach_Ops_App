@@ -146,6 +146,21 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
         return
     }
 
+    // ── Role self-heal ────────────────────────────────────────────────────────
+    // Older builds never persisted role for members who signed in via Google on
+    // the login screen, so the admin panel showed them as coaches (its default
+    // for role-less docs). Backfill Firestore from local prefs exactly once per
+    // launch — runs BEFORE the client early-return so members are healed too.
+    LaunchedEffect(Unit) {
+        val healUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val localRole = userPreferences.userRole
+        if (healUid != null && localRole.isNotEmpty() &&
+            com.example.data.FirestoreSync.getUserRole(healUid) == null
+        ) {
+            com.example.data.FirestoreSync.setUserRole(localRole)
+        }
+    }
+
     // ── Role fork: clients see the discovery/booking app ─────────────────────
     if (userPreferences.userRole == "client" && userPreferences.onboardingComplete) {
         val activityContext = LocalContext.current
