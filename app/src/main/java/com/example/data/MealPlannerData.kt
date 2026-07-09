@@ -83,8 +83,8 @@ object MealPlannerAI {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 60_000
-                readTimeout = 60_000
+                connectTimeout = 30_000
+                readTimeout = 120_000
             }
             conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode

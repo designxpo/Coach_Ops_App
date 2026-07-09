@@ -111,7 +111,8 @@ fun FitnessHubScreen(
     onCycleTrackerClick: () -> Unit = {},
     onNutritionCoachClick: () -> Unit = {},
     onMealPlannerClick: () -> Unit = {},
-    onHealthConnectClick: () -> Unit = {}
+    onHealthConnectClick: () -> Unit = {},
+    onAwardsClick: () -> Unit = {}
 ) {
     val logs  by viewModel.logs.collectAsState()
     val goals by viewModel.goals.collectAsState()
@@ -308,13 +309,16 @@ fun FitnessHubScreen(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Daily Activity", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                        Text("Daily Activity", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
+                            color = CyberTextPrimary, maxLines = 1,
+                            modifier = Modifier.weight(1f))
                         Text(
                             "See all",
                             fontSize = 12.sp, color = CyberAccent, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable { onProgressClick() }
+                            maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(start = 8.dp).clickable { onProgressClick() }
                         )
                     }
                     ActivityStatRow(label = "Today", value = "$todayCount", goal = "$dailyGoal", color = CyberAccent)
@@ -322,14 +326,18 @@ fun FitnessHubScreen(
                     ActivityStatRow(label = "Streak", value = "$streak", goal = "days", color = Color(0xFF3B82F6))
                 }
 
-                Spacer(Modifier.width(20.dp))
+                Spacer(Modifier.width(14.dp))
 
-                // Activity rings
+                // Activity rings — shrink on narrow screens so the stat column
+                // keeps enough width to render values without wrapping
+                val ringSize =
+                    if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 380) 88.dp
+                    else 110.dp
                 ActivityRing(
                     workoutsProgress = (todayCount.toFloat() / dailyGoal).coerceIn(0f, 1f),
                     caloriesProgress = (weekCalories.toFloat() / calGoal).coerceIn(0f, 1f),
                     streakProgress   = (streak.toFloat() / 7).coerceIn(0f, 1f),
-                    modifier = Modifier.size(110.dp)
+                    modifier = Modifier.size(ringSize)
                 )
             }
             Spacer(Modifier.height(14.dp))
@@ -914,7 +922,14 @@ fun FitnessHubScreen(
                         modifier = Modifier.weight(1f),
                         onClick  = onHealthConnectClick
                     )
-                    Spacer(Modifier.weight(1f))
+                    QuickLinkCard(
+                        imageUrl = "https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=300&h=180&fit=crop",
+                        title    = "Awards",
+                        subtitle = "Streaks · Badges",
+                        color    = Color(0xFF3F2D04),
+                        modifier = Modifier.weight(1f),
+                        onClick  = onAwardsClick
+                    )
                 }
             }
         }
@@ -994,15 +1009,22 @@ private fun ActivityRing(
 
 @Composable
 private fun ActivityStatRow(label: String, value: String, goal: String, color: Color) {
+    // Weight-based (not fixed-width) so narrow screens / large font scales
+    // squeeze the label instead of char-wrapping the value column
     Row(
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
-        Text(label, fontSize = 13.sp, color = CyberTextMuted, modifier = Modifier.width(70.dp))
+        Text(label, fontSize = 13.sp, color = CyberTextMuted, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f))
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
-            Text("/ $goal", fontSize = 12.sp, color = CyberTextMuted, modifier = Modifier.padding(bottom = 2.dp))
+            Text(value, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color,
+                maxLines = 1, softWrap = false)
+            Text("/ $goal", fontSize = 12.sp, color = CyberTextMuted, maxLines = 1, softWrap = false,
+                modifier = Modifier.padding(bottom = 2.dp))
         }
     }
 }

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import androidx.compose.foundation.background
@@ -182,11 +184,15 @@ fun NutritionGoalScreen(
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 // Macro pills row
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                androidx.compose.foundation.layout.FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     MacroPill("P ${plan.proteinG}g", Color(0xFF6366F1))
                                     MacroPill("C ${plan.carbsG}g", Color(0xFFF59E0B))
                                     MacroPill("F ${plan.fatG}g", Color(0xFFEF4444))
-                                    Text("· ${plan.meals.size} meals/day", fontSize = 11.sp, color = CyberTextMuted)
+                                    Text("· ${plan.meals.size} meals/day", fontSize = 11.sp, color = CyberTextMuted,
+                                        maxLines = 1, softWrap = false)
                                 }
                             }
                         }
@@ -213,6 +219,6 @@ private fun MacroPill(text: String, color: Color) {
             .background(color.copy(0.12f))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1, softWrap = false)
     }
 }

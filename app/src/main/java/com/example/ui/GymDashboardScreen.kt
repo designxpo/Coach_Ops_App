@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import androidx.compose.foundation.background
@@ -246,7 +248,10 @@ fun GymDashboardScreen(
                     Text(formatInr(stats.monthCollectedInr), fontSize = 32.sp,
                         fontWeight = FontWeight.ExtraBold, color = CyberAccentDark, lineHeight = 36.sp)
                     Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         BillingChip("${stats.activeMembers} Active", Color(0xFF166534))
                         BillingChip("${stats.expiringSoon} Expiring", Color(0xFF92400E))
                         BillingChip("${stats.expired} Expired", Color(0xFF991B1B))

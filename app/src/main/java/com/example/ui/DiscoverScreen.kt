@@ -1035,6 +1035,7 @@ private fun CompactBookingCard(booking: Booking, modifier: Modifier = Modifier) 
 
 // ─── Trainer card ─────────────────────────────────────────────────────────────
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TrainerCard(
     trainer: TrainerProfile,
@@ -1101,7 +1102,13 @@ fun TrainerCard(
                 Text(trainer.bio.take(100) + if (trainer.bio.length > 100) "…" else "",
                     fontSize = 12.sp, color = CyberTextSecondary, lineHeight = 16.sp)
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // FlowRow so chips wrap to the next line on narrow screens / large
+            // font scales instead of crushing the last chip into a vertical strip
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (trainer.city.isNotBlank()) InfoChip("📍", trainer.city.replaceFirstChar { it.uppercase() })
                 if (trainer.feePerSession > 0) InfoChip("💰", "₹${trainer.feePerSession}/session")
                 if (trainer.yearsExperience > 0) InfoChip("🏅", "${trainer.yearsExperience} yrs exp")
@@ -1120,7 +1127,9 @@ private fun InfoChip(icon: String, label: String) {
         .padding(horizontal = 10.dp, vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(icon, fontSize = 11.sp)
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = CyberTextSecondary)
+            // maxLines + no soft wrap: a squeezed chip must never wrap char-by-char
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = CyberTextSecondary,
+                maxLines = 1, softWrap = false)
         }
     }
 }

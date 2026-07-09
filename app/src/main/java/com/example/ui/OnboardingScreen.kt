@@ -334,7 +334,7 @@ private fun OnboardingNameStep(
                     singleLine = true,
                     decorationBox = { inner ->
                         Box {
-                            if (name.isEmpty()) Text("e.g. Priyesh Mishra", fontSize = 16.sp, color = CyberTextMuted)
+                            if (name.isEmpty()) Text("e.g. Rahul Sharma", fontSize = 16.sp, color = CyberTextMuted)
                             inner()
                         }
                     }

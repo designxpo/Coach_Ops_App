@@ -23,8 +23,8 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 6
-    versionName = "1.2.3"
+    versionCode = 10
+    versionName = "1.2.6"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -51,6 +51,9 @@ android {
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
+      // Bundle native debug symbols (ML Kit / Health .so files) so Play Console
+      // can symbolicate native crashes & ANRs — clears the "no debug symbols" warning.
+      ndk { debugSymbolLevel = "FULL" }
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

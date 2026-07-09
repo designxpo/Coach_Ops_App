@@ -240,7 +240,7 @@ private fun ClientNameStep(
         Text("This helps trainers know who they're working with.", fontSize = 14.sp, color = CyberTextMuted)
         Spacer(Modifier.height(32.dp))
 
-        InputField(label = "Full Name *", value = name, placeholder = "e.g. Priyesh Mishra",
+        InputField(label = "Full Name *", value = name, placeholder = "e.g. Rahul Sharma",
             keyboard = KeyboardType.Text, onValueChange = onNameChange)
         Spacer(Modifier.height(16.dp))
         InputField(label = "Your City (optional)", value = city, placeholder = "e.g. Mumbai",

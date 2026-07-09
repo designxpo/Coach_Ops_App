@@ -710,7 +710,8 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onCycleTrackerClick     = { navController.navigate("cycle_tracker") },
                     onNutritionCoachClick   = { navController.navigate("nutrition_coach") },
                     onMealPlannerClick      = { navController.navigate("meal_planner") },
-                    onHealthConnectClick    = { navController.navigate("health_connect") }
+                    onHealthConnectClick    = { navController.navigate("health_connect") },
+                    onAwardsClick           = { navController.navigate("awards") }
                 )
             }
             composable("health_metrics") {
@@ -874,6 +875,12 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
             }
             composable("health_connect") {
                 HealthConnectScreen(onBack = { navController.popBackStack() }, context = context)
+            }
+            composable("awards") {
+                AwardsScreen(
+                    userPreferences = userPreferences,
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(ClientScreen.MyBookings.route) {
                 ClientDashboardScreen(viewModel = viewModel)

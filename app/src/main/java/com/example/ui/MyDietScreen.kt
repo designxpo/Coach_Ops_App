@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
@@ -117,7 +119,10 @@ fun MyDietScreen(
                     Text(plan.title.ifBlank { "Diet Plan" }, color = CyberTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Black)
                     if (plan.description.isNotBlank())
                         Text(plan.description, color = CyberTextMuted, fontSize = 13.sp, lineHeight = 20.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         if (plan.totalDailyCalories > 0) MacroChip("${plan.totalDailyCalories}", "kcal/day", Color(0xFFF59E0B))
                         if (plan.totalDailyProteinG > 0) MacroChip("${plan.totalDailyProteinG}g", "protein", Color(0xFF818CF8))
                         MacroChip("${plan.days.size}", "days", CyberAccent)
@@ -204,8 +209,8 @@ private fun MacroChip(value: String, label: String, color: Color) {
         Modifier.clip(RoundedCornerShape(10.dp)).background(color.copy(0.1f)).padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Black)
-        Text(label, color = color.copy(0.7f), fontSize = 10.sp)
+        Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false)
+        Text(label, color = color.copy(0.7f), fontSize = 10.sp, maxLines = 1, softWrap = false)
     }
 }
 

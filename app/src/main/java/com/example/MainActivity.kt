@@ -97,5 +97,7 @@ class MainActivity : ComponentActivity() {
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+        // Evening streak-saver + award notifications for members
+        StreakGuardWorker.schedule(applicationContext)
     }
 }

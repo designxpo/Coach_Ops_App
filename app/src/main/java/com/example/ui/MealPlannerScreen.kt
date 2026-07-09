@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
@@ -343,7 +345,10 @@ fun MealPlannerScreen(
                                             expandedDays.value = setOf(0) // expand first day by default
                                         }
                                         result.onFailure { e ->
-                                            errorMessage = e.message ?: "Failed to generate plan. Please try again."
+                                            errorMessage = if (e is java.net.SocketTimeoutException)
+                                                "This is taking longer than usual — check your connection and try again."
+                                            else
+                                                "Failed to generate plan. Please try again."
                                         }
                                     }
                                 },
@@ -622,8 +627,11 @@ private fun MealRow(meal: PlannedMeal) {
                 color = CyberTextPrimary
             )
 
-            // Macros row
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Macros row — FlowRow so all 4 chips wrap on narrow screens
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 MacroChip("${meal.calories} kcal", Color(0xFFFACC15))
                 MacroChip("P ${meal.proteinG}g", Color(0xFF6366F1))
                 MacroChip("C ${meal.carbsG}g", Color(0xFF22C55E))
@@ -645,7 +653,9 @@ private fun MacroChip(text: String, color: Color) {
             text,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            color = color
+            color = color,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

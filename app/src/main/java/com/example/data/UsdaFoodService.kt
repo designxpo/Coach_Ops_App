@@ -9,8 +9,11 @@ import java.net.URLEncoder
 
 /**
  * Free USDA FoodData Central API client.
- * No API key needed — DEMO_KEY works for 30 req/hour without any signup.
  * Covers 600k+ foods including Indian items and branded products.
+ *
+ * API key comes from .env via BuildConfig (USDA_API_KEY). The DEMO_KEY
+ * fallback works unauthenticated but is limited to 30 req/hour per IP —
+ * get a free 1,000 req/hour key at https://api.data.gov/signup.
  *
  * Used as fallback when LocalFoodParser doesn't recognise a food (voice)
  * and when Open Food Facts doesn't find a barcode product.
@@ -18,7 +21,7 @@ import java.net.URLEncoder
 object UsdaFoodService {
 
     private const val BASE     = "https://api.nal.usda.gov/fdc/v1"
-    private const val API_KEY  = "DEMO_KEY"   // works without signup, 30 req/hour
+    private val API_KEY = com.example.BuildConfig.USDA_API_KEY.ifBlank { "DEMO_KEY" }
     private const val TIMEOUT  = 12_000
 
     // USDA nutrient IDs (SR Legacy + Branded Foods)
@@ -142,9 +145,9 @@ object UsdaFoodService {
                 val err = conn.errorStream?.bufferedReader()?.readText() ?: ""
                 throw Exception(
                     when (code) {
-                        429  -> "USDA rate limit reached (30/hour on DEMO_KEY). Try again in a minute."
-                        403  -> "USDA API key rejected."
-                        else -> "USDA server error $code. $err"
+                        429  -> "Food database is busy right now — try again in a minute."
+                        403  -> "Food database is unavailable right now."
+                        else -> "Food lookup failed ($code). Please try again."
                     }
                 )
             }

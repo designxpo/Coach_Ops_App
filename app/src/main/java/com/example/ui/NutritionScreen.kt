@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
@@ -558,7 +560,10 @@ private fun FoodItemRow(food: IndianFoodItem) {
         // Macro chips row
         if (food.proteinG > 0 || food.carbsG > 0 || food.fatG > 0) {
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 MacroChip("P:${food.proteinG}g", CyberAccent)
                 MacroChip("C:${food.carbsG}g",  Color(0xFFF59E0B))
                 MacroChip("F:${food.fatG}g",    Color(0xFF10B981))
@@ -594,6 +599,6 @@ private fun MacroChip(label: String, color: Color) {
             .background(color.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1, softWrap = false)
     }
 }

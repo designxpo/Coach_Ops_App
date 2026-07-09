@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui
 
 import android.content.Intent
@@ -167,7 +169,10 @@ fun BillingScreen(viewModel: MainViewModel, onUpgradeClick: () -> Unit = {}) {
                     }
 
                     Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         BillingChip("$activeCount Active", Color(0xFF166534))
                         BillingChip("$expiringCount Expiring", Color(0xFF92400E))
                         BillingChip("$failedCount Failed", Color(0xFF991B1B))
@@ -456,6 +461,6 @@ fun BillingChip(text: String, textColor: Color) {
             .background(textColor.copy(alpha = 0.15f))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
     }
 }

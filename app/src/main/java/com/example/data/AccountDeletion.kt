@@ -25,6 +25,7 @@ object AccountDeletion {
     )
     private val USER_SUBCOLLECTIONS = listOf(
         "health_daily", "health_measurements", "health_photos", "health_cycle",
+        "awards",
     )
     private val FITNESS_SUBCOLLECTIONS = listOf("goals", "logs", "food_diary")
 
