@@ -354,13 +354,6 @@ object FirestoreSync {
 
         val applyRadius = radiusKm > 0 && clientLat != 0.0 && clientLng != 0.0
 
-        // Fetch ALL docs in trainers collection (no isPublic filter) to see what's there
-        val allDocs = db.collection("trainers").get().await().documents
-        if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "trainers collection total docs: ${allDocs.size}")
-        allDocs.forEach { doc ->
-            if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "  doc ${doc.id} isPublic=${doc.data?.get("isPublic")} name=${doc.data?.get("name")}")
-        }
-
         val docs = db.collection("trainers")
             .whereEqualTo("isPublic", true)
             .get().await().documents
@@ -540,8 +533,18 @@ object FirestoreSync {
     suspend fun pullToRoom(coachDao: CoachDao) {
         if (uid == null) return
 
+        // Fire all 7 collection fetches up front (Firestore Tasks start executing
+        // on creation) so first-login sync costs one round-trip time, not seven.
+        val clientsTask  = col("clients")?.get()
+        val programsTask = col("programs")?.get()
+        val paymentsTask = col("payments")?.get()
+        val logsTask     = col("workout_logs")?.get()
+        val measTask     = col("measurements")?.get()
+        val notesTask    = col("notes")?.get()
+        val snapsTask    = col("revenue_snapshots")?.get()
+
         // Clients
-        val clients = col("clients")?.get()?.await()?.documents?.mapNotNull { doc ->
+        val clients = clientsTask?.await()?.documents?.mapNotNull { doc ->
             val d = doc.data ?: return@mapNotNull null
             Client(
                 id                   = d["id"] as? String ?: doc.id,
@@ -563,7 +566,7 @@ object FirestoreSync {
         if (clients.isNotEmpty()) coachDao.insertClients(clients)
 
         // Programs
-        val programs = col("programs")?.get()?.await()?.documents?.mapNotNull { doc ->
+        val programs = programsTask?.await()?.documents?.mapNotNull { doc ->
             val d = doc.data ?: return@mapNotNull null
             Program(
                 id               = d["id"] as? String ?: doc.id,
@@ -580,7 +583,7 @@ object FirestoreSync {
         if (programs.isNotEmpty()) coachDao.insertPrograms(programs)
 
         // Payments
-        val payments = col("payments")?.get()?.await()?.documents?.mapNotNull { doc ->
+        val payments = paymentsTask?.await()?.documents?.mapNotNull { doc ->
             val d = doc.data ?: return@mapNotNull null
             Payment(
                 id             = d["id"] as? String ?: doc.id,
@@ -594,7 +597,7 @@ object FirestoreSync {
         if (payments.isNotEmpty()) coachDao.insertPayments(payments)
 
         // Workout logs
-        col("workout_logs")?.get()?.await()?.documents?.forEach { doc ->
+        logsTask?.await()?.documents?.forEach { doc ->
             val d = doc.data ?: return@forEach
             coachDao.insertWorkoutLog(WorkoutLog(
                 id                = d["id"] as? String ?: doc.id,
@@ -611,7 +614,7 @@ object FirestoreSync {
         }
 
         // Measurements
-        col("measurements")?.get()?.await()?.documents?.forEach { doc ->
+        measTask?.await()?.documents?.forEach { doc ->
             val d = doc.data ?: return@forEach
             coachDao.insertMeasurement(BodyMeasurement(
                 id         = d["id"] as? String ?: doc.id,
@@ -624,7 +627,7 @@ object FirestoreSync {
         }
 
         // Notes
-        col("notes")?.get()?.await()?.documents?.forEach { doc ->
+        notesTask?.await()?.documents?.forEach { doc ->
             val d = doc.data ?: return@forEach
             coachDao.insertNote(ClientNote(
                 id         = d["id"] as? String ?: doc.id,
@@ -635,7 +638,7 @@ object FirestoreSync {
         }
 
         // Revenue snapshots
-        col("revenue_snapshots")?.get()?.await()?.documents?.forEach { doc ->
+        snapsTask?.await()?.documents?.forEach { doc ->
             val d = doc.data ?: return@forEach
             coachDao.insertSnapshot(RevenueSnapshot(
                 monthYear = d["monthYear"] as? String ?: doc.id,

@@ -352,7 +352,9 @@ object AwardsEngine {
                 weekGoalDays    = weekDays,
                 workoutWeekKey  = workoutWeekKey
             )
-            awardsCol(uid).document(STATS_DOC).set(mapOf(
+            // Single batched commit: stats + any newly earned docs in one round trip
+            val batch = db.batch()
+            batch.set(awardsCol(uid).document(STATS_DOC), mapOf(
                 "lastCountedDate" to newStats.lastCountedDate,
                 "currentStreak"   to newStats.currentStreak,
                 "bestStreak"      to newStats.bestStreak,
@@ -364,17 +366,17 @@ object AwardsEngine {
                 "weekGoalDays"    to newStats.weekGoalDays,
                 "workoutWeekKey"  to newStats.workoutWeekKey,
                 "updatedAt"       to System.currentTimeMillis()
-            ), SetOptions.merge()).await()
-
+            ), SetOptions.merge())
             newly.forEach { d ->
                 val e = earned[d.id] ?: return@forEach
-                awardsCol(uid).document(d.id).set(mapOf(
+                batch.set(awardsCol(uid).document(d.id), mapOf(
                     "earnedAt"     to e.earnedAt,
                     "lastEarnedAt" to e.lastEarnedAt,
                     "timesEarned"  to e.timesEarned,
                     "value"        to e.value
-                ), SetOptions.merge()).await()
+                ), SetOptions.merge())
             }
+            batch.commit().await()
 
             AwardsState(
                 stats            = newStats,
