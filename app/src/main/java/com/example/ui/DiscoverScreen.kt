@@ -98,7 +98,8 @@ private fun radiusLabel(km: Int) = if (km == 0) "Anywhere" else "$km km"
 @Composable
 fun DiscoverScreen(
     viewModel: ClientViewModel,
-    onTrainerClick: (String) -> Unit
+    onTrainerClick: (String) -> Unit,
+    onAvatarClick: () -> Unit = {}
 ) {
     val context   = LocalContext.current
     val scope     = rememberCoroutineScope()
@@ -277,11 +278,25 @@ fun DiscoverScreen(
 
             // ── Greeting ──────────────────────────────────────────────────────
             item {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Text("Hi, ${viewModel.clientName.ifBlank { "there" }} 👋",
-                        fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
-                    Spacer(Modifier.height(2.dp))
-                    Text("Find your perfect fitness coach", fontSize = 13.sp, color = CyberTextMuted)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ProfileAvatar(
+                        name = viewModel.clientName.ifBlank { "U" },
+                        size = 46.dp,
+                        onClick = onAvatarClick
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("Hi, ${viewModel.clientName.ifBlank { "there" }} 👋",
+                            fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(2.dp))
+                        Text("Find your perfect fitness coach", fontSize = 13.sp, color = CyberTextMuted)
+                    }
                 }
             }
 

@@ -112,7 +112,8 @@ fun FitnessHubScreen(
     onNutritionCoachClick: () -> Unit = {},
     onMealPlannerClick: () -> Unit = {},
     onHealthConnectClick: () -> Unit = {},
-    onAwardsClick: () -> Unit = {}
+    onAwardsClick: () -> Unit = {},
+    onAvatarClick: () -> Unit = {}
 ) {
     val logs  by viewModel.logs.collectAsState()
     val goals by viewModel.goals.collectAsState()
@@ -182,39 +183,8 @@ fun FitnessHubScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Avatar circle — reactive StateFlow, updates without restart
-                    val photoUrl by viewModel.profilePhotoUrl.collectAsState()
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(CyberAccent.copy(0.15f))
-                            .border(2.dp, CyberAccent.copy(0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (photoUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = photoUrl,
-                                contentDescription = "Profile photo",
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.size(46.dp).clip(CircleShape)
-                            )
-                        } else {
-                            Text(
-                                clientName.first().uppercaseChar().toString(),
-                                fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent
-                            )
-                        }
-                        // Green online dot
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                                .border(2.dp, CyberBgPrimary, CircleShape)
-                                .align(Alignment.BottomEnd)
-                        )
-                    }
+                    // Shared avatar — live photo updates; tap opens Profile
+                    ProfileAvatar(name = clientName, size = 46.dp, onClick = onAvatarClick)
                     Column {
                         Text(
                             "Hello $clientName!",

@@ -149,38 +149,14 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val photoUrl by viewModel.profilePhotoUrl.collectAsState()
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .border(2.dp, CyberAccent, CircleShape)
-                            .clip(CircleShape)
-                            .background(CyberBgCardElevated)
-                            .clickable { onProfileClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (photoUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = photoUrl,
-                                contentDescription = "Profile",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(44.dp).clip(CircleShape)
-                            )
-                        } else {
-                            Text(
-                                (coachName.firstOrNull()?.toString() ?: "C").uppercase(),
-                                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CyberAccent
-                            )
-                        }
-                    }
+                    // Shared avatar — live photo updates; tap opens Profile
+                    ProfileAvatar(name = coachName.ifBlank { "Coach" }, size = 44.dp, onClick = onProfileClick)
                     Column {
                         Text(greeting, fontSize = 12.sp, color = CyberTextSecondary, fontWeight = FontWeight.Normal)
                         Text(coachName.ifEmpty { "Coach" }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(modifier = Modifier.size(8.dp).background(CyberSuccess, CircleShape))
-
                     // Gym Suite entry — lives in the top bar (bottom nav stays 5 tabs)
                     if (showGym) {
                         Box(

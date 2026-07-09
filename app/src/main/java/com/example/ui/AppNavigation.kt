@@ -680,9 +680,11 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
             modifier = Modifier.padding(innerPadding).fillMaxSize()
         ) {
             composable(ClientScreen.Discover.route) {
-                DiscoverScreen(viewModel = viewModel, onTrainerClick = { uid ->
-                    navController.navigate("trainer_detail/$uid")
-                })
+                DiscoverScreen(
+                    viewModel = viewModel,
+                    onTrainerClick = { uid -> navController.navigate("trainer_detail/$uid") },
+                    onAvatarClick  = { navController.navigate(ClientScreen.Profile.route) }
+                )
             }
             composable("trainer_detail/{trainerId}") { back ->
                 val id = back.arguments?.getString("trainerId") ?: return@composable
@@ -711,7 +713,8 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onNutritionCoachClick   = { navController.navigate("nutrition_coach") },
                     onMealPlannerClick      = { navController.navigate("meal_planner") },
                     onHealthConnectClick    = { navController.navigate("health_connect") },
-                    onAwardsClick           = { navController.navigate("awards") }
+                    onAwardsClick           = { navController.navigate("awards") },
+                    onAvatarClick           = { navController.navigate(ClientScreen.Profile.route) }
                 )
             }
             composable("health_metrics") {
