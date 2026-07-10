@@ -666,10 +666,17 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     currentRoute = currentRoute,
                     badges = mapOf(ClientScreen.Messages.route to memberUnread),
                     onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(ClientScreen.Discover.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                        // Pop-first: if the target tab is already in the back stack
+                        // (we're on it, or on one of its detail screens), pop back to
+                        // it — so a tab tap ALWAYS visibly responds. Otherwise do a
+                        // state-preserving tab switch.
+                        val popped = navController.popBackStack(route, false)
+                        if (!popped) {
+                            navController.navigate(route) {
+                                popUpTo(ClientScreen.Discover.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
                     }
                 )
@@ -683,7 +690,16 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 DiscoverScreen(
                     viewModel = viewModel,
                     onTrainerClick = { uid -> navController.navigate("trainer_detail/$uid") },
-                    onAvatarClick  = { navController.navigate(ClientScreen.Profile.route) }
+                    // Avatar = tab switch to Profile (NOT a push onto this tab's
+                    // stack — a push contaminates the saved state and makes the
+                    // origin tab look dead when re-tapped)
+                    onAvatarClick  = {
+                        navController.navigate(ClientScreen.Profile.route) {
+                            popUpTo(ClientScreen.Discover.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("trainer_detail/{trainerId}") { back ->
@@ -714,7 +730,14 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onMealPlannerClick      = { navController.navigate("meal_planner") },
                     onHealthConnectClick    = { navController.navigate("health_connect") },
                     onAwardsClick           = { navController.navigate("awards") },
-                    onAvatarClick           = { navController.navigate(ClientScreen.Profile.route) }
+                    // Tab-switch semantics — see Discover's onAvatarClick
+                    onAvatarClick           = {
+                        navController.navigate(ClientScreen.Profile.route) {
+                            popUpTo(ClientScreen.Discover.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("health_metrics") {
