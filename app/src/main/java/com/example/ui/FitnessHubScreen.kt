@@ -193,14 +193,15 @@ fun FitnessHubScreen(
                         Text("Let's start your day", fontSize = 12.sp, color = CyberTextMuted)
                     }
                 }
-                // Trophy / streak icon
+                // Trophy icon — opens Awards (a trophy that opened Progress was
+                // misleading; Progress stays reachable via "See all" links)
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(CyberAccent.copy(0.12f))
                         .border(1.dp, CyberAccent.copy(0.3f), CircleShape)
-                        .clickable { onProgressClick() },
+                        .clickable { onAwardsClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.EmojiEvents, null, tint = CyberAccent, modifier = Modifier.size(20.dp))

@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -198,8 +199,9 @@ fun ClientProfileScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // Avatar with upload
-        var photoUrl by remember { mutableStateOf(viewModel.userPreferences.profilePhotoUrl) }
+        // Avatar with upload — live flow (upload writes the pref, which feeds
+        // this flow), so the photo can never go stale here
+        val photoUrl by viewModel.userPreferences.profilePhotoFlow.collectAsState()
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
@@ -209,7 +211,7 @@ fun ClientProfileScreen(
                 initials        = name.take(1).ifEmpty { "?" },
                 size            = 90.dp,
                 userPreferences = viewModel.userPreferences,
-                onPhotoUploaded = { url -> photoUrl = url }
+                onPhotoUploaded = { }
             )
         }
 

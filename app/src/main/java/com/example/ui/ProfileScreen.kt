@@ -238,7 +238,7 @@ fun ProfileScreen(
 
         // Avatar + name card
         item {
-            var photoUrl by remember { mutableStateOf(userPreferences.profilePhotoUrl) }
+            val photoUrl by userPreferences.profilePhotoFlow.collectAsState()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -255,7 +255,7 @@ fun ProfileScreen(
                         initialsColor    = CyberAccentDark,
                         initialsBg       = CyberAccentDark.copy(0.15f),
                         userPreferences  = userPreferences,
-                        onPhotoUploaded  = { url -> photoUrl = url }
+                        onPhotoUploaded  = { }
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(

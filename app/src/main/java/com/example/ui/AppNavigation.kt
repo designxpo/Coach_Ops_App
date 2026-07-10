@@ -82,6 +82,14 @@ import com.example.ui.theme.CyberDanger
 import com.example.ui.theme.CyberTextMuted
 import com.example.ui.theme.CyberTextPrimary
 
+/**
+ * Detail-screen push guarded against double-tap: launchSingleTop prevents two
+ * copies of the same screen stacking when a card is tapped twice quickly
+ * (which made the back button need two presses).
+ */
+private fun androidx.navigation.NavHostController.push(route: String) =
+    navigate(route) { launchSingleTop = true }
+
 sealed class Screen(
     val route: String,
     val title: String,
@@ -288,7 +296,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                                 popUpTo("login") { inclusive = true }
                             }
                         },
-                        onNavigateToRegister = { navController.navigate("register") }
+                        onNavigateToRegister = { navController.push("register") }
                     )
                 }
                 composable("register") {
@@ -355,10 +363,10 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                                 popUpTo(0) { inclusive = true }
                             }
                         },
-                        onPrivacyPolicyClick = { navController.navigate("privacy_policy") },
-                        onTermsClick = { navController.navigate("privacy_policy") },
+                        onPrivacyPolicyClick = { navController.push("privacy_policy") },
+                        onTermsClick = { navController.push("privacy_policy") },
                         onDeleteAccountClick = { /* TODO: show delete account dialog */ },
-                        onManagePlanClick = { navController.navigate("upgrade_plans") },
+                        onManagePlanClick = { navController.push("upgrade_plans") },
                     )
                 }
                 composable("privacy_policy") {
@@ -369,9 +377,9 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     val totalUnread = chatThreads.sumOf { it.unreadCoach }
                     HomeScreen(
                         viewModel       = viewModel,
-                        onProfileClick  = { navController.navigate("profile") },
-                        onClientClick   = { clientId -> navController.navigate("client/$clientId") },
-                        onChatClick     = { navController.navigate("coach_chat_list") },
+                        onProfileClick  = { navController.push("profile") },
+                        onClientClick   = { clientId -> navController.push("client/$clientId") },
+                        onChatClick     = { navController.push("coach_chat_list") },
                         onLibraryClick  = { navController.navigate(Screen.Library.route) },
                         chatUnreadCount = totalUnread,
                         showGym         = gymAvailable,
@@ -381,15 +389,15 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                 composable(Screen.Clients.route) {
                     ClientsScreen(
                         viewModel = viewModel,
-                        onClientClick = { clientId -> navController.navigate("client/$clientId") },
+                        onClientClick = { clientId -> navController.push("client/$clientId") },
                         onChatClick = { memberId, memberName, memberPhone ->
-                            navController.navigate("coach_chat_new/$memberId/${Uri.encode(memberName)}/${Uri.encode(memberPhone)}")
+                            navController.push("coach_chat_new/$memberId/${Uri.encode(memberName)}/${Uri.encode(memberPhone)}")
                         },
-                        onUpgradeClick = { navController.navigate("upgrade_plans") }
+                        onUpgradeClick = { navController.push("upgrade_plans") }
                     )
                 }
                 composable(Screen.Programs.route) {
-                    ProgramsScreen(viewModel) { programId -> navController.navigate("program/$programId") }
+                    ProgramsScreen(viewModel) { programId -> navController.push("program/$programId") }
                 }
                 composable("program/{programId}") { backStack ->
                     val programId = backStack.arguments?.getString("programId") ?: return@composable
@@ -397,11 +405,11 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         viewModel = viewModel,
                         programId = programId,
                         onBack = { navController.popBackStack() },
-                        onClientClick = { clientId -> navController.navigate("client/$clientId") }
+                        onClientClick = { clientId -> navController.push("client/$clientId") }
                     )
                 }
                 composable(Screen.Billing.route) {
-                    BillingScreen(viewModel, onUpgradeClick = { navController.navigate("upgrade_plans") })
+                    BillingScreen(viewModel, onUpgradeClick = { navController.push("upgrade_plans") })
                 }
                 composable(Screen.Bookings.route) { CoachBookingsScreen(viewModel) }
 
@@ -415,11 +423,11 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     )
                     GymDashboardScreen(
                         viewModel = gymVm,
-                        onMembersClick = { navController.navigate("gym_members") },
-                        onMemberClick = { id -> navController.navigate("gym_member/$id") },
-                        onPlansClick = { navController.navigate("gym_plans") },
-                        onAttendanceClick = { navController.navigate("gym_attendance") },
-                        onUpgradeClick = { navController.navigate("upgrade_plans") }
+                        onMembersClick = { navController.push("gym_members") },
+                        onMemberClick = { id -> navController.push("gym_member/$id") },
+                        onPlansClick = { navController.push("gym_plans") },
+                        onAttendanceClick = { navController.push("gym_attendance") },
+                        onUpgradeClick = { navController.push("upgrade_plans") }
                     )
                 }
                 composable("gym_members") {
@@ -432,7 +440,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     GymMembersScreen(
                         viewModel = gymVm,
                         onBack = { navController.popBackStack() },
-                        onMemberClick = { id -> navController.navigate("gym_member/$id") }
+                        onMemberClick = { id -> navController.push("gym_member/$id") }
                     )
                 }
                 composable("gym_member/{memberId}") { backStack ->
@@ -481,7 +489,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         viewModel      = viewModel,
                         clientId       = clientId,
                         onBack         = { navController.popBackStack() },
-                        onDietPlanEdit = { cId -> navController.navigate("diet_editor/$cId") }
+                        onDietPlanEdit = { cId -> navController.push("diet_editor/$cId") }
                     )
                 }
                 composable("diet_editor/{clientId}") { backStack ->
@@ -502,16 +510,16 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     CoachLibraryScreen(
                         viewModel = libVm,
                         onCategoryClick = { cat ->
-                            navController.navigate("coach_ex_category/${cat.name}")
+                            navController.push("coach_ex_category/${cat.name}")
                         },
                         onExerciseClick = { id ->
-                            navController.navigate("coach_ex_detail/$id")
+                            navController.push("coach_ex_detail/$id")
                         },
                         onNutritionClick = {
-                            navController.navigate("coach_nutrition_goals")
+                            navController.push("coach_nutrition_goals")
                         },
                         onHealthMetricsClick = {
-                            navController.navigate("coach_health_metrics")
+                            navController.push("coach_health_metrics")
                         }
                     )
                 }
@@ -519,7 +527,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     CoachChatListScreen(
                         viewModel = chatViewModel,
                         onOpenChat = { chatId, memberName, memberPhone ->
-                            navController.navigate("coach_chat/$chatId/${Uri.encode(memberName)}/${Uri.encode(memberPhone)}")
+                            navController.push("coach_chat/$chatId/${Uri.encode(memberName)}/${Uri.encode(memberPhone)}")
                         }
                     )
                 }
@@ -566,7 +574,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     HealthMetricsScreen(
                         viewModel = libVm,
                         onBack = { navController.popBackStack() },
-                        onExerciseClick = { id -> navController.navigate("coach_ex_detail/$id") }
+                        onExerciseClick = { id -> navController.push("coach_ex_detail/$id") }
                     )
                 }
                 composable("coach_nutrition_goals") {
@@ -575,7 +583,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     )
                     NutritionGoalScreen(
                         viewModel = libVm,
-                        onGoalClick = { goal -> navController.navigate("coach_nutrition_plan/${goal.name}") },
+                        onGoalClick = { goal -> navController.push("coach_nutrition_plan/${goal.name}") },
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -601,7 +609,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                     ExerciseCategoryScreen(
                         viewModel = libVm,
                         category  = cat,
-                        onExerciseClick = { id -> navController.navigate("coach_ex_detail/$id") },
+                        onExerciseClick = { id -> navController.push("coach_ex_detail/$id") },
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -615,7 +623,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         exerciseId = id,
                         onBack     = { navController.popBackStack() },
                         isCoachMode = true,
-                        onNavigate = { relId -> navController.navigate("coach_ex_detail/$relId") }
+                        onNavigate = { relId -> navController.push("coach_ex_detail/$relId") }
                     )
                 }
             }
@@ -689,7 +697,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
             composable(ClientScreen.Discover.route) {
                 DiscoverScreen(
                     viewModel = viewModel,
-                    onTrainerClick = { uid -> navController.navigate("trainer_detail/$uid") },
+                    onTrainerClick = { uid -> navController.push("trainer_detail/$uid") },
                     // Avatar = tab switch to Profile (NOT a push onto this tab's
                     // stack — a push contaminates the saved state and makes the
                     // origin tab look dead when re-tapped)
@@ -716,20 +724,20 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 FitnessHubScreen(
                     viewModel            = fitnessViewModel,
                     healthViewModel      = healthViewModel,
-                    onCategoryClick      = { cat -> navController.navigate("exercise_category/${cat.name}") },
-                    onNutritionClick     = { navController.navigate("nutrition_goals") },
-                    onProgressClick      = { navController.navigate("fitness_progress") },
-                    onHealthMetricsClick = { navController.navigate("health_metrics") },
-                    onMyDietClick        = { navController.navigate("my_diet") },
-                    onFoodScanClick         = { navController.navigate("food_scanner") },
-                    onFoodDiaryClick        = { navController.navigate("food_diary") },
-                    onBodyMeasurementsClick = { navController.navigate("body_measurements") },
-                    onProgressPhotosClick   = { navController.navigate("progress_photos") },
-                    onCycleTrackerClick     = { navController.navigate("cycle_tracker") },
-                    onNutritionCoachClick   = { navController.navigate("nutrition_coach") },
-                    onMealPlannerClick      = { navController.navigate("meal_planner") },
-                    onHealthConnectClick    = { navController.navigate("health_connect") },
-                    onAwardsClick           = { navController.navigate("awards") },
+                    onCategoryClick      = { cat -> navController.push("exercise_category/${cat.name}") },
+                    onNutritionClick     = { navController.push("nutrition_goals") },
+                    onProgressClick      = { navController.push("fitness_progress") },
+                    onHealthMetricsClick = { navController.push("health_metrics") },
+                    onMyDietClick        = { navController.push("my_diet") },
+                    onFoodScanClick         = { navController.push("food_scanner") },
+                    onFoodDiaryClick        = { navController.push("food_diary") },
+                    onBodyMeasurementsClick = { navController.push("body_measurements") },
+                    onProgressPhotosClick   = { navController.push("progress_photos") },
+                    onCycleTrackerClick     = { navController.push("cycle_tracker") },
+                    onNutritionCoachClick   = { navController.push("nutrition_coach") },
+                    onMealPlannerClick      = { navController.push("meal_planner") },
+                    onHealthConnectClick    = { navController.push("health_connect") },
+                    onAwardsClick           = { navController.push("awards") },
                     // Tab-switch semantics — see Discover's onAvatarClick
                     onAvatarClick           = {
                         navController.navigate(ClientScreen.Profile.route) {
@@ -747,7 +755,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 HealthMetricsScreen(
                     viewModel = fitnessViewModel,
                     onBack = { navController.popBackStack() },
-                    onExerciseClick = { id -> navController.navigate("exercise_detail/$id") }
+                    onExerciseClick = { id -> navController.push("exercise_detail/$id") }
                 )
             }
             composable("exercise_category/{category}") { back ->
@@ -759,7 +767,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 ExerciseCategoryScreen(
                     viewModel = fitnessViewModel,
                     category  = cat,
-                    onExerciseClick = { id -> navController.navigate("exercise_detail/$id") },
+                    onExerciseClick = { id -> navController.push("exercise_detail/$id") },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -772,7 +780,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     viewModel = fitnessViewModel,
                     exerciseId = id,
                     onBack = { navController.popBackStack() },
-                    onNavigate = { relId -> navController.navigate("exercise_detail/$relId") }
+                    onNavigate = { relId -> navController.push("exercise_detail/$relId") }
                 )
             }
             composable("nutrition_goals") {
@@ -781,7 +789,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 )
                 NutritionGoalScreen(
                     viewModel = fitnessViewModel,
-                    onGoalClick = { goal -> navController.navigate("nutrition_plan/${goal.name}") },
+                    onGoalClick = { goal -> navController.push("nutrition_plan/${goal.name}") },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -849,8 +857,8 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onBack          = { navController.popBackStack() },
                     userPreferences = userPreferences,
                     db              = db,
-                    onAddFood       = { navController.navigate("food_scanner") },
-                    onOpenInsights  = { navController.navigate("insights") }
+                    onAddFood       = { navController.push("food_scanner") },
+                    onOpenInsights  = { navController.push("insights") }
                 )
             }
             composable("insights") {
@@ -882,7 +890,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                         userPreferences   = userPreferences,
                         onViewGroceryList = { plan ->
                             sharedMealPlan = plan
-                            navController.navigate("grocery_list")
+                            navController.push("grocery_list")
                         }
                     )
                 } else {
@@ -920,10 +928,10 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     chatViewModel = memberChatVm,
                     bookings      = bookings,
                     onOpenChat    = { chatId, coachName ->
-                        navController.navigate("member_chat_open/$chatId/${android.net.Uri.encode(coachName)}")
+                        navController.push("member_chat_open/$chatId/${android.net.Uri.encode(coachName)}")
                     },
                     onStartChat   = { coachId, coachName ->
-                        navController.navigate("member_chat_new/$coachId/${android.net.Uri.encode(coachName)}")
+                        navController.push("member_chat_new/$coachId/${android.net.Uri.encode(coachName)}")
                     }
                 )
             }
