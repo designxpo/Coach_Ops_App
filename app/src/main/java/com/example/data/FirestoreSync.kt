@@ -314,7 +314,7 @@ object FirestoreSync {
 
     // ─── Publish / unpublish ─────────────────────────────────────────────────
 
-    suspend fun publishTrainerProfile(profile: TrainerProfile) {
+    suspend fun publishTrainerProfile(profile: TrainerProfile, isPublic: Boolean = true) {
         val uid = uid ?: throw Exception("Not authenticated")
         if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile uid=$uid name=${profile.name} city=${profile.city} lat=${profile.lat} lng=${profile.lng}")
         // rating is NOT written here — maintained exclusively by rateBooking()
@@ -333,15 +333,27 @@ object FirestoreSync {
             "portfolioImages"  to profile.portfolioImages,
             "lat"              to profile.lat,
             "lng"              to profile.lng,
-            "isPublic"         to true,
-            "updatedAtMillis"  to System.currentTimeMillis()
+            "isPublic"         to isPublic,
+            "updatedAtMillis"  to System.currentTimeMillis(),
+            // Structured portfolio
+            "headline"           to profile.headline,
+            "languages"          to profile.languages,
+            "education"          to profile.education,
+            "certifications"     to profile.certifications,
+            "mentorship"         to profile.mentorship,
+            "gymsWorked"         to profile.gymsWorked,
+            "clientsCoached"     to profile.clientsCoached,
+            "clientTypes"        to profile.clientTypes,
+            "trainingModes"      to profile.trainingModes,
+            "assessmentIncluded" to profile.assessmentIncluded,
+            "cprCertified"       to profile.cprCertified,
+            "nutritionSupport"   to profile.nutritionSupport,
+            "testimonials"       to profile.testimonials,
+            "instagramUrl"       to profile.instagramUrl,
+            "profileScore"       to profile.profileScore,
+            "planTier"           to profile.planTier
         ), com.google.firebase.firestore.SetOptions.merge()).await()
         if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile DONE — wrote to trainers/$uid")
-    }
-
-    suspend fun unpublishTrainerProfile() {
-        val uid = uid ?: return
-        db.collection("trainers").document(uid).update("isPublic", false).await()
     }
 
     suspend fun getPublicTrainers(
@@ -371,47 +383,52 @@ object FirestoreSync {
                 if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "  trainer ${d["name"]} dist=${dist}km — ${if (dist > radiusKm) "FILTERED OUT" else "included"}")
                 if (dist > radiusKm) return@mapNotNull null
             }
-            TrainerProfile(
-                uid              = d["uid"] as? String ?: doc.id,
-                name             = d["name"] as? String ?: "",
-                specialty        = d["specialty"] as? String ?: "",
-                bio              = d["bio"] as? String ?: "",
-                workDescription  = d["workDescription"] as? String ?: "",
-                city             = d["city"] as? String ?: "",
-                feePerSession    = (d["feePerSession"] as? Long)?.toInt() ?: 0,
-                feeMonthly       = (d["feeMonthly"] as? Long)?.toInt() ?: 0,
-                availabilityDays = d["availabilityDays"] as? String ?: "",
-                yearsExperience  = (d["yearsExperience"] as? Long)?.toInt() ?: 0,
-                rating           = (d["rating"] as? Double)?.toFloat() ?: (d["rating"] as? Long)?.toFloat() ?: 0f,
-                profileImageUrl  = d["profileImageUrl"] as? String ?: "",
-                portfolioImages  = d["portfolioImages"] as? String ?: "",
-                lat              = trainerLat,
-                lng              = trainerLng,
-                updatedAtMillis  = d["updatedAtMillis"] as? Long ?: 0L
-            )
+            parseTrainer(doc.id, d)
         }
     }
 
     suspend fun getTrainerById(trainerUid: String): TrainerProfile? {
         val d = db.collection("trainers").document(trainerUid).get().await().data ?: return null
-        return TrainerProfile(
-            uid              = d["uid"] as? String ?: trainerUid,
-            name             = d["name"] as? String ?: "",
-            specialty        = d["specialty"] as? String ?: "",
-            bio              = d["bio"] as? String ?: "",
-            workDescription  = d["workDescription"] as? String ?: "",
-            city             = d["city"] as? String ?: "",
-            feePerSession    = (d["feePerSession"] as? Long)?.toInt() ?: 0,
-            feeMonthly       = (d["feeMonthly"] as? Long)?.toInt() ?: 0,
-            availabilityDays = d["availabilityDays"] as? String ?: "",
-            yearsExperience  = (d["yearsExperience"] as? Long)?.toInt() ?: 0,
-            rating           = (d["rating"] as? Double)?.toFloat() ?: (d["rating"] as? Long)?.toFloat() ?: 0f,
-            profileImageUrl  = d["profileImageUrl"] as? String ?: "",
-            portfolioImages  = d["portfolioImages"] as? String ?: "",
-            lat              = (d["lat"] as? Double) ?: 0.0,
-            lng              = (d["lng"] as? Double) ?: 0.0,
-            updatedAtMillis  = d["updatedAtMillis"] as? Long ?: 0L
-        )
+        return parseTrainer(trainerUid, d)
+    }
+
+    private fun parseTrainer(docId: String, d: Map<String, Any>): TrainerProfile = TrainerProfile(
+        uid              = d["uid"] as? String ?: docId,
+        name             = d["name"] as? String ?: "",
+        specialty        = d["specialty"] as? String ?: "",
+        bio              = d["bio"] as? String ?: "",
+        workDescription  = d["workDescription"] as? String ?: "",
+        city             = d["city"] as? String ?: "",
+        feePerSession    = (d["feePerSession"] as? Long)?.toInt() ?: 0,
+        feeMonthly       = (d["feeMonthly"] as? Long)?.toInt() ?: 0,
+        availabilityDays = d["availabilityDays"] as? String ?: "",
+        yearsExperience  = (d["yearsExperience"] as? Long)?.toInt() ?: 0,
+        rating           = (d["rating"] as? Double)?.toFloat() ?: (d["rating"] as? Long)?.toFloat() ?: 0f,
+        profileImageUrl  = d["profileImageUrl"] as? String ?: "",
+        portfolioImages  = d["portfolioImages"] as? String ?: "",
+        lat              = (d["lat"] as? Double) ?: 0.0,
+        lng              = (d["lng"] as? Double) ?: 0.0,
+        updatedAtMillis  = d["updatedAtMillis"] as? Long ?: 0L,
+        headline           = d["headline"] as? String ?: "",
+        languages           = d["languages"] as? String ?: "",
+        education           = d["education"] as? String ?: "",
+        certifications      = d["certifications"] as? String ?: "",
+        mentorship          = d["mentorship"] as? String ?: "",
+        gymsWorked          = d["gymsWorked"] as? String ?: "",
+        clientsCoached      = (d["clientsCoached"] as? Long)?.toInt() ?: 0,
+        clientTypes         = d["clientTypes"] as? String ?: "",
+        trainingModes       = d["trainingModes"] as? String ?: "",
+        assessmentIncluded  = d["assessmentIncluded"] as? Boolean ?: false,
+        cprCertified        = d["cprCertified"] as? Boolean ?: false,
+        nutritionSupport    = d["nutritionSupport"] as? String ?: "",
+        testimonials        = d["testimonials"] as? String ?: "",
+        instagramUrl        = d["instagramUrl"] as? String ?: "",
+        profileScore        = (d["profileScore"] as? Long)?.toInt() ?: 0,
+        planTier            = d["planTier"] as? String ?: ""
+    ).let {
+        // Trainers published before the portfolio feature have no stored score —
+        // compute from whatever fields they do have so they rank fairly.
+        if (it.profileScore == 0) it.copy(profileScore = PortfolioScoring.score(it)) else it
     }
 
     // ─── Marketplace: Bookings ────────────────────────────────────────────────

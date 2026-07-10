@@ -68,7 +68,8 @@ fun ProfileScreen(
     onTermsClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
     onAdminAccess: () -> Unit = {},  // reserved for future deep-link
-    onManagePlanClick: () -> Unit = {}
+    onManagePlanClick: () -> Unit = {},
+    onEditPortfolioClick: () -> Unit = {}
 ) {
     val clients by viewModel.clients.collectAsStateWithLifecycle()
     val programs by viewModel.programs.collectAsStateWithLifecycle()
@@ -86,7 +87,6 @@ fun ProfileScreen(
     }
 
     var showEditSheet by remember { mutableStateOf(false) }
-    var showMarketplaceSheet by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var publishBanner by remember { mutableStateOf("") }   // "" = hidden, else message
@@ -96,16 +96,14 @@ fun ProfileScreen(
     LaunchedEffect(publishState) {
         when (publishState) {
             true -> {
-                showMarketplaceSheet = false
                 publishBannerOk = true
                 publishBanner = if (userPreferences.trainerIsPublic)
-                    "Profile is now live on marketplace ✓"
+                    "Portfolio is now live on marketplace ✓"
                 else
-                    "Profile hidden from marketplace ✓"
+                    "Portfolio hidden from marketplace ✓"
                 viewModel.clearPublishState()
             }
             false -> {
-                showMarketplaceSheet = false
                 publishBannerOk = false
                 publishBanner = "Failed to update — check connection and try again"
                 viewModel.clearPublishState()
@@ -115,25 +113,6 @@ fun ProfileScreen(
     }
 
     val firebaseEmail = AuthRepository.currentUser?.email ?: userPreferences.coachEmail
-
-    if (showMarketplaceSheet) {
-        PublicProfileSheet(
-            initialIsPublic = userPreferences.trainerIsPublic,
-            initialCity = userPreferences.trainerCity,
-            initialBio = userPreferences.trainerBio,
-            initialWorkDescription = userPreferences.trainerWorkDescription,
-            initialFeeSession = userPreferences.trainerFeePerSession,
-            initialFeeMonthly = userPreferences.trainerFeeMonthly,
-            initialAvailDays = userPreferences.trainerAvailabilityDays,
-            initialYearsExp = userPreferences.trainerYearsExperience,
-            initialProfileImageUrl = userPreferences.trainerProfileImageUrl,
-            initialPortfolioImages = userPreferences.trainerPortfolioImages,
-            onDismiss = { showMarketplaceSheet = false },
-            onSave = { isPublic, city, bio, workDesc, feeSession, feeMonthly, availDays, yearsExp, profileImg, portfolioImgs, lat, lng ->
-                viewModel.updatePublicProfile(isPublic, city, bio, feeSession, feeMonthly, availDays, yearsExp, profileImg, portfolioImgs, lat, lng, workDesc)
-            }
-        )
-    }
 
     if (showEditSheet) {
         EditProfileSheet(
@@ -385,12 +364,15 @@ fun ProfileScreen(
                     if (userPreferences.trainerIsPublic) {
                         val daysCount = userPreferences.trainerAvailabilityDays
                             .split(",").filter { it.isNotBlank() }.size
-                        listOf(
-                            "City" to userPreferences.trainerCity.ifEmpty { "Not set" },
-                            "Session fee" to if (userPreferences.trainerFeePerSession > 0) "₹${userPreferences.trainerFeePerSession}" else "Not set",
-                            "Experience" to if (userPreferences.trainerYearsExperience > 0) "${userPreferences.trainerYearsExperience} yrs" else "Not set",
-                            "Available" to if (daysCount > 0) "$daysCount days/week" else "Not set"
-                        ).forEach { (label, value) ->
+                        val strength = userPreferences.trainerProfileScore
+                        val rows = buildList {
+                            if (strength > 0) add("Profile strength" to "$strength/100 · ${com.example.data.PortfolioScoring.tierLabel(strength)}")
+                            add("City" to userPreferences.trainerCity.ifEmpty { "Not set" })
+                            add("Session fee" to if (userPreferences.trainerFeePerSession > 0) "₹${userPreferences.trainerFeePerSession}" else "Not set")
+                            add("Experience" to if (userPreferences.trainerYearsExperience > 0) "${userPreferences.trainerYearsExperience} yrs" else "Not set")
+                            add("Available" to if (daysCount > 0) "$daysCount days/week" else "Not set")
+                        }
+                        rows.forEach { (label, value) ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -402,7 +384,7 @@ fun ProfileScreen(
                         }
                     } else {
                         Text(
-                            "Go public so clients can discover and book you.",
+                            "Build your portfolio and go public so clients can discover and book you.",
                             fontSize = 13.sp, color = CyberTextMuted, lineHeight = 18.sp
                         )
                     }
@@ -413,12 +395,12 @@ fun ProfileScreen(
                             .clip(RoundedCornerShape(14.dp))
                             .background(CyberAccent.copy(alpha = 0.10f))
                             .border(1.dp, CyberAccent.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                            .clickable { showMarketplaceSheet = true }
+                            .clickable { onEditPortfolioClick() }
                             .padding(vertical = 14.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (userPreferences.trainerIsPublic) "Edit Marketplace Profile" else "Set Up Marketplace Profile",
+                            if (userPreferences.trainerIsPublic) "Edit Trainer Portfolio" else "Build Trainer Portfolio",
                             fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CyberAccent
                         )
                     }

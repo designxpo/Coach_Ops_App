@@ -62,6 +62,7 @@ import androidx.compose.foundation.lazy.items
 import com.example.ui.theme.CyberTextSecondary
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import com.example.data.isFeatured
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -206,6 +207,32 @@ fun TrainerDetailScreen(
                 }
             }
 
+            if (t.headline.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(t.headline, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = CyberTextSecondary, lineHeight = 19.sp)
+            }
+
+            // Trust signals — the at-a-glance credibility bar
+            val trustChips = buildList {
+                if (t.isFeatured) add("⚡ Featured" to true)
+                if (t.profileScore >= com.example.data.PortfolioScoring.TIER_ELITE) add("🏆 Elite Profile" to true)
+                if (t.certifications.isNotBlank()) add("✓ Certified" to false)
+                else if (t.yearsExperience > 0 || t.mentorship.isNotBlank()) add("Experience self-declared" to false)
+                if (t.cprCertified) add("✚ CPR / First-aid" to false)
+                if (t.assessmentIncluded) add("Assessment included" to false)
+                t.trainingModes.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { add(it to false) }
+                if (t.languages.isNotBlank()) add("🗣 ${t.languages}" to false)
+            }
+            if (trustChips.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    trustChips.forEach { (label, highlight) -> TrustChip(label, highlight) }
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
 
             // Bio
@@ -214,6 +241,97 @@ fun TrainerDetailScreen(
                     Text("About", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
                     Spacer(Modifier.height(8.dp))
                     Text(t.bio, fontSize = 14.sp, color = CyberTextPrimary, lineHeight = 20.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Credentials & experience
+            val hasCredentials = t.education.isNotBlank() || t.certifications.isNotBlank() ||
+                t.mentorship.isNotBlank() || t.gymsWorked.isNotBlank() ||
+                t.clientsCoached > 0 || t.clientTypes.isNotBlank()
+            if (hasCredentials) {
+                SectionCard {
+                    Text("Credentials & Experience", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
+                    Spacer(Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (t.education.isNotBlank()) DetailRow("Education", t.education)
+                        if (t.certifications.isNotBlank()) DetailRow("Certifications", t.certifications)
+                        if (t.mentorship.isNotBlank()) DetailRow("Trained under", "${t.mentorship} (self-declared)")
+                        if (t.gymsWorked.isNotBlank()) DetailRow("Gyms worked at", t.gymsWorked)
+                        if (t.clientsCoached > 0) DetailRow("Clients coached", "${t.clientsCoached}+ (self-declared)")
+                        if (t.clientTypes.isNotBlank()) DetailRow("Trains", t.clientTypes)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Coaching approach
+            if (t.workDescription.isNotBlank() || t.nutritionSupport.isNotBlank() || t.assessmentIncluded) {
+                SectionCard {
+                    Text("Coaching Approach", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
+                    Spacer(Modifier.height(8.dp))
+                    if (t.workDescription.isNotBlank()) {
+                        Text(t.workDescription, fontSize = 14.sp, color = CyberTextPrimary, lineHeight = 20.sp)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (t.assessmentIncluded) DetailRow("First session", "Fitness assessment included")
+                        if (t.nutritionSupport.isNotBlank()) DetailRow("Nutrition support", t.nutritionSupport)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Testimonials
+            val quotes = t.testimonials.split("\n").filter { it.isNotBlank() }
+            if (quotes.isNotEmpty()) {
+                SectionCard {
+                    Text("What Clients Say", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
+                    Spacer(Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        quotes.forEach { q ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(CyberBgCardElevated)
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("❝", fontSize = 14.sp, color = CyberAccent)
+                                Text(q, fontSize = 13.sp, color = CyberTextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Instagram
+            if (t.instagramUrl.isNotBlank()) {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CyberBgCard)
+                        .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(14.dp))
+                        .clickable {
+                            val raw = t.instagramUrl.trim()
+                            val url = when {
+                                raw.startsWith("http") -> raw
+                                raw.startsWith("@")    -> "https://instagram.com/${raw.drop(1)}"
+                                else                   -> "https://$raw"
+                            }
+                            runCatching { uriHandler.openUri(url) }
+                        }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("📸", fontSize = 16.sp)
+                    Text("See more on Instagram", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary, modifier = Modifier.weight(1f))
+                    Text("→", fontSize = 14.sp, color = CyberTextMuted)
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -388,6 +506,32 @@ private sealed interface BookingState {
     object Loading : BookingState
     object Success : BookingState
     object Error : BookingState
+}
+
+@Composable
+private fun TrustChip(label: String, highlight: Boolean) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (highlight) CyberAccent.copy(0.15f) else CyberBgCard)
+            .border(1.dp, if (highlight) CyberAccent.copy(0.4f) else Color.White.copy(0.08f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(
+            label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false,
+            color = if (highlight) CyberAccent else CyberTextSecondary
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, fontSize = 12.sp, color = CyberTextMuted, modifier = Modifier.weight(0.36f))
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary,
+            lineHeight = 16.sp, modifier = Modifier.weight(0.64f))
+    }
 }
 
 @Composable

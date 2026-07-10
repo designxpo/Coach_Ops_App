@@ -8,11 +8,17 @@ import com.example.data.FirestoreSync
 import com.example.data.GeoUtils
 import com.example.data.TrainerProfile
 import com.example.data.UserPreferences
+import com.example.data.isFeatured
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/** Discover ranking: paying (featured) coaches, then profile strength, then rating. */
+private val trainerRank = compareByDescending<TrainerProfile> { it.isFeatured }
+    .thenByDescending { it.profileScore }
+    .thenByDescending { it.rating }
 
 class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
 
@@ -157,8 +163,8 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         val hasLocation = lat != 0.0 || lng != 0.0
 
         if (!hasLocation) {
-            // No location — show all sorted by rating, no expansion needed
-            val all = allCoachesCache.sortedByDescending { it.rating }
+            // No location — featured (paying) coaches first, then profile strength, then rating
+            val all = allCoachesCache.sortedWith(trainerRank)
             _trainers.value = all
             displayedUids.addAll(all.map { it.uid })
             _hasMoreCoaches.value = false
@@ -189,15 +195,18 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         // Coaches without coordinates (legacy) — appended at the end, once per session
         val noCoordNew = withoutCoords.filter { it.uid !in displayedUids }
 
+        // Featured coaches surface first within each band; the sort is stable, so
+        // distance order is preserved inside the featured and non-featured groups.
         val newCoaches = if (!append && !isManualRadiusMode) {
             // Fresh auto-feed load: show in-radius + no-coord coaches
-            inRadius + noCoordNew.sortedByDescending { it.rating }
+            inRadius.sortedByDescending { it.isFeatured } + noCoordNew.sortedWith(trainerRank)
         } else if (!append) {
             // Manual radius chip: show exactly what's in range
-            inRadius + if (radiusToUse == Int.MAX_VALUE) noCoordNew.sortedByDescending { it.rating } else emptyList()
+            inRadius.sortedByDescending { it.isFeatured } +
+                if (radiusToUse == Int.MAX_VALUE) noCoordNew.sortedWith(trainerRank) else emptyList()
         } else {
             // Scroll expansion: only append the new in-radius band
-            inRadius
+            inRadius.sortedByDescending { it.isFeatured }
         }
 
         displayedUids.addAll(newCoaches.map { it.uid })

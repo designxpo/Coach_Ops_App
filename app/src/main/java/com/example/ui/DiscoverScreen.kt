@@ -75,6 +75,7 @@ import com.example.data.Booking
 import com.example.data.GeoUtils
 import com.example.data.NearbyArea
 import com.example.data.TrainerProfile
+import com.example.data.isFeatured
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -1093,12 +1094,40 @@ fun TrainerCard(
                     if (rankEmoji != null) Text(rankEmoji, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomEnd))
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(trainer.name, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            trainer.name, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold,
+                            color = CyberTextPrimary, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (trainer.isFeatured) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(999.dp))
+                                    .background(CyberAccent.copy(0.15f))
+                                    .border(1.dp, CyberAccent.copy(0.4f), RoundedCornerShape(999.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text("⚡ FEATURED", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                                    color = CyberAccent, maxLines = 1, softWrap = false)
+                            }
+                        } else if (trainer.profileScore >= com.example.data.PortfolioScoring.TIER_ELITE) {
+                            Box(
+                                Modifier.clip(RoundedCornerShape(999.dp))
+                                    .background(CyberSuccess.copy(0.12f))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text("🏆 ELITE", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                                    color = CyberSuccess, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
                     val specs = trainer.specialty.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                     Text(
                         if (specs.isEmpty()) "Personal Training"
                         else specs.take(2).joinToString(" · ") + if (specs.size > 2) " +${specs.size - 2}" else "",
-                        fontSize = 12.sp, color = CyberAccent, fontWeight = FontWeight.SemiBold
+                        fontSize = 12.sp, color = CyberAccent, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
                 if (trainer.rating > 0f) {
@@ -1113,8 +1142,9 @@ fun TrainerCard(
                     }
                 }
             }
-            if (trainer.bio.isNotBlank()) {
-                Text(trainer.bio.take(100) + if (trainer.bio.length > 100) "…" else "",
+            val blurb = trainer.headline.ifBlank { trainer.bio }
+            if (blurb.isNotBlank()) {
+                Text(blurb.take(100) + if (blurb.length > 100) "…" else "",
                     fontSize = 12.sp, color = CyberTextSecondary, lineHeight = 16.sp)
             }
             // FlowRow so chips wrap to the next line on narrow screens / large

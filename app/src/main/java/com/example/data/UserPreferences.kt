@@ -331,6 +331,11 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getString("trainer_portfolio_images", "") ?: ""
         set(value) { prefs.edit().putString("trainer_portfolio_images", value).apply() }
 
+    /** Last published PortfolioScoring result — shown on the Profile screen's Marketplace card. */
+    var trainerProfileScore: Int
+        get() = prefs.getInt("trainer_profile_score", 0)
+        set(value) { prefs.edit().putInt("trainer_profile_score", value).apply() }
+
     companion object {
         @Volatile private var instance: UserPreferences? = null
 

@@ -16,8 +16,30 @@ data class TrainerProfile(
     val portfolioImages: String = "",  // comma-separated Storage URLs (up to 3)
     val lat: Double = 0.0,             // geocoded from city — used for radius filtering
     val lng: Double = 0.0,
-    val updatedAtMillis: Long = 0L
+    val updatedAtMillis: Long = 0L,
+
+    // ── Structured portfolio (trust profile shown to members) ──────────────
+    val headline: String = "",         // one-line pitch, max 90 chars
+    val languages: String = "",        // "Hindi, English"
+    val education: String = "",        // "Graduate", "B.P.Ed / M.P.Ed", …
+    val certifications: String = "",   // "K11 Certified PT (2021), ACE CPT"
+    val mentorship: String = "",       // no-cert path: trained under / gym internship
+    val gymsWorked: String = "",       // "Gold's Gym Andheri, Cult Fit"
+    val clientsCoached: Int = 0,       // self-declared count
+    val clientTypes: String = "",      // "Beginners, Women, Seniors"
+    val trainingModes: String = "",    // "Gym, Home, Online, Outdoor"
+    val assessmentIncluded: Boolean = false, // fitness assessment before first plan
+    val cprCertified: Boolean = false,
+    val nutritionSupport: String = "", // "Workout only" | "Diet guidance" | "Meal planning"
+    val testimonials: String = "",     // newline-separated client quotes, up to 3
+    val instagramUrl: String = "",
+    val profileScore: Int = 0,         // PortfolioScoring result at publish time — ranks Discover
+    val planTier: String = ""          // coach's subscription at publish time: starter/pro/business
 )
+
+/** Paying coaches are surfaced first in Discover with a Featured badge. */
+val TrainerProfile.isFeatured: Boolean
+    get() = planTier == "pro" || planTier == "business"
 
 data class Booking(
     val id: String = "",
@@ -34,3 +56,126 @@ data class Booking(
     val sessionDateMillis: Long = 0L,   // preferred session date chosen by client
     val clientRating: Float = 0f        // 1–5 stars, set by client after completion
 )
+
+// ─── Portfolio completeness scoring ──────────────────────────────────────────
+// Drives the Discover ranking and the coach-side "profile strength" meter.
+// Weights follow what members actually use to pick a coach: proof of identity
+// and results first, credentials and experience next, logistics last.
+
+data class ScoreSection(val name: String, val earned: Int, val max: Int)
+
+data class ScoreAction(val label: String, val points: Int)
+
+object PortfolioScoring {
+
+    const val TIER_ELITE = 85
+    const val TIER_STRONG = 70
+    const val TIER_RISING = 50
+
+    fun tierLabel(score: Int): String = when {
+        score >= TIER_ELITE  -> "Elite Profile"
+        score >= TIER_STRONG -> "Strong Profile"
+        score >= TIER_RISING -> "Rising Coach"
+        else                 -> "Incomplete"
+    }
+
+    fun sections(t: TrainerProfile): List<ScoreSection> = listOf(
+        ScoreSection("Basics", basicsEarned(t), 20),
+        ScoreSection("Credentials", credentialsEarned(t), 20),
+        ScoreSection("Experience", experienceEarned(t), 20),
+        ScoreSection("Coaching Approach", approachEarned(t), 15),
+        ScoreSection("Proof & Results", proofEarned(t), 15),
+        ScoreSection("Pricing & Availability", servicesEarned(t), 10)
+    )
+
+    fun score(t: TrainerProfile): Int = sections(t).sumOf { it.earned }
+
+    private fun basicsEarned(t: TrainerProfile): Int {
+        var s = 0
+        if (t.profileImageUrl.isNotBlank()) s += 8
+        if (t.headline.isNotBlank()) s += 5
+        if (t.bio.trim().length >= 60) s += 5
+        if (t.city.isNotBlank()) s += 2
+        return s
+    }
+
+    private fun credentialsEarned(t: TrainerProfile): Int {
+        var s = 0
+        if (t.education.isNotBlank()) s += 5
+        if (t.certifications.isNotBlank()) s += 8
+        else if (t.mentorship.isNotBlank()) s += 4  // honest no-cert path earns half
+        if (t.cprCertified) s += 4
+        if (t.languages.isNotBlank()) s += 3
+        return s
+    }
+
+    private fun experienceEarned(t: TrainerProfile): Int {
+        var s = 0
+        if (t.yearsExperience > 0) s += 6
+        if (t.gymsWorked.isNotBlank()) s += 4
+        if (t.clientsCoached > 0) s += 4
+        if (t.trainingModes.isNotBlank()) s += 3
+        if (t.clientTypes.isNotBlank()) s += 3
+        return s
+    }
+
+    private fun approachEarned(t: TrainerProfile): Int {
+        var s = 0
+        if (t.workDescription.trim().length >= 80) s += 6
+        if (t.assessmentIncluded) s += 5
+        if (t.nutritionSupport.isNotBlank()) s += 4
+        return s
+    }
+
+    private fun proofEarned(t: TrainerProfile): Int {
+        var s = 0
+        val photos = t.portfolioImages.split(",").count { it.isNotBlank() }
+        s += minOf(photos, 3) * 2
+        val quotes = t.testimonials.split("\n").count { it.isNotBlank() }
+        s += minOf(quotes, 3) * 2
+        if (t.instagramUrl.isNotBlank()) s += 3
+        return s
+    }
+
+    private fun servicesEarned(t: TrainerProfile): Int {
+        var s = 0
+        if (t.feePerSession > 0) s += 4
+        if (t.feeMonthly > 0) s += 3
+        if (t.availabilityDays.split(",").count { it.isNotBlank() } >= 3) s += 3
+        return s
+    }
+
+    /** Highest-value missing items — the coach's "do this next" checklist. */
+    fun nextActions(t: TrainerProfile, limit: Int = 4): List<ScoreAction> {
+        val missing = mutableListOf<ScoreAction>()
+        if (t.profileImageUrl.isBlank()) missing += ScoreAction("Add a profile photo", 8)
+        if (t.certifications.isBlank()) {
+            if (t.mentorship.isBlank())
+                missing += ScoreAction("Add certifications or training background", 8)
+            else
+                missing += ScoreAction("Add a certification", 4)
+        }
+        if (t.workDescription.trim().length < 80) missing += ScoreAction("Describe your coaching approach (80+ chars)", 6)
+        if (t.yearsExperience <= 0) missing += ScoreAction("Add years of experience", 6)
+        val photos = t.portfolioImages.split(",").count { it.isNotBlank() }
+        if (photos < 3) missing += ScoreAction("Add work photos (${3 - photos} more)", (3 - photos) * 2)
+        val quotes = t.testimonials.split("\n").count { it.isNotBlank() }
+        if (quotes < 3) missing += ScoreAction("Add client testimonials (${3 - quotes} more)", (3 - quotes) * 2)
+        if (t.headline.isBlank()) missing += ScoreAction("Write a one-line headline", 5)
+        if (t.bio.trim().length < 60) missing += ScoreAction("Write a longer bio (60+ chars)", 5)
+        if (t.education.isBlank()) missing += ScoreAction("Add your education", 5)
+        if (!t.assessmentIncluded) missing += ScoreAction("Offer a fitness assessment before training", 5)
+        if (t.gymsWorked.isBlank()) missing += ScoreAction("List gyms you've worked at", 4)
+        if (t.clientsCoached <= 0) missing += ScoreAction("Add how many clients you've coached", 4)
+        if (!t.cprCertified) missing += ScoreAction("Get CPR / First-aid certified", 4)
+        if (t.nutritionSupport.isBlank()) missing += ScoreAction("Specify nutrition support level", 4)
+        if (t.feePerSession <= 0) missing += ScoreAction("Set your per-session fee", 4)
+        if (t.instagramUrl.isBlank()) missing += ScoreAction("Link your Instagram", 3)
+        if (t.languages.isBlank()) missing += ScoreAction("Add languages you speak", 3)
+        if (t.trainingModes.isBlank()) missing += ScoreAction("Select training modes", 3)
+        if (t.clientTypes.isBlank()) missing += ScoreAction("Select client types you train", 3)
+        if (t.feeMonthly <= 0) missing += ScoreAction("Set a monthly package price", 3)
+        if (t.availabilityDays.split(",").count { it.isNotBlank() } < 3) missing += ScoreAction("Mark 3+ available days", 3)
+        return missing.sortedByDescending { it.points }.take(limit)
+    }
+}

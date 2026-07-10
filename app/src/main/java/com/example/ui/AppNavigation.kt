@@ -367,6 +367,15 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
                         onTermsClick = { navController.push("privacy_policy") },
                         onDeleteAccountClick = { /* TODO: show delete account dialog */ },
                         onManagePlanClick = { navController.push("upgrade_plans") },
+                        onEditPortfolioClick = { navController.push("portfolio_builder") },
+                    )
+                }
+                composable("portfolio_builder") {
+                    PortfolioBuilderScreen(
+                        viewModel = viewModel,
+                        userPreferences = userPreferences,
+                        onBack = { navController.popBackStack() },
+                        onUpgradeClick = { navController.push("upgrade_plans") }
                     )
                 }
                 composable("privacy_policy") {

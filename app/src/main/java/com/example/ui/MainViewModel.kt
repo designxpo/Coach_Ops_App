@@ -690,50 +690,70 @@ class MainViewModel(
         }
     }
 
-    fun updatePublicProfile(
-        isPublic: Boolean, city: String, bio: String,
-        feePerSession: Int, feeMonthly: Int, availDays: String,
-        yearsExperience: Int = 0,
-        profileImageUrl: String = userPreferences.trainerProfileImageUrl,
-        portfolioImages: String = userPreferences.trainerPortfolioImages,
-        lat: Double = 0.0,
-        lng: Double = 0.0,
-        workDescription: String = ""
-    ) {
+    /**
+     * Loads the coach's own marketplace portfolio for editing.
+     * Prefers the live Firestore doc; falls back to locally cached legacy fields
+     * so a never-published (or offline) coach still gets a sensible prefill.
+     */
+    suspend fun loadMyPortfolio(): TrainerProfile {
+        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val remote = if (uid != null) {
+            try { FirestoreSync.getTrainerById(uid) } catch (_: Exception) { null }
+        } else null
+        if (remote != null && remote.name.isNotBlank()) return remote
+        return TrainerProfile(
+            uid              = uid ?: "",
+            name             = userPreferences.coachName,
+            specialty        = userPreferences.coachSpecialty,
+            bio              = userPreferences.trainerBio,
+            workDescription  = userPreferences.trainerWorkDescription,
+            city             = userPreferences.trainerCity,
+            feePerSession    = userPreferences.trainerFeePerSession,
+            feeMonthly       = userPreferences.trainerFeeMonthly,
+            availabilityDays = userPreferences.trainerAvailabilityDays,
+            yearsExperience  = userPreferences.trainerYearsExperience,
+            profileImageUrl  = userPreferences.trainerProfileImageUrl,
+            portfolioImages  = userPreferences.trainerPortfolioImages,
+            lat              = userPreferences.trainerLat,
+            lng              = userPreferences.trainerLng
+        )
+    }
+
+    /**
+     * Publishes (or hides) the coach's structured portfolio. Computes the
+     * profile-strength score and stamps the current plan tier — both drive
+     * Discover ranking and the Featured badge on the member side.
+     */
+    fun publishPortfolio(profile: TrainerProfile, isPublic: Boolean) {
         viewModelScope.launch {
+            val score = com.example.data.PortfolioScoring.score(profile)
             userPreferences.trainerIsPublic          = isPublic
-            userPreferences.trainerCity              = city
-            userPreferences.trainerBio               = bio
-            userPreferences.trainerWorkDescription   = workDescription
-            userPreferences.trainerFeePerSession     = feePerSession
-            userPreferences.trainerFeeMonthly        = feeMonthly
-            userPreferences.trainerAvailabilityDays  = availDays
-            userPreferences.trainerYearsExperience   = yearsExperience
-            userPreferences.trainerProfileImageUrl   = profileImageUrl
-            userPreferences.trainerPortfolioImages   = portfolioImages
-            userPreferences.trainerLat               = lat
-            userPreferences.trainerLng               = lng
+            userPreferences.trainerCity              = profile.city
+            userPreferences.trainerBio               = profile.bio
+            userPreferences.trainerWorkDescription   = profile.workDescription
+            userPreferences.trainerFeePerSession     = profile.feePerSession
+            userPreferences.trainerFeeMonthly        = profile.feeMonthly
+            userPreferences.trainerAvailabilityDays  = profile.availabilityDays
+            userPreferences.trainerYearsExperience   = profile.yearsExperience
+            userPreferences.trainerProfileImageUrl   = profile.profileImageUrl
+            userPreferences.trainerPortfolioImages   = profile.portfolioImages
+            userPreferences.trainerLat               = profile.lat
+            userPreferences.trainerLng               = profile.lng
+            userPreferences.trainerProfileScore      = score
+            if (profile.specialty.isNotBlank()) userPreferences.coachSpecialty = profile.specialty
             try {
-                if (isPublic) {
-                    FirestoreSync.publishTrainerProfile(TrainerProfile(
-                        uid              = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
-                        name             = userPreferences.coachName,
-                        specialty        = userPreferences.coachSpecialty,
-                        bio              = bio,
-                        workDescription  = workDescription,
-                        city             = city,
-                        feePerSession    = feePerSession,
-                        feeMonthly       = feeMonthly,
-                        availabilityDays = availDays,
-                        yearsExperience  = yearsExperience,
-                        profileImageUrl  = profileImageUrl,
-                        portfolioImages  = portfolioImages,
-                        lat              = lat,
-                        lng              = lng
-                    ))
-                } else {
-                    FirestoreSync.unpublishTrainerProfile()
-                }
+                val plan = runCatching {
+                    com.example.data.SubscriptionPlan.valueOf(userPreferences.subscriptionPlan)
+                }.getOrDefault(com.example.data.SubscriptionPlan.STARTER)
+                // Always persist the full portfolio — a hidden profile keeps its data
+                // and only the isPublic flag controls Discover visibility.
+                FirestoreSync.publishTrainerProfile(profile.copy(
+                    uid          = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
+                    name         = userPreferences.coachName,
+                    specialty    = profile.specialty.ifBlank { userPreferences.coachSpecialty },
+                    profileScore = score,
+                    planTier     = plan.name.lowercase()
+                ), isPublic = isPublic)
                 _publishState.value = true
             } catch (_: Exception) {
                 _publishState.value = false
