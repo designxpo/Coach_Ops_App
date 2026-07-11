@@ -31,7 +31,7 @@ data class TrainerProfile(
     val assessmentIncluded: Boolean = false, // fitness assessment before first plan
     val cprCertified: Boolean = false,
     val nutritionSupport: String = "", // "Workout only" | "Diet guidance" | "Meal planning"
-    val testimonials: String = "",     // newline-separated client quotes, up to 3
+    val testimonials: String = "",     // LEGACY self-quotes — replaced by real member reviews, no longer editable or shown
     val instagramUrl: String = "",
     val profileScore: Int = 0,         // PortfolioScoring result at publish time — ranks Discover
     val planTier: String = "",         // coach's subscription at publish time: starter/pro/business
@@ -39,7 +39,10 @@ data class TrainerProfile(
     // "" none · "pending" awaiting manual review · "verified_auto" OCR matched
     // name+issuer · "verified" admin approved · "rejected" admin rejected
     val certDocUrl: String = "",
-    val certStatus: String = ""
+    val certStatus: String = "",
+    // Incremental rating aggregate — written only by member rating submissions
+    val ratingSum: Float = 0f,
+    val ratingCount: Int = 0
 )
 
 /** True when the certificate passed auto-OCR or manual admin review. */
@@ -49,6 +52,30 @@ val TrainerProfile.isCertVerified: Boolean
 /** Paying coaches are surfaced first in Discover with a Featured badge. */
 val TrainerProfile.isFeatured: Boolean
     get() = planTier == "pro" || planTier == "business"
+
+// ─── Discover ranking: leagues + merit ───────────────────────────────────────
+// Coaches compete WITHIN their subscription level: Business league above Pro,
+// Pro above Free. Inside each league the order is EARNED — member ratings and
+// review volume first, profile completeness as tiebreak. A free coach rises by
+// being good; subscribing promotes them into the next league where the same
+// merit rules apply against similarly subscribed coaches.
+
+/** Subscription league: business=2, pro=1, free/unknown=0. */
+val TrainerProfile.tierRank: Int
+    get() = when (planTier) { "business" -> 2; "pro" -> 1; else -> 0 }
+
+/**
+ * Merit inside a league. Bayesian-smoothed rating (prior: two 3.5★ reviews)
+ * so a single lucky 5★ can't outrank ten consistent 4.8★s; review volume and
+ * profile strength add on top.
+ */
+val TrainerProfile.meritScore: Float
+    get() {
+        val smoothedRating = (ratingSum + 3.5f * 2) / (ratingCount + 2)   // 0–5
+        return smoothedRating * 20f +          // up to ~100 — earned quality
+            minOf(ratingCount, 20) * 2f +      // up to 40   — earned volume
+            profileScore * 0.4f                // up to 40   — completeness never outweighs real ratings
+    }
 
 data class Booking(
     val id: String = "",
@@ -141,8 +168,8 @@ object PortfolioScoring {
         var s = 0
         val photos = t.portfolioImages.split(",").count { it.isNotBlank() }
         s += minOf(photos, 3) * 2
-        val quotes = t.testimonials.split("\n").count { it.isNotBlank() }
-        s += minOf(quotes, 3) * 2
+        // Reviews are EARNED from real member ratings — coaches can't type these
+        s += minOf(t.ratingCount, 3) * 2
         if (t.instagramUrl.isNotBlank()) s += 3
         return s
     }
@@ -169,8 +196,10 @@ object PortfolioScoring {
         if (t.yearsExperience <= 0) missing += ScoreAction("Add years of experience", 6)
         val photos = t.portfolioImages.split(",").count { it.isNotBlank() }
         if (photos < 3) missing += ScoreAction("Add work photos (${3 - photos} more)", (3 - photos) * 2)
-        val quotes = t.testimonials.split("\n").count { it.isNotBlank() }
-        if (quotes < 3) missing += ScoreAction("Add client testimonials (${3 - quotes} more)", (3 - quotes) * 2)
+        if (t.ratingCount < 3) missing += ScoreAction(
+            "Earn member reviews — complete sessions & ask clients to rate you (${3 - t.ratingCount} more)",
+            (3 - t.ratingCount) * 2
+        )
         if (t.headline.isBlank()) missing += ScoreAction("Write a one-line headline", 5)
         if (t.bio.trim().length < 60) missing += ScoreAction("Write a longer bio (60+ chars)", 5)
         if (t.education.isBlank()) missing += ScoreAction("Add your education", 5)

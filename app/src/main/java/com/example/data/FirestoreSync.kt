@@ -444,7 +444,9 @@ object FirestoreSync {
         profileScore        = (d["profileScore"] as? Long)?.toInt() ?: 0,
         planTier            = d["planTier"] as? String ?: "",
         certDocUrl          = d["certDocUrl"] as? String ?: "",
-        certStatus          = d["certStatus"] as? String ?: ""
+        certStatus          = d["certStatus"] as? String ?: "",
+        ratingSum           = (d["ratingSum"] as? Number)?.toFloat() ?: 0f,
+        ratingCount         = (d["ratingCount"] as? Number)?.toInt() ?: 0
     ).let {
         // Trainers published before the portfolio feature have no stored score —
         // compute from whatever fields they do have so they rank fairly.

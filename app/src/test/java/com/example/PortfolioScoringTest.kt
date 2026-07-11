@@ -3,6 +3,8 @@ package com.example
 import com.example.data.PortfolioScoring
 import com.example.data.TrainerProfile
 import com.example.data.isFeatured
+import com.example.data.meritScore
+import com.example.data.tierRank
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -31,8 +33,9 @@ class PortfolioScoringTest {
         assessmentIncluded = true,
         cprCertified = true,
         nutritionSupport = "Diet guidance",
-        testimonials = "Lost 8kg in 3 months!\nBest coach I've had.\nVery patient with beginners.",
-        instagramUrl = "https://instagram.com/rahul.fit"
+        instagramUrl = "https://instagram.com/rahul.fit",
+        ratingSum = 14.4f,   // three real member reviews averaging 4.8★
+        ratingCount = 3
     )
 
     @Test
@@ -97,11 +100,43 @@ class PortfolioScoringTest {
     }
 
     @Test
-    fun partial_photos_and_testimonials_earn_two_points_each() {
+    fun partial_photos_and_reviews_earn_two_points_each() {
         val base = fullProfile()
         val onePhoto = base.copy(portfolioImages = "https://example.com/1.jpg")
         assertEquals(PortfolioScoring.score(base) - 4, PortfolioScoring.score(onePhoto))
-        val oneQuote = base.copy(testimonials = "Great coach!")
-        assertEquals(PortfolioScoring.score(base) - 4, PortfolioScoring.score(oneQuote))
+        val oneReview = base.copy(ratingSum = 5f, ratingCount = 1)
+        assertEquals(PortfolioScoring.score(base) - 4, PortfolioScoring.score(oneReview))
+    }
+
+    @Test
+    fun coach_typed_testimonials_earn_nothing() {
+        val noReviews = fullProfile().copy(ratingSum = 0f, ratingCount = 0)
+        val withFakeQuotes = noReviews.copy(testimonials = "I am great!\nBest coach!\nAmazing!")
+        assertEquals(PortfolioScoring.score(noReviews), PortfolioScoring.score(withFakeQuotes))
+    }
+
+    // ── League + merit ranking ────────────────────────────────────────────────
+
+    @Test
+    fun leagues_order_business_pro_free() {
+        assertEquals(2, TrainerProfile(planTier = "business").tierRank)
+        assertEquals(1, TrainerProfile(planTier = "pro").tierRank)
+        assertEquals(0, TrainerProfile(planTier = "starter").tierRank)
+        assertEquals(0, TrainerProfile().tierRank)
+    }
+
+    @Test
+    fun within_league_consistent_quality_beats_one_lucky_review() {
+        // ten 4.8★ reviews must outrank a single 5★ (bayesian smoothing)
+        val consistent = TrainerProfile(ratingSum = 48f, ratingCount = 10)
+        val lucky      = TrainerProfile(ratingSum = 5f,  ratingCount = 1)
+        assertTrue(consistent.meritScore > lucky.meritScore)
+    }
+
+    @Test
+    fun rated_free_coach_outranks_unrated_free_coach_with_full_profile() {
+        val ratedCoach    = TrainerProfile(ratingSum = 24f, ratingCount = 5, profileScore = 40)
+        val polishedCoach = TrainerProfile(profileScore = 100)
+        assertTrue(ratedCoach.meritScore > polishedCoach.meritScore)
     }
 }

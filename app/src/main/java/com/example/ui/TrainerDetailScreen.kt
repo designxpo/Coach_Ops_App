@@ -199,7 +199,11 @@ fun TrainerDetailScreen(
                             Text("📍 ${t.city.replaceFirstChar { it.uppercase() }}", fontSize = 12.sp, color = CyberTextMuted)
                         }
                         if (t.rating > 0f) {
-                            Text("⭐ ${"%.1f".format(t.rating)}", fontSize = 12.sp, color = CyberTextPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "⭐ ${"%.1f".format(t.rating)}" +
+                                    if (t.ratingCount > 0) " (${t.ratingCount})" else "",
+                                fontSize = 12.sp, color = CyberTextPrimary, fontWeight = FontWeight.SemiBold
+                            )
                         }
                         if (t.yearsExperience > 0) {
                             Text("🏅 ${t.yearsExperience} yrs", fontSize = 12.sp, color = CyberTextMuted)
@@ -325,31 +329,9 @@ fun TrainerDetailScreen(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-            } else {
-                val quotes = t.testimonials.split("\n").filter { it.isNotBlank() }
-                if (quotes.isNotEmpty()) {
-                    SectionCard {
-                        Text("What Clients Say", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
-                        Spacer(Modifier.height(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            quotes.forEach { q ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(CyberBgCardElevated)
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("❝", fontSize = 14.sp, color = CyberAccent)
-                                    Text(q, fontSize = 13.sp, color = CyberTextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
             }
+            // No fallback to coach-typed quotes: testimonials here are ONLY
+            // real reviews from members who booked — coaches can't write them.
 
             // Instagram
             if (t.instagramUrl.isNotBlank()) {

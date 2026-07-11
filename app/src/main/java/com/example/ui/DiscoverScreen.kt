@@ -1137,6 +1137,10 @@ fun TrainerCard(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("⭐", fontSize = 14.sp)
                         Text("%.1f".format(trainer.rating), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                        if (trainer.ratingCount > 0) {
+                            Text("${trainer.ratingCount} review${if (trainer.ratingCount > 1) "s" else ""}",
+                                fontSize = 9.sp, color = CyberTextMuted, maxLines = 1, softWrap = false)
+                        }
                     }
                 } else {
                     Box(Modifier.clip(RoundedCornerShape(10.dp)).background(CyberSuccess.copy(0.12f))

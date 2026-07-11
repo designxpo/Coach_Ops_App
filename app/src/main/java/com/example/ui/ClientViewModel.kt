@@ -9,15 +9,21 @@ import com.example.data.GeoUtils
 import com.example.data.TrainerProfile
 import com.example.data.UserPreferences
 import com.example.data.isFeatured
+import com.example.data.meritScore
+import com.example.data.tierRank
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Discover ranking: paying (featured) coaches, then profile strength, then rating. */
-private val trainerRank = compareByDescending<TrainerProfile> { it.isFeatured }
-    .thenByDescending { it.profileScore }
+/**
+ * Discover ranking: subscription league first (Business > Pro > Free), then
+ * EARNED merit within the league (smoothed member rating + review volume +
+ * profile strength). See [com.example.data.meritScore].
+ */
+private val trainerRank = compareByDescending<TrainerProfile> { it.tierRank }
+    .thenByDescending { it.meritScore }
     .thenByDescending { it.rating }
 
 class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
@@ -202,14 +208,14 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         // distance order is preserved inside the featured and non-featured groups.
         val newCoaches = if (!append && !isManualRadiusMode) {
             // Fresh auto-feed load: show in-radius + no-coord coaches
-            inRadius.sortedByDescending { it.isFeatured } + noCoordNew.sortedWith(trainerRank)
+            inRadius.sortedWith(trainerRank) + noCoordNew.sortedWith(trainerRank)
         } else if (!append) {
             // Manual radius chip: show exactly what's in range
-            inRadius.sortedByDescending { it.isFeatured } +
+            inRadius.sortedWith(trainerRank) +
                 if (radiusToUse == Int.MAX_VALUE) noCoordNew.sortedWith(trainerRank) else emptyList()
         } else {
             // Scroll expansion: only append the new in-radius band
-            inRadius.sortedByDescending { it.isFeatured }
+            inRadius.sortedWith(trainerRank)
         }
 
         displayedUids.addAll(newCoaches.map { it.uid })

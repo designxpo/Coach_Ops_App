@@ -134,9 +134,8 @@ fun PortfolioBuilderScreen(
     var assessmentIncluded by remember { mutableStateOf(false) }
     var nutritionSupport by remember { mutableStateOf("") }
     var portfolioImageUrls by remember { mutableStateOf(listOf<String>()) }
-    var testimonial1 by remember { mutableStateOf("") }
-    var testimonial2 by remember { mutableStateOf("") }
-    var testimonial3 by remember { mutableStateOf("") }
+    var reviewCount by remember { mutableStateOf(0) }
+    var reviewAvg by remember { mutableStateOf(0f) }
     var instagramUrl by remember { mutableStateOf("") }
     var feeSessionText by remember { mutableStateOf("") }
     var feeMonthlyText by remember { mutableStateOf("") }
@@ -182,10 +181,8 @@ fun PortfolioBuilderScreen(
         assessmentIncluded = p.assessmentIncluded
         nutritionSupport = p.nutritionSupport
         portfolioImageUrls = p.portfolioImages.split(",").filter { it.isNotBlank() }
-        val quotes = p.testimonials.split("\n").filter { it.isNotBlank() }
-        testimonial1 = quotes.getOrElse(0) { "" }
-        testimonial2 = quotes.getOrElse(1) { "" }
-        testimonial3 = quotes.getOrElse(2) { "" }
+        reviewCount = p.ratingCount
+        reviewAvg = if (p.ratingCount > 0) p.ratingSum / p.ratingCount else 0f
         instagramUrl = p.instagramUrl
         feeSessionText = if (p.feePerSession > 0) p.feePerSession.toString() else ""
         feeMonthlyText = if (p.feeMonthly > 0) p.feeMonthly.toString() else ""
@@ -217,11 +214,12 @@ fun PortfolioBuilderScreen(
         assessmentIncluded = assessmentIncluded,
         cprCertified = cprCertified,
         nutritionSupport = nutritionSupport,
-        testimonials = listOf(testimonial1, testimonial2, testimonial3)
-            .map { it.trim() }.filter { it.isNotBlank() }.joinToString("\n"),
         instagramUrl = instagramUrl.trim(),
         certDocUrl = certDocUrl,
-        certStatus = if (certifications.isBlank()) "" else certStatus
+        certStatus = if (certifications.isBlank()) "" else certStatus,
+        // Earned, never typed: real member reviews feed the Proof score
+        ratingSum = reviewAvg * reviewCount,
+        ratingCount = reviewCount
     )
 
     val draft = buildDraft()
@@ -652,10 +650,31 @@ fun PortfolioBuilderScreen(
                         }
                     }
                 }
-                Text("Client testimonials (short quotes)", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextMuted)
-                PBField("Testimonial 1", testimonial1) { testimonial1 = it }
-                PBField("Testimonial 2", testimonial2) { testimonial2 = it }
-                PBField("Testimonial 3", testimonial3) { testimonial3 = it }
+                Text("Client reviews", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextMuted)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyberBgCardElevated)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("⭐", fontSize = 18.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (reviewCount > 0)
+                                "%.1f from $reviewCount member review${if (reviewCount > 1) "s" else ""}".format(reviewAvg)
+                            else "No reviews yet",
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary
+                        )
+                        Text(
+                            "Reviews come only from members who booked you — they can't be " +
+                            "written or edited. Complete sessions and ask clients to rate you.",
+                            fontSize = 11.sp, color = CyberTextMuted, lineHeight = 15.sp
+                        )
+                    }
+                }
                 PBField("Instagram link (optional)", instagramUrl, keyboard = KeyboardType.Uri) { instagramUrl = it }
             }
 
