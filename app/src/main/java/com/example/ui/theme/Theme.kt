@@ -46,5 +46,17 @@ fun MyApplicationTheme(
       else -> LightColorScheme
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  // Clamp the system font scale. Layouts are designed around ~1.0; OEM "Large
+  // text" presets (1.3–2.0) wrapped headers/chips into vertical strips on
+  // small screens. 1.15 still honours larger-text users without breaking UI.
+  val density = androidx.compose.ui.platform.LocalDensity.current
+  val clampedDensity = androidx.compose.ui.unit.Density(
+    density = density.density,
+    fontScale = density.fontScale.coerceAtMost(1.15f)
+  )
+  androidx.compose.runtime.CompositionLocalProvider(
+    androidx.compose.ui.platform.LocalDensity provides clampedDensity
+  ) {
+    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  }
 }

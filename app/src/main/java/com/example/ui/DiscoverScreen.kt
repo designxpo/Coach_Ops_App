@@ -362,7 +362,9 @@ fun DiscoverScreen(
                                 decorationBox = { inner ->
                                     if (cityQuery.isEmpty()) Text(
                                         "City or area (e.g. Koramangala)…",
-                                        fontSize = 14.sp, color = CyberTextMuted
+                                        fontSize = 14.sp, color = CyberTextMuted,
+                                        maxLines = 1, softWrap = false,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     inner()
                                 }
@@ -759,6 +761,7 @@ fun DiscoverScreen(
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
                                 Text(radiusLabel(km), fontSize = 12.sp,
+                                    maxLines = 1, softWrap = false,
                                     fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
                                     color = if (selected) CyberAccentDark else CyberTextMuted)
                             }

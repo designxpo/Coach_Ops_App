@@ -170,7 +170,10 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
     }
 
     // ── Role fork: clients see the discovery/booking app ─────────────────────
-    if (userPreferences.userRole == "client" && userPreferences.onboardingComplete) {
+    // Requires a live Firebase session — a signed-out user must never be able
+    // to sit inside the member app on stale prefs.
+    if (userPreferences.userRole == "client" && userPreferences.onboardingComplete &&
+        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null) {
         val activityContext = LocalContext.current
         ClientNavScreen(
             userPreferences   = userPreferences,
@@ -986,8 +989,9 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 ClientProfileScreen(
                     viewModel = viewModel,
                     onLogout = {
-                        viewModel.logout(context)
-                        onNavigateToLogin()   // uses outer navController — "login" exists there
+                        // Navigate only AFTER the session is torn down — navigating first
+                        // let the relaunch see stale auth and bounce back into the app
+                        viewModel.logout(context) { onNavigateToLogin() }
                     }
                 )
             }

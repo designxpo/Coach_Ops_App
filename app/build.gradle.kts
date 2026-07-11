@@ -23,7 +23,7 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 13
+    versionCode = 14
     versionName = "1.2.9"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

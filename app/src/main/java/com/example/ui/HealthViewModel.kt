@@ -49,7 +49,13 @@ class HealthViewModel(
             stepCounter.start()
             viewModelScope.launch {
                 stepCounter.dailySteps.collect { steps ->
-                    val current = _todayLog.value
+                    val today = repo.todayKey()
+                    // Midnight rollover with the app alive: never graft the new
+                    // day's live count onto yesterday's log (it would overwrite
+                    // yesterday's history AND inflate whichever doc it lands in)
+                    val current = _todayLog.value.let {
+                        if (it.date == today) it else DailyHealthLog(date = today)
+                    }
                     if (steps > current.stepsCount) {
                         val log = current.copy(
                             stepsCount     = steps,
@@ -70,9 +76,15 @@ class HealthViewModel(
     override fun onCleared() {
         super.onCleared()
         // Listener stays registered for the app's lifetime (singleton, negligible
-        // battery — it's a hardware counter). Just flush the final count.
+        // battery — it's a hardware counter). Flush the final count — but only
+        // under the log's OWN date. Re-stamping with todayKey() wrote last
+        // night's step total into the NEW day's doc when the system killed the
+        // app after midnight, which showed as a big fake count next morning.
         viewModelScope.launch {
-            try { repo.saveLog(_todayLog.value.copy(date = repo.todayKey())) } catch (_: Exception) {}
+            val log = _todayLog.value
+            if (log.date == repo.todayKey()) {
+                try { repo.saveLog(log) } catch (_: Exception) {}
+            }
         }
     }
 

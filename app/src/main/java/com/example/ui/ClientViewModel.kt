@@ -314,12 +314,22 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     /** Phone used to auto-match this member's gym membership (shared phone field). */
     fun userPhone(): String = userPreferences.coachPhone
 
-    fun logout(context: android.content.Context) {
+    /**
+     * Signs out and THEN invokes [onDone] — the caller navigates only after the
+     * session is fully cleared. Navigating first caused the "sign-out keeps me
+     * in the app" bug: Activity.recreate() cancelled this coroutine before
+     * signOut/clearLocalSession ran, so the relaunch saw a live session.
+     */
+    fun logout(context: android.content.Context, onDone: () -> Unit = {}) {
         com.example.data.EntitlementManager.stop()
         viewModelScope.launch {
-            FirestoreSync.clearFcmToken()    // before signOut — needs auth to write
+            try {
+                // Needs auth to write — bounded so offline sign-out never hangs
+                kotlinx.coroutines.withTimeout(4_000) { FirestoreSync.clearFcmToken() }
+            } catch (_: Exception) { }
             com.example.data.AuthRepository.signOut(context)
             userPreferences.clearLocalSession()
+            onDone()
         }
     }
 }
