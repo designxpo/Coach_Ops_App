@@ -82,6 +82,8 @@ fun ClientProfileScreen(
     var showReportSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+    var exportMsg by remember { mutableStateOf("") }
 
     // ── Location state ────────────────────────────────────────────────────────
     var isGpsLocating    by remember { mutableStateOf(false) }
@@ -489,6 +491,32 @@ fun ClientProfileScreen(
         }
 
         Spacer(Modifier.height(12.dp))
+
+        // Data portability (DPDP Act / GDPR): let the member download everything
+        Text(
+            if (exporting) "Preparing your data…" else "Download My Data",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = CyberTextSecondary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !exporting) {
+                    exporting = true
+                    scope.launch {
+                        val r = com.example.data.DataExport.exportAndShare(context)
+                        exporting = false
+                        exportMsg = r.fold({ "" }, { it.message ?: "Export failed" })
+                    }
+                }
+                .padding(vertical = 8.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        if (exportMsg.isNotBlank()) {
+            Text(exportMsg, fontSize = 11.sp, color = CyberDanger,
+                modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+
+        Spacer(Modifier.height(4.dp))
 
         // Play policy: account deletion must be reachable in-app for members too
         Text(

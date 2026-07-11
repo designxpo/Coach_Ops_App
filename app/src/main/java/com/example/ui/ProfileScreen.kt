@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,11 @@ fun ProfileScreen(
         totalMrr >= 1000 -> "₹${totalMrr / 1000}K"
         else -> "₹$totalMrr"
     }
+
+    val exportContext = androidx.compose.ui.platform.LocalContext.current
+    val exportScope = androidx.compose.runtime.rememberCoroutineScope()
+    var exporting by remember { mutableStateOf(false) }
+    var exportMsg by remember { mutableStateOf("") }
 
     var showEditSheet by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
@@ -440,6 +446,23 @@ fun ProfileScreen(
                     LegalLinkRow(label = "Privacy Policy", onClick = onPrivacyPolicyClick)
                     HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
                     LegalLinkRow(label = "Terms of Service", onClick = onTermsClick)
+                    HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
+                    LegalLinkRow(
+                        label = if (exporting) "Preparing your data…" else "Download My Data",
+                        onClick = {
+                            if (!exporting) {
+                                exporting = true
+                                exportScope.launch {
+                                    val r = com.example.data.DataExport.exportAndShare(exportContext)
+                                    exporting = false
+                                    exportMsg = r.fold({ "" }, { it.message ?: "Export failed" })
+                                }
+                            }
+                        }
+                    )
+                    if (exportMsg.isNotBlank()) {
+                        Text(exportMsg, fontSize = 11.sp, color = CyberDanger, modifier = Modifier.padding(top = 4.dp))
+                    }
                     HorizontalDivider(color = CyberBgCardElevated, modifier = Modifier.padding(vertical = 4.dp))
                     LegalLinkRow(label = "Delete My Account", onClick = { showDeleteDialog = true }, danger = true)
                 }

@@ -288,15 +288,17 @@ service cloud.firestore {
       }
     }
 
-    // Member health records — member owns, any authenticated user reads (coaches need this)
-    // Write is member-only; read is open to authenticated users (coach context enforced in UI)
+    // Member health records — OWNER ONLY. Previously any authenticated user
+    // could read any member's weight/body-fat/health history ("coach context
+    // enforced in UI"), but no screen actually reads another member's records
+    // (getMemberRecords is dead code), so open read was pure exposure. If a
+    // coach-views-client-health feature is added later, gate it on an explicit
+    // coach↔member connection doc, not a blanket read.
     match /member_health/{memberId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == memberId;
+      allow read, write: if request.auth != null && request.auth.uid == memberId;
 
       match /records/{recordId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == memberId;
+        allow read, write: if request.auth != null && request.auth.uid == memberId;
       }
     }
 
