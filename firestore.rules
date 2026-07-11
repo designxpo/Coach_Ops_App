@@ -25,12 +25,24 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // User records — each user reads/writes their own, admin reads+writes all
+    // User records — each user reads/writes their own, admin reads+writes all.
+    // The owner may update their own record but CANNOT flip the moderation flag
+    // 'suspended' (ban evasion) and cannot delete their record while suspended
+    // (delete-then-recreate evasion) — only an admin changes suspension.
+    // NOTE: 'plan' and 'role' stay client-writable, so entitlement is
+    // client-trusted; a paid-feature bypass is still possible and should be
+    // closed with server-side Play purchase verification (Play Developer API).
     match /user_records/{userId} {
       allow read: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null
+      allow create: if request.auth != null
         && (request.auth.uid == userId || isAdmin());
+      allow update: if isAdmin()
+        || (request.auth != null && request.auth.uid == userId
+            && !('suspended' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if isAdmin()
+        || (request.auth != null && request.auth.uid == userId
+            && resource.data.get('suspended', false) != true);
     }
 
     // Coach data — each coach reads/writes only their own tree
@@ -46,6 +58,7 @@ service cloud.firestore {
       match /revenue_snapshots/{snapId}   { allow read, write: if request.auth.uid == coachId; }
 
       // Gym Suite — gym owners manage their gym data under their own tree
+      match /gyms/{gymId}                 { allow read, write: if request.auth.uid == coachId; }
       match /gym_members/{memberId}       { allow read, write: if request.auth.uid == coachId; }
       match /gym_plans/{planId}           { allow read, write: if request.auth.uid == coachId; }
       match /gym_payments/{paymentId}     { allow read, write: if request.auth.uid == coachId; }
@@ -63,13 +76,19 @@ service cloud.firestore {
     }
 
     // Gym membership index — owner writes their members' plan status;
-    // members read it (matched by phone) for in-app renewal reminders
+    // members read only their OWN card. Read was world-open, which exposed
+    // every gym's full roster (names + phone numbers + plan pricing + UPI id)
+    // to any signed-in user. Now scoped to the owner or the linked member.
+    // (Members must be linked by memberUid for the in-app card; unlinked
+    // phone-only records are visible to their gym owner only.)
     match /gym_memberships/{docId} {
       allow create, update: if request.auth != null
         && request.resource.data.ownerUid == request.auth.uid;
       allow delete: if request.auth != null
         && resource.data.ownerUid == request.auth.uid;
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && (resource.data.ownerUid == request.auth.uid
+            || resource.data.get('memberUid', '') == request.auth.uid);
     }
 
     // UPI payment claims — member says "I've paid", gym owner confirms/rejects
@@ -131,7 +150,10 @@ service cloud.firestore {
         && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
         && request.resource.data.ratingSum >= resource.data.get('ratingSum', 0) + 1
         && request.resource.data.ratingSum <= resource.data.get('ratingSum', 0) + 5
-        && request.resource.data.rating >= 0 && request.resource.data.rating <= 5;
+        // Displayed average must match the aggregate (±0.1) — stops setting
+        // rating to 0.0 (sabotage) or 5.0 while sum/count say otherwise.
+        && request.resource.data.rating >= request.resource.data.ratingSum / request.resource.data.ratingCount - 0.1
+        && request.resource.data.rating <= request.resource.data.ratingSum / request.resource.data.ratingCount + 0.1;
     }
 
     // Trainer public profiles — any authenticated user reads; owner writes,
@@ -139,8 +161,14 @@ service cloud.firestore {
     // bump ONLY the rating aggregate, and only by one valid star (validRatingBump).
     match /trainers/{trainerId} {
       allow read: if request.auth != null;
+      // Owner may write their profile — but NOT self-award a verified badge.
+      // certStatus 'verified'/'rejected' are admin-only; the owner may set
+      // '', 'pending', or 'verified_auto' (the on-device OCR path, which is
+      // client-asserted by design and weaker than admin 'verified').
       allow write: if request.auth != null
-        && (request.auth.uid == trainerId || isAdmin());
+        && (isAdmin()
+            || (request.auth.uid == trainerId
+                && request.resource.data.get('certStatus', '') in ['', 'pending', 'verified_auto']));
       allow update: if request.auth != null
         && request.auth.uid != trainerId          // a coach can't rate themselves
         && validRatingBump();
@@ -244,15 +272,19 @@ service cloud.firestore {
             || resource.data.clientId == request.auth.uid);
     }
 
-    // Diet adherence logs — member creates, both parties read/update
-    // (read is auth-wide because logs are queried by unguessable planId)
+    // Diet adherence logs — member creates, both parties read/update.
+    // Read is scoped to the two parties (was auth-wide "because logs are
+    // queried by unguessable planId" — obscurity, not security; a
+    // collection-wide read exposed every member's adherence % and notes).
     match /diet_logs/{logId} {
       allow create: if request.auth != null
         && request.resource.data.clientId == request.auth.uid;
       allow update: if request.auth != null
         && (resource.data.clientId == request.auth.uid
             || resource.data.coachUid == request.auth.uid);
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && (resource.data.clientId == request.auth.uid
+            || resource.data.coachUid == request.auth.uid);
     }
 
     // Nutrition plan content published from the admin panel
