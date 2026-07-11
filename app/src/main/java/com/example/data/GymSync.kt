@@ -26,11 +26,43 @@ object GymSync {
 
     fun normalizePhone(raw: String): String = raw.filter { it.isDigit() }.takeLast(10)
 
+    // ─── Gyms (locations) ─────────────────────────────────────────────────────
+
+    fun saveGym(g: Gym) {
+        col("gyms")?.document(g.id)?.set(mapOf(
+            "id" to g.id, "name" to g.name, "city" to g.city,
+            "address" to g.address, "upiId" to g.upiId, "gstin" to g.gstin,
+            "createdAtMillis" to g.createdAtMillis
+        ))
+    }
+
+    fun deleteGymDoc(gymId: String) {
+        col("gyms")?.document(gymId)?.delete()
+    }
+
+    /** Firestore-side cascade for one location. IDs come from Room (which also
+     *  covers legacy docs that predate the gymId field). */
+    fun deleteGymData(
+        memberIds: List<String>, planIds: List<String>,
+        paymentIds: List<String>, checkInIds: List<String>,
+        memberPhones: List<String>
+    ) {
+        val u = uid ?: return
+        memberIds.forEach { col("gym_members")?.document(it)?.delete() }
+        planIds.forEach { col("gym_plans")?.document(it)?.delete() }
+        paymentIds.forEach { col("gym_payments")?.document(it)?.delete() }
+        checkInIds.forEach { col("gym_checkins")?.document(it)?.delete() }
+        memberPhones.mapNotNull { normalizePhone(it).takeIf { p -> p.length == 10 } }.forEach { p ->
+            db.collection("gym_memberships").document("${u}_$p").delete()
+        }
+    }
+
     // ─── Members ──────────────────────────────────────────────────────────────
 
     fun saveMember(m: GymMember) {
         col("gym_members")?.document(m.id)?.set(mapOf(
             "id" to m.id, "name" to m.name, "phone" to m.phone,
+            "gymId" to m.gymId,
             "gender" to m.gender, "joinDateMillis" to m.joinDateMillis,
             "planId" to m.planId, "planName" to m.planName,
             "planPriceInr" to m.planPriceInr,
@@ -79,6 +111,7 @@ object GymSync {
     fun savePlan(p: GymPlan) {
         col("gym_plans")?.document(p.id)?.set(mapOf(
             "id" to p.id, "name" to p.name, "durationDays" to p.durationDays,
+            "gymId" to p.gymId,
             "priceInr" to p.priceInr, "description" to p.description,
             "isActive" to p.isActive
         ))
@@ -89,6 +122,7 @@ object GymSync {
     fun savePayment(p: GymPayment) {
         col("gym_payments")?.document(p.id)?.set(mapOf(
             "id" to p.id, "memberId" to p.memberId, "memberName" to p.memberName,
+            "gymId" to p.gymId,
             "amountInr" to p.amountInr, "method" to p.method,
             "dateMillis" to p.dateMillis, "planId" to p.planId,
             "planName" to p.planName, "periodStartMillis" to p.periodStartMillis,
@@ -107,6 +141,7 @@ object GymSync {
     fun saveCheckIn(c: GymCheckIn) {
         col("gym_checkins")?.document(c.id)?.set(mapOf(
             "id" to c.id, "memberId" to c.memberId, "memberName" to c.memberName,
+            "gymId" to c.gymId,
             "dateKey" to c.dateKey, "timeMillis" to c.timeMillis
         ))
     }
@@ -122,10 +157,24 @@ object GymSync {
         val u = uid ?: return
         val base = db.collection("coaches").document(u)
         try {
+            val gyms = base.collection("gyms").get().await().documents.mapNotNull { d ->
+                Gym(
+                    id = d.getString("id") ?: return@mapNotNull null,
+                    name = d.getString("name") ?: "",
+                    city = d.getString("city") ?: "",
+                    address = d.getString("address") ?: "",
+                    upiId = d.getString("upiId") ?: "",
+                    gstin = d.getString("gstin") ?: "",
+                    createdAtMillis = d.getLong("createdAtMillis") ?: 0L
+                )
+            }
+            if (gyms.isNotEmpty()) dao.insertGyms(gyms)
+
             val members = base.collection("gym_members").get().await().documents.mapNotNull { d ->
                 GymMember(
                     id = d.getString("id") ?: return@mapNotNull null,
                     name = d.getString("name") ?: "",
+                    gymId = d.getString("gymId") ?: DEFAULT_GYM_ID,
                     phone = d.getString("phone") ?: "",
                     gender = d.getString("gender") ?: "",
                     joinDateMillis = d.getLong("joinDateMillis") ?: 0L,
@@ -145,6 +194,7 @@ object GymSync {
                 GymPlan(
                     id = d.getString("id") ?: return@mapNotNull null,
                     name = d.getString("name") ?: "",
+                    gymId = d.getString("gymId") ?: DEFAULT_GYM_ID,
                     durationDays = (d.getLong("durationDays") ?: 30L).toInt(),
                     priceInr = (d.getLong("priceInr") ?: 0L).toInt(),
                     description = d.getString("description") ?: "",
@@ -157,6 +207,7 @@ object GymSync {
                 GymPayment(
                     id = d.getString("id") ?: return@mapNotNull null,
                     memberId = d.getString("memberId") ?: "",
+                    gymId = d.getString("gymId") ?: DEFAULT_GYM_ID,
                     memberName = d.getString("memberName") ?: "",
                     amountInr = (d.getLong("amountInr") ?: 0L).toInt(),
                     method = d.getString("method") ?: "CASH",
@@ -175,6 +226,7 @@ object GymSync {
                 GymCheckIn(
                     id = d.getString("id") ?: return@mapNotNull null,
                     memberId = d.getString("memberId") ?: "",
+                    gymId = d.getString("gymId") ?: DEFAULT_GYM_ID,
                     memberName = d.getString("memberName") ?: "",
                     dateKey = d.getString("dateKey") ?: "",
                     timeMillis = d.getLong("timeMillis") ?: 0L

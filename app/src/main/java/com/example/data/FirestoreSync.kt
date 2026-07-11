@@ -351,8 +351,26 @@ object FirestoreSync {
             "testimonials"       to profile.testimonials,
             "instagramUrl"       to profile.instagramUrl,
             "profileScore"       to profile.profileScore,
-            "planTier"           to profile.planTier
+            "planTier"           to profile.planTier,
+            "certDocUrl"         to profile.certDocUrl,
+            "certStatus"         to profile.certStatus
         ), com.google.firebase.firestore.SetOptions.merge()).await()
+
+        // Queue for the admin review dashboard when a document awaits a decision.
+        // Best-effort: a rules hiccup here must never fail the profile publish.
+        if (profile.certDocUrl.isNotBlank() &&
+            (profile.certStatus == "pending" || profile.certStatus == "verified_auto")) {
+            try {
+                db.collection("cert_reviews").document(uid).set(mapOf(
+                    "uid"            to uid,
+                    "name"           to profile.name,
+                    "certifications" to profile.certifications,
+                    "certDocUrl"     to profile.certDocUrl,
+                    "status"         to profile.certStatus,
+                    "submittedAt"    to System.currentTimeMillis()
+                ), com.google.firebase.firestore.SetOptions.merge()).await()
+            } catch (_: Exception) { /* queued next publish */ }
+        }
         if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile DONE — wrote to trainers/$uid")
     }
 
@@ -424,7 +442,9 @@ object FirestoreSync {
         testimonials        = d["testimonials"] as? String ?: "",
         instagramUrl        = d["instagramUrl"] as? String ?: "",
         profileScore        = (d["profileScore"] as? Long)?.toInt() ?: 0,
-        planTier            = d["planTier"] as? String ?: ""
+        planTier            = d["planTier"] as? String ?: "",
+        certDocUrl          = d["certDocUrl"] as? String ?: "",
+        certStatus          = d["certStatus"] as? String ?: ""
     ).let {
         // Trainers published before the portfolio feature have no stored score —
         // compute from whatever fields they do have so they rank fairly.

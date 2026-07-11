@@ -13,14 +13,48 @@ import java.util.UUID
  */
 class GymRepository(private val dao: GymDao) {
 
-    val allMembers: Flow<List<GymMember>> = dao.getAllMembers()
-    val activePlans: Flow<List<GymPlan>>  = dao.getActivePlans()
-    val allPayments: Flow<List<GymPayment>> = dao.getAllPayments()
+    val gyms: Flow<List<Gym>> = dao.getGyms()
+
+    fun membersFor(gymId: String): Flow<List<GymMember>> = dao.getAllMembers(gymId)
+    fun plansFor(gymId: String): Flow<List<GymPlan>> = dao.getActivePlans(gymId)
+    fun paymentsFor(gymId: String): Flow<List<GymPayment>> = dao.getAllPayments(gymId)
+    fun checkInsForDate(gymId: String, dateKey: String): Flow<List<GymCheckIn>> =
+        dao.getCheckInsForDate(gymId, dateKey)
 
     fun getMember(id: String): Flow<GymMember?> = dao.getMember(id)
     fun getPaymentsForMember(id: String): Flow<List<GymPayment>> = dao.getPaymentsForMember(id)
-    fun getCheckInsForDate(dateKey: String): Flow<List<GymCheckIn>> = dao.getCheckInsForDate(dateKey)
     suspend fun getCheckInCountForMember(id: String): Int = dao.getCheckInCountForMember(id)
+
+    // ─── Gym locations ────────────────────────────────────────────────────────
+
+    suspend fun getGymsOnce(): List<Gym> = dao.getGymsOnce()
+
+    suspend fun saveGym(gym: Gym) {
+        dao.insertGym(gym)
+        GymSync.saveGym(gym)
+    }
+
+    /**
+     * Deletes one location and everything inside it — members, plans, payments,
+     * attendance — locally and in Firestore. IDs are collected from Room first
+     * so legacy cloud docs (written before gymId existed) are covered too.
+     */
+    suspend fun deleteGymCascade(gymId: String) {
+        val members = dao.getMembersForGymOnce(gymId)
+        GymSync.deleteGymData(
+            memberIds  = members.map { it.id },
+            planIds    = dao.getPlanIdsForGym(gymId),
+            paymentIds = dao.getPaymentIdsForGym(gymId),
+            checkInIds = dao.getCheckInIdsForGym(gymId),
+            memberPhones = members.map { it.phone }
+        )
+        dao.deleteCheckInsForGym(gymId)
+        dao.deletePaymentsForGym(gymId)
+        dao.deletePlansForGym(gymId)
+        dao.deleteMembersForGym(gymId)
+        dao.deleteGym(gymId)
+        GymSync.deleteGymDoc(gymId)
+    }
 
     companion object {
         @Volatile private var INSTANCE: GymRepository? = null
@@ -36,11 +70,11 @@ class GymRepository(private val dao: GymDao) {
             SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
         /** Common Indian gym pricing presets seeded on first use. */
-        fun defaultPlans(): List<GymPlan> = listOf(
-            GymPlan(UUID.randomUUID().toString(), "Monthly",     30,  1200, "Standard monthly membership"),
-            GymPlan(UUID.randomUUID().toString(), "Quarterly",   90,  3000, "3 months — save ₹600"),
-            GymPlan(UUID.randomUUID().toString(), "Half-Yearly", 180, 5500, "6 months — save ₹1,700"),
-            GymPlan(UUID.randomUUID().toString(), "Annual",      365, 10000, "Best value — save ₹4,400")
+        fun defaultPlans(gymId: String = DEFAULT_GYM_ID): List<GymPlan> = listOf(
+            GymPlan(UUID.randomUUID().toString(), "Monthly",     gymId, 30,  1200, "Standard monthly membership"),
+            GymPlan(UUID.randomUUID().toString(), "Quarterly",   gymId, 90,  3000, "3 months — save ₹600"),
+            GymPlan(UUID.randomUUID().toString(), "Half-Yearly", gymId, 180, 5500, "6 months — save ₹1,700"),
+            GymPlan(UUID.randomUUID().toString(), "Annual",      gymId, 365, 10000, "Best value — save ₹4,400")
         )
     }
 
@@ -71,6 +105,7 @@ class GymRepository(private val dao: GymDao) {
         val payment = GymPayment(
             id = UUID.randomUUID().toString(),
             memberId = member.id,
+            gymId = member.gymId,
             memberName = member.name,
             amountInr = amountInr,
             method = method,
@@ -116,9 +151,9 @@ class GymRepository(private val dao: GymDao) {
         GymSync.savePlan(plan.copy(isActive = false))
     }
 
-    suspend fun seedDefaultPlansIfEmpty(): Boolean {
-        if (dao.getPlanCount() > 0) return false
-        defaultPlans().forEach { savePlan(it) }
+    suspend fun seedDefaultPlansIfEmpty(gymId: String = DEFAULT_GYM_ID): Boolean {
+        if (dao.getPlanCountForGym(gymId) > 0) return false
+        defaultPlans(gymId).forEach { savePlan(it) }
         return true
     }
 
@@ -145,6 +180,7 @@ class GymRepository(private val dao: GymDao) {
         val payment = GymPayment(
             id = UUID.randomUUID().toString(),
             memberId = member.id,
+            gymId = member.gymId,
             memberName = member.name,
             amountInr = amountInr,
             method = method,
@@ -181,6 +217,7 @@ class GymRepository(private val dao: GymDao) {
         val checkIn = GymCheckIn(
             id = UUID.randomUUID().toString(),
             memberId = member.id,
+            gymId = member.gymId,
             memberName = member.name,
             dateKey = today
         )
@@ -198,6 +235,7 @@ class GymRepository(private val dao: GymDao) {
     }
 
     suspend fun clearAllLocalData() {
+        dao.clearGyms()
         dao.clearMembers()
         dao.clearPlans()
         dao.clearPayments()

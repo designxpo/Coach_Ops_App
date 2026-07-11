@@ -23,8 +23,8 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 12
-    versionName = "1.2.8"
+    versionCode = 13
+    versionName = "1.2.9"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -67,6 +67,10 @@ android {
     compose = true
     buildConfig = true
   }
+  androidResources {
+    // The bundled food-classifier model must stay uncompressed so ML Kit can mmap it
+    noCompress.add("tflite")
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
@@ -86,6 +90,9 @@ dependencies {
   implementation(libs.androidx.camera.view)
   implementation("com.google.mlkit:barcode-scanning:17.3.0")
   implementation("com.google.mlkit:image-labeling:17.0.9")
+  implementation("com.google.mlkit:image-labeling-custom:17.0.3")
+  // Unbundled OCR — model comes via Google Play services, keeps the app small
+  implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
   implementation("androidx.health.connect:connect-client:1.1.0-rc01")
   implementation("com.android.billingclient:billing-ktx:7.0.0")
   implementation(libs.androidx.compose.material.icons.core)

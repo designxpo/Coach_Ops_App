@@ -66,6 +66,13 @@ object SupabaseStorage {
         return upload(context, uri, path)
     }
 
+    /** Trainer certification document (photo) — reviewed before the Verified badge shows */
+    suspend fun uploadCertificatePhoto(context: Context, uri: Uri): String {
+        val uid  = requireUid()
+        val path = "certs/$uid/${uniqueName()}"
+        return upload(context, uri, path)
+    }
+
     /**
      * A fresh, unguessable filename for every upload.
      *

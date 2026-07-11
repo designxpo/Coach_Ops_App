@@ -34,8 +34,17 @@ data class TrainerProfile(
     val testimonials: String = "",     // newline-separated client quotes, up to 3
     val instagramUrl: String = "",
     val profileScore: Int = 0,         // PortfolioScoring result at publish time — ranks Discover
-    val planTier: String = ""          // coach's subscription at publish time: starter/pro/business
+    val planTier: String = "",         // coach's subscription at publish time: starter/pro/business
+    // Certification review — set when the coach uploads a certificate document.
+    // "" none · "pending" awaiting manual review · "verified_auto" OCR matched
+    // name+issuer · "verified" admin approved · "rejected" admin rejected
+    val certDocUrl: String = "",
+    val certStatus: String = ""
 )
+
+/** True when the certificate passed auto-OCR or manual admin review. */
+val TrainerProfile.isCertVerified: Boolean
+    get() = certStatus == "verified" || certStatus == "verified_auto"
 
 /** Paying coaches are surfaced first in Discover with a Featured badge. */
 val TrainerProfile.isFeatured: Boolean

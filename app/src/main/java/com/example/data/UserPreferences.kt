@@ -336,6 +336,11 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getInt("trainer_profile_score", 0)
         set(value) { prefs.edit().putInt("trainer_profile_score", value).apply() }
 
+    /** Multi-gym: which location the Gym Suite is currently managing. */
+    var activeGymId: String
+        get() = prefs.getString("active_gym_id", DEFAULT_GYM_ID) ?: DEFAULT_GYM_ID
+        set(value) { prefs.edit().putString("active_gym_id", value).apply() }
+
     companion object {
         @Volatile private var instance: UserPreferences? = null
 

@@ -1,198 +1,135 @@
 package com.example.data
 
 import android.graphics.Bitmap
+import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
-import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import com.google.mlkit.vision.label.custom.CustomImageLabelerOptions
+import kotlinx.coroutines.tasks.await
 
 /**
- * On-device food image recognition via ML Kit Image Labeling.
- * No API key. No internet. Runs entirely on device using the bundled TFLite model.
+ * On-device food image recognition — three-layer chain, cheapest first:
  *
- * Flow: Bitmap → ML Kit labels → map to known food names → LocalFoodParser nutrition
+ *  1. Custom TFLite food classifier (Google food_V1, 2 023 dish classes incl.
+ *     khichdi, biryani, dosa, chole bhature…) bundled in assets. Free, offline.
+ *  2. Local nutrition database lookup for the recognised dish name.
+ *  3. Gemini vision (free-tier key already used by the meal planner) when the
+ *     on-device model can't name the dish or the dish has no local entry.
  */
 object MlKitFoodScanner {
 
-    // ML Kit label → food name understood by LocalFoodParser
-    // Sorted longest-first so more specific matches win
-    private val LABEL_MAP: List<Pair<String, String>> = listOf(
-        // Specific dishes first
-        "scrambled eggs"    to "scrambled egg",
-        "fried egg"         to "egg omelette",
-        "boiled egg"        to "boiled egg",
-        "hard boiled"       to "boiled egg",
-        "chicken tikka"     to "chicken tikka",
-        "chicken curry"     to "chicken curry",
-        "fish curry"        to "fish curry",
-        "fried rice"        to "fried rice",
-        "french fries"      to "french fries",
-        "ice cream"         to "ice cream",
-        "green salad"       to "salad",
-        "tomato soup"       to "tomato soup",
-        "orange juice"      to "orange juice",
-        "corn flakes"       to "corn flakes",
-        "cottage cheese"    to "paneer raw",
-        "greek yogurt"      to "greek yogurt",
-        "peanut butter"     to "peanuts",
-        "white rice"        to "rice",
-        "brown rice"        to "brown rice",
-        "watermelon"        to "watermelon",
-        "pineapple"         to "pineapple",
-        "strawberry"        to "strawberry",
-        "pomegranate"       to "pomegranate",
-        // General food categories
-        "samosa"            to "samosa",
-        "biryani"           to "biryani",
-        "paratha"           to "paratha",
-        "chapati"           to "roti",
-        "naan"              to "naan",
-        "dosa"              to "dosa",
-        "idli"              to "idli",
-        "upma"              to "upma",
-        "poha"              to "poha",
-        "omelette"          to "omelette",
-        "oatmeal"           to "oats",
-        "pancake"           to "dosa",
-        "waffle"            to "bread",
-        "burger"            to "burger",
-        "hamburger"         to "burger",
-        "sandwich"          to "sandwich",
-        "hotdog"            to "sandwich",
-        "pizza"             to "pizza",
-        "pasta"             to "pasta",
-        "noodle"            to "noodles",
-        "sushi"             to "fish",
-        "dumpling"          to "samosa",
-        "spring roll"       to "frankie",
-        "chicken"           to "chicken curry",
-        "fish"              to "fish",
-        "shrimp"            to "prawn curry",
-        "salmon"            to "fish",
-        "tuna"              to "fish",
-        "egg"               to "egg",
-        "bacon"             to "egg",
-        "sausage"           to "egg",
-        "steak"             to "chicken breast",
-        "meat"              to "chicken curry",
-        "curry"             to "dal",
-        "soup"              to "soup",
-        "salad"             to "salad",
-        "bread"             to "bread",
-        "toast"             to "bread",
-        "rice"              to "rice",
-        "dal"               to "dal",
-        "lentil"            to "dal",
-        "bean"              to "chana",
-        "chickpea"          to "chana",
-        "tofu"              to "tofu",
-        "yogurt"            to "curd",
-        "curd"              to "curd",
-        "cheese"            to "paneer raw",
-        "milk"              to "milk",
-        "butter"            to "butter",
-        "cream"             to "milk",
-        "coffee"            to "coffee",
-        "tea"               to "tea",
-        "juice"             to "orange juice",
-        "smoothie"          to "mango shake",
-        "banana"            to "banana",
-        "apple"             to "apple",
-        "orange"            to "orange",
-        "mango"             to "mango",
-        "grape"             to "grapes",
-        "guava"             to "guava",
-        "papaya"            to "papaya",
-        "lemon"             to "lemon",
-        "almond"            to "almonds",
-        "walnut"            to "walnuts",
-        "cashew"            to "cashews",
-        "peanut"            to "peanuts",
-        "cake"              to "barfi",
-        "cookie"            to "barfi",
-        "chocolate"         to "ice cream",
-        "dessert"           to "ice cream",
-        "sweet"             to "gulab jamun",
-    ).sortedByDescending { it.first.length }
+    private val foodModel = LocalModel.Builder()
+        .setAssetFilePath("food_v1.tflite")
+        .build()
 
-    suspend fun analyze(bitmap: Bitmap): Result<FoodNutrition> =
-        suspendCoroutine { cont ->
-            val options = ImageLabelerOptions.Builder()
-                .setConfidenceThreshold(0.45f)
+    private val labeler by lazy {
+        ImageLabeling.getClient(
+            CustomImageLabelerOptions.Builder(foodModel)
+                .setConfidenceThreshold(0.25f)
+                .setMaxResultCount(5)
                 .build()
+        )
+    }
 
-            val labeler = ImageLabeling.getClient(options)
-            val image   = InputImage.fromBitmap(bitmap, 0)
+    // Model vocabulary → local DB name, for labels whose wording doesn't
+    // contains-match a database alias directly.
+    private val OVERRIDES = mapOf(
+        "chapati"          to "roti",
+        "flatbread"        to "roti",
+        "crepe"            to "dosa",
+        "porridge"         to "porridge",
+        "congee"           to "porridge",
+        "yogurt"           to "curd",
+        "cheesecake"       to "barfi",
+        "doughnut"         to "gulab jamun",
+        "french toast"     to "bread",
+        "scrambled eggs"   to "egg bhurji",
+        "fried egg"        to "omelette",
+        "fried chicken"    to "chicken 65",
+        "chicken nugget"   to "chicken 65",
+        "falafel"          to "cutlet",
+        "hummus"           to "chana",
+        "burrito"          to "frankie",
+        "quesadilla"       to "frankie",
+        "ramen"            to "hakka noodles",
+        "chow mein"        to "hakka noodles",
+        "spaghetti"        to "pasta",
+        "macaroni"         to "pasta",
+        "lasagne"          to "pasta",
+        "risotto"          to "veg pulao",
+        "paella"           to "veg pulao",
+        "nasi goreng"      to "fried rice",
+        "bibimbap"         to "fried rice",
+        "gyoza"            to "momos",
+        "wonton"           to "momos",
+        "baozi"            to "momos",
+        "smoothie"         to "mango shake",
+        "milkshake"        to "mango shake"
+    )
 
-            labeler.process(image)
-                .addOnSuccessListener { labels ->
-                    if (labels.isEmpty()) {
-                        cont.resume(Result.failure(Exception(
-                            "No objects detected. Try a clearer photo with the food well-lit and centred."
-                        )))
-                        return@addOnSuccessListener
-                    }
-
-                    // Try to match each detected label to a food entry, highest confidence first
-                    val topLabels = labels.sortedByDescending { it.confidence }
-
-                    var bestEntry: LocalFoodParser.FoodEntry? = null
-                    var bestLabel = ""
-                    var bestConf  = 0f
-
-                    outer@ for (label in topLabels) {
-                        val labelLower = label.text.lowercase()
-                        for ((key, foodName) in LABEL_MAP) {
-                            if (labelLower.contains(key)) {
-                                val entry = LocalFoodParser.findFood(foodName)
-                                if (entry != null) {
-                                    bestEntry = entry
-                                    bestLabel = label.text
-                                    bestConf  = label.confidence
-                                    break@outer
-                                }
-                            }
-                        }
-                    }
-
-                    if (bestEntry == null) {
-                        val topNames = topLabels.take(4).joinToString(", ") {
-                            "${it.text} (${(it.confidence * 100).toInt()}%)"
-                        }
-                        cont.resume(Result.failure(Exception(
-                            "Could not identify a known food. Detected: $topNames\n" +
-                            "Try switching to Voice mode and say the food name."
-                        )))
-                        return@addOnSuccessListener
-                    }
-
-                    val entry   = bestEntry
-                    val grams   = entry.servingGrams.toFloat()
-                    val confStr = when {
-                        bestConf >= 0.80f -> "high"
-                        bestConf >= 0.60f -> "medium"
-                        else              -> "low"
-                    }
-
-                    cont.resume(Result.success(
-                        FoodNutrition(
-                            foodName    = entry.names.first().replaceFirstChar { it.uppercase() },
-                            servingSize = entry.servingLabel,
-                            calories    = (entry.caloriesPer100g * grams / 100f).toInt(),
-                            proteinG    = entry.proteinPer100g  * grams / 100f,
-                            carbsG      = entry.carbsPer100g    * grams / 100f,
-                            fatG        = entry.fatPer100g      * grams / 100f,
-                            fiberG      = entry.fiberPer100g    * grams / 100f,
-                            confidence  = confStr,
-                            notes       = "Identified as \"$bestLabel\" via ML Kit · ${(bestConf * 100).toInt()}% confidence"
-                        )
-                    ))
-                }
-                .addOnFailureListener { e ->
-                    cont.resume(Result.failure(
-                        Exception("ML Kit error: ${e.message ?: "unknown"}")
-                    ))
-                }
+    suspend fun analyze(bitmap: Bitmap): Result<FoodNutrition> {
+        val labels = try {
+            labeler.process(InputImage.fromBitmap(bitmap, 0)).await()
+                .sortedByDescending { it.confidence }
+        } catch (e: Exception) {
+            emptyList()
         }
+
+        // 1+2. On-device model → local nutrition DB
+        for (label in labels) {
+            val entry = matchEntry(label.text) ?: continue
+            return Result.success(toNutrition(entry, label.text, label.confidence))
+        }
+
+        // 3. Gemini vision fallback (needs internet; free tier)
+        val hint = labels.take(3).joinToString(", ") { it.text }
+        val gemini = GeminiFoodVision.analyze(bitmap, hint)
+        if (gemini.isSuccess) return gemini
+
+        val detected = labels.take(3).joinToString(", ") {
+            "${it.text} (${(it.confidence * 100).toInt()}%)"
+        }
+        return Result.failure(Exception(
+            if (labels.isEmpty())
+                "No food detected. Try a clearer, well-lit photo with the dish centred — or use Voice mode."
+            else
+                "Detected $detected but couldn't complete the analysis (check internet connection). " +
+                "Try again online, or use Voice mode and say the dish name."
+        ))
+    }
+
+    /** Model label → nutrition entry: direct contains-match, override table, then suffix words. */
+    private fun matchEntry(labelText: String): LocalFoodParser.FoodEntry? {
+        val lower = labelText.lowercase().trim()
+        OVERRIDES[lower]?.let { mapped ->
+            LocalFoodParser.findFood(mapped)?.let { return it }
+        }
+        LocalFoodParser.findFood(lower)?.let { return it }
+        // "Mughlai paratha" → "paratha": drop leading words one at a time
+        val words = lower.split(" ").filter { it.isNotBlank() }
+        for (start in 1 until words.size) {
+            val suffix = words.drop(start).joinToString(" ")
+            LocalFoodParser.findFood(suffix)?.let { return it }
+        }
+        return null
+    }
+
+    private fun toNutrition(entry: LocalFoodParser.FoodEntry, label: String, conf: Float): FoodNutrition {
+        val grams = entry.servingGrams.toFloat()
+        return FoodNutrition(
+            foodName    = label.replaceFirstChar { it.uppercase() },
+            servingSize = entry.servingLabel,
+            calories    = (entry.caloriesPer100g * grams / 100f).toInt(),
+            proteinG    = entry.proteinPer100g  * grams / 100f,
+            carbsG      = entry.carbsPer100g    * grams / 100f,
+            fatG        = entry.fatPer100g      * grams / 100f,
+            fiberG      = entry.fiberPer100g    * grams / 100f,
+            confidence  = when {
+                conf >= 0.65f -> "high"
+                conf >= 0.40f -> "medium"
+                else          -> "low"
+            },
+            notes = "Recognised on-device as \"$label\" · ${(conf * 100).toInt()}% confidence"
+        )
+    }
 }

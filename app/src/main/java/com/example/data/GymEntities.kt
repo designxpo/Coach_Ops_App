@@ -7,12 +7,30 @@ import androidx.room.PrimaryKey
  * Gym operations entities — owned by a gym-owner account.
  * Local Room copy mirrors to Firestore under coaches/{uid}/gym_* (same
  * ownership tree the coach data already uses, so security rules stay simple).
+ *
+ * Multi-gym: every operational row carries a gymId. Rows created before the
+ * feature (and Firestore docs without the field) belong to DEFAULT_GYM_ID.
  */
+
+const val DEFAULT_GYM_ID = "main"
+
+/** One physical gym location. Owners can run several under one account. */
+@Entity(tableName = "gyms")
+data class Gym(
+    @PrimaryKey val id: String,
+    val name: String,
+    val city: String = "",
+    val address: String = "",
+    val upiId: String = "",
+    val gstin: String = "",
+    val createdAtMillis: Long = System.currentTimeMillis()
+)
 
 @Entity(tableName = "gym_members")
 data class GymMember(
     @PrimaryKey val id: String,
     val name: String,
+    val gymId: String = DEFAULT_GYM_ID,
     val phone: String = "",
     val gender: String = "",                 // MALE / FEMALE / OTHER / ""
     val joinDateMillis: Long = System.currentTimeMillis(),
@@ -37,6 +55,7 @@ data class GymMember(
 data class GymPlan(
     @PrimaryKey val id: String,
     val name: String,                        // "Monthly", "Quarterly (Save 15%)"
+    val gymId: String = DEFAULT_GYM_ID,
     val durationDays: Int,
     val priceInr: Int,
     val description: String = "",
@@ -47,6 +66,7 @@ data class GymPlan(
 data class GymPayment(
     @PrimaryKey val id: String,
     val memberId: String,
+    val gymId: String = DEFAULT_GYM_ID,
     val memberName: String,
     val amountInr: Int,
     val method: String,                      // CASH, UPI, CARD
@@ -63,6 +83,7 @@ data class GymPayment(
 data class GymCheckIn(
     @PrimaryKey val id: String,
     val memberId: String,
+    val gymId: String = DEFAULT_GYM_ID,
     val memberName: String,
     val dateKey: String,                     // "yyyy-MM-dd" — one check-in per member per day
     val timeMillis: Long = System.currentTimeMillis()

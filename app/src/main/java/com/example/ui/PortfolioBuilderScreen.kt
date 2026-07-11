@@ -122,6 +122,9 @@ fun PortfolioBuilderScreen(
     var languages by remember { mutableStateOf(setOf<String>()) }
     var education by remember { mutableStateOf("") }
     var certifications by remember { mutableStateOf("") }
+    var certDocUrl by remember { mutableStateOf("") }
+    var certStatus by remember { mutableStateOf("") }
+    var uploadingCert by remember { mutableStateOf(false) }
     var mentorship by remember { mutableStateOf("") }
     var cprCertified by remember { mutableStateOf(false) }
     var yearsExpText by remember { mutableStateOf("") }
@@ -168,6 +171,8 @@ fun PortfolioBuilderScreen(
         languages = p.languages.splitToSet()
         education = p.education
         certifications = p.certifications
+        certDocUrl = p.certDocUrl
+        certStatus = p.certStatus
         mentorship = p.mentorship
         cprCertified = p.cprCertified
         yearsExpText = if (p.yearsExperience > 0) p.yearsExperience.toString() else ""
@@ -214,7 +219,9 @@ fun PortfolioBuilderScreen(
         nutritionSupport = nutritionSupport,
         testimonials = listOf(testimonial1, testimonial2, testimonial3)
             .map { it.trim() }.filter { it.isNotBlank() }.joinToString("\n"),
-        instagramUrl = instagramUrl.trim()
+        instagramUrl = instagramUrl.trim(),
+        certDocUrl = certDocUrl,
+        certStatus = if (certifications.isBlank()) "" else certStatus
     )
 
     val draft = buildDraft()
@@ -237,6 +244,25 @@ fun PortfolioBuilderScreen(
                     uploadError = e.message ?: "Photo upload failed"
                 } finally {
                     uploadingProfile = false
+                }
+            }
+        }
+    }
+    val certPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            uploadingCert = true
+            uploadError = ""
+            scope.launch {
+                try {
+                    // OCR auto-review runs on-device before the upload finishes
+                    val check = com.example.data.CertVerifier.autoReview(
+                        context, uri, userPreferences.coachName)
+                    certDocUrl = com.example.data.SupabaseStorage.uploadCertificatePhoto(context, uri)
+                    certStatus = check.status
+                } catch (e: Exception) {
+                    uploadError = e.message ?: "Certificate upload failed"
+                } finally {
+                    uploadingCert = false
                 }
             }
         }
@@ -524,6 +550,41 @@ fun PortfolioBuilderScreen(
                     onToggle = { opt -> education = if (education == opt) "" else opt }
                 )
                 PBField("Certifications (e.g. K11 Certified PT 2021, ACE CPT)", certifications) { certifications = it }
+                if (certifications.isNotBlank()) {
+                    // Verification: upload the certificate → OCR auto-check → admin review
+                    val (statusText, statusColor) = when {
+                        uploadingCert                  -> "Checking document…" to CyberTextMuted
+                        certStatus == "verified"       -> "✓ Certificate verified" to CyberSuccess
+                        certStatus == "verified_auto"  -> "✓ Auto-verified — admin may re-check" to CyberSuccess
+                        certStatus == "pending"        -> "⏳ Under review — badge appears once approved" to CyberTextSecondary
+                        certStatus == "rejected"       -> "✗ Rejected — upload a clearer photo" to CyberDanger
+                        else                           -> "Upload your certificate to earn the ✓ Verified badge" to CyberTextMuted
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CyberBgCardElevated)
+                            .clickable(enabled = !uploadingCert) { certPicker.launch("image/*") }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (uploadingCert) {
+                            CircularProgressIndicator(color = CyberAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("📄", fontSize = 16.sp)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(statusText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = statusColor, lineHeight = 16.sp)
+                            Text(
+                                if (certDocUrl.isBlank()) "Members trust verified coaches far more"
+                                else "Tap to replace the document",
+                                fontSize = 11.sp, color = CyberTextMuted
+                            )
+                        }
+                    }
+                }
                 if (certifications.isBlank()) {
                     PBField("No certificate? Who did you train under / gym internship", mentorship) { mentorship = it }
                     Text(

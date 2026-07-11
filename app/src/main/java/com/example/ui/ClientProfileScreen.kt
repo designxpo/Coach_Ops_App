@@ -79,7 +79,6 @@ fun ClientProfileScreen(
 
     var name by remember { mutableStateOf(viewModel.clientName) }
     var city by remember { mutableStateOf(viewModel.clientCity) }
-    var showLogoutDialog by remember { mutableStateOf(false) }
     var showReportSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
@@ -166,20 +165,6 @@ fun ClientProfileScreen(
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ))
         }
-    }
-
-    if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to sign out?") },
-            confirmButton = {
-                TextButton(onClick = onLogout) { Text("Sign Out", color = CyberDanger) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel", color = CyberAccent) }
-            }
-        )
     }
 
     Column(
@@ -496,7 +481,7 @@ fun ClientProfileScreen(
                 .clip(RoundedCornerShape(16.dp))
                 .background(CyberDanger.copy(alpha = 0.10f))
                 .border(1.dp, CyberDanger.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                .clickable { showLogoutDialog = true }
+                .clickable { onLogout() }
                 .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {

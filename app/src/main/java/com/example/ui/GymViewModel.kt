@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -60,18 +61,36 @@ class GymViewModel(
 
     val entitlements: StateFlow<Entitlements> = EntitlementManager.entitlements
 
-    val members: StateFlow<List<GymMember>> = repository.allMembers
+    // ─── Multi-gym: active location drives every data flow ───────────────────
+    private val _activeGymId = MutableStateFlow(userPreferences.activeGymId)
+    val activeGymId: StateFlow<String> = _activeGymId.asStateFlow()
+
+    val gyms: StateFlow<List<com.example.data.Gym>> = repository.gyms
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val plans: StateFlow<List<GymPlan>> = repository.activePlans
+    val activeGym: StateFlow<com.example.data.Gym?> = combine(gyms, _activeGymId) { list, id ->
+        list.firstOrNull { it.id == id } ?: list.firstOrNull()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val members: StateFlow<List<GymMember>> = _activeGymId
+        .flatMapLatest { repository.membersFor(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val payments: StateFlow<List<GymPayment>> = repository.allPayments
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val plans: StateFlow<List<GymPlan>> = _activeGymId
+        .flatMapLatest { repository.plansFor(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val todayCheckIns: StateFlow<List<GymCheckIn>> =
-        repository.getCheckInsForDate(GymRepository.todayKey())
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val payments: StateFlow<List<GymPayment>> = _activeGymId
+        .flatMapLatest { repository.paymentsFor(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val todayCheckIns: StateFlow<List<GymCheckIn>> = _activeGymId
+        .flatMapLatest { repository.checkInsForDate(it, GymRepository.todayKey()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _lastReceipt = MutableStateFlow<GymPayment?>(null)
     val lastReceipt: StateFlow<GymPayment?> = _lastReceipt.asStateFlow()
@@ -89,8 +108,68 @@ class GymViewModel(
         com.example.data.GymSync.gymName = userPreferences.gymName
         com.example.data.GymSync.gymUpiId = userPreferences.gymUpiId
         com.example.data.GymSync.gymAddress = userPreferences.gymAddress
-        viewModelScope.launch { repository.syncFromFirestoreIfEmpty() }
+        viewModelScope.launch {
+            repository.syncFromFirestoreIfEmpty()
+            ensureDefaultGym()
+        }
         startClaimsListener()
+    }
+
+    // ─── Multi-gym management ─────────────────────────────────────────────────
+
+    /** Owners who set up before multi-gym get their existing profile as gym #1. */
+    private suspend fun ensureDefaultGym() {
+        if (repository.getGymsOnce().isNotEmpty()) return
+        if (userPreferences.gymName.isBlank()) return   // setup not done yet
+        repository.saveGym(com.example.data.Gym(
+            id = com.example.data.DEFAULT_GYM_ID,
+            name = userPreferences.gymName,
+            city = userPreferences.gymCity,
+            address = userPreferences.gymAddress,
+            upiId = userPreferences.gymUpiId,
+            gstin = userPreferences.gymGstin
+        ))
+    }
+
+    fun switchGym(gym: com.example.data.Gym) {
+        userPreferences.activeGymId = gym.id
+        _activeGymId.value = gym.id
+        // Receipts & the member-side membership card carry this gym's identity
+        com.example.data.GymSync.gymName = gym.name
+        com.example.data.GymSync.gymUpiId = gym.upiId
+        com.example.data.GymSync.gymAddress = gym.address
+    }
+
+    fun addGym(name: String, city: String, address: String, upiId: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val gym = com.example.data.Gym(
+                id = UUID.randomUUID().toString(),
+                name = name.trim(),
+                city = city.trim(),
+                address = address.trim(),
+                upiId = upiId.trim().lowercase()
+            )
+            repository.saveGym(gym)
+            repository.seedDefaultPlansIfEmpty(gym.id)
+            switchGym(gym)
+            _snackbar.value = "${gym.name} added — you're now managing it"
+        }
+    }
+
+    /** Permanently removes a location and all its members, payments & attendance. */
+    fun deleteGym(gym: com.example.data.Gym) {
+        viewModelScope.launch {
+            if (gyms.value.size <= 1) {
+                _snackbar.value = "You need at least one gym — add another before deleting this one"
+                return@launch
+            }
+            repository.deleteGymCascade(gym.id)
+            if (_activeGymId.value == gym.id) {
+                gyms.value.firstOrNull { it.id != gym.id }?.let { switchGym(it) }
+            }
+            _snackbar.value = "${gym.name} deleted"
+        }
     }
 
     /**
@@ -257,7 +336,18 @@ class GymViewModel(
         // First-time setup starts the 30-day trial + seeds Indian plan presets
         EntitlementManager.startGymTrial(userPreferences)
         viewModelScope.launch {
-            repository.seedDefaultPlansIfEmpty()
+            // Keep the active gym's row in sync with the edited profile
+            val current = activeGym.value
+            repository.saveGym(com.example.data.Gym(
+                id = current?.id ?: com.example.data.DEFAULT_GYM_ID,
+                name = userPreferences.gymName,
+                city = userPreferences.gymCity,
+                address = userPreferences.gymAddress,
+                upiId = userPreferences.gymUpiId,
+                gstin = userPreferences.gymGstin,
+                createdAtMillis = current?.createdAtMillis ?: System.currentTimeMillis()
+            ))
+            repository.seedDefaultPlansIfEmpty(_activeGymId.value)
             // Push refreshed gym identity (name/UPI) into every member's index
             members.value.forEach { com.example.data.GymSync.saveMember(it) }
         }
@@ -281,6 +371,7 @@ class GymViewModel(
             val member = GymMember(
                 id = UUID.randomUUID().toString(),
                 name = name.trim(),
+                gymId = _activeGymId.value,
                 phone = phone.trim(),
                 gender = gender,
                 linkedUid = linkedUid,
@@ -319,6 +410,7 @@ class GymViewModel(
                 GymPlan(
                     id = existing?.id ?: UUID.randomUUID().toString(),
                     name = name.trim(),
+                    gymId = existing?.gymId ?: _activeGymId.value,
                     durationDays = durationDays,
                     priceInr = priceInr,
                     description = description.trim()
@@ -345,8 +437,10 @@ class GymViewModel(
 
     /** WhatsApp-ready receipt text — includes GSTIN when the gym has one. */
     fun receiptText(p: GymPayment): String {
-        val gym = userPreferences.gymName.ifEmpty { "Gym" }
-        val gstLine = if (userPreferences.gymGstin.isNotEmpty()) "\nGSTIN: ${userPreferences.gymGstin}" else ""
+        val g = gyms.value.firstOrNull { it.id == p.gymId } ?: activeGym.value
+        val gym = (g?.name ?: userPreferences.gymName).ifEmpty { "Gym" }
+        val gstin = g?.gstin?.ifEmpty { userPreferences.gymGstin } ?: userPreferences.gymGstin
+        val gstLine = if (gstin.isNotEmpty()) "\nGSTIN: $gstin" else ""
         val fmt = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
         return """🧾 *$gym* — Payment Receipt
 Receipt No: ${p.receiptNo}$gstLine

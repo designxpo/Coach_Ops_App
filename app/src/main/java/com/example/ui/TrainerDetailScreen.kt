@@ -62,6 +62,7 @@ import androidx.compose.foundation.lazy.items
 import com.example.ui.theme.CyberTextSecondary
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import com.example.data.isCertVerified
 import com.example.data.isFeatured
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -216,8 +217,13 @@ fun TrainerDetailScreen(
             val trustChips = buildList {
                 if (t.isFeatured) add("⚡ Featured" to true)
                 if (t.profileScore >= com.example.data.PortfolioScoring.TIER_ELITE) add("🏆 Elite Profile" to true)
-                if (t.certifications.isNotBlank()) add("✓ Certified" to false)
-                else if (t.yearsExperience > 0 || t.mentorship.isNotBlank()) add("Experience self-declared" to false)
+                when {
+                    t.isCertVerified                 -> add("✓ Certificate Verified" to true)
+                    t.certStatus == "pending"        -> add("Certificate under review" to false)
+                    t.certifications.isNotBlank()    -> add("Certified (self-declared)" to false)
+                    t.yearsExperience > 0 || t.mentorship.isNotBlank() ->
+                        add("Experience self-declared" to false)
+                }
                 if (t.cprCertified) add("✚ CPR / First-aid" to false)
                 if (t.assessmentIncluded) add("Assessment included" to false)
                 t.trainingModes.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { add(it to false) }

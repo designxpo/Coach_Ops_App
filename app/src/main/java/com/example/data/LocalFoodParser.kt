@@ -238,6 +238,33 @@ object LocalFoodParser {
         // ── General ───────────────────────────────────────────────────────
         FoodEntry(listOf("tomato soup", "vegetable soup", "mushroom soup", "soup"), "1 bowl", 250, 50, 2f, 8f, 1f, 2f),
         FoodEntry(listOf("green salad", "mixed salad", "salad"), "1 plate", 150, 35, 2f, 7f, 0.5f, 3f),
+
+        // ── Photo-scanner vocabulary (dishes the food_V1 model can detect) ─
+        FoodEntry(listOf("tandoori chicken"), "2 pieces", 150, 150, 22f, 3f, 5.5f, 0.5f),
+        FoodEntry(listOf("paneer tikka"), "6 pieces", 150, 210, 14f, 6f, 14f, 1f),
+        FoodEntry(listOf("malai kofta", "veg kofta", "kofta"), "1 katori", 180, 190, 5f, 14f, 13f, 2f),
+        FoodEntry(listOf("dahi vada", "dahi bhalla"), "2 pieces", 150, 145, 5f, 20f, 5f, 1.5f),
+        FoodEntry(listOf("boondi raita", "cucumber raita", "raita"), "1 katori", 150, 65, 3f, 6f, 3f, 0.3f),
+        FoodEntry(listOf("sarson da saag", "saag"), "1 katori", 150, 95, 4f, 8f, 5.5f, 3.5f),
+        FoodEntry(listOf("rice kheer", "kheer", "seviyan"), "1 katori", 150, 130, 3.5f, 20f, 4f, 0.3f),
+        FoodEntry(listOf("dal bhat"), "1 plate", 300, 130, 5f, 23f, 2f, 2f),
+        FoodEntry(listOf("mughlai paratha"), "1 paratha", 120, 320, 10f, 38f, 14f, 2f),
+        FoodEntry(listOf("sel roti"), "1 piece", 50, 340, 5f, 55f, 11f, 1f),
+        FoodEntry(listOf("chicken 65", "chilli chicken"), "1 plate", 150, 250, 20f, 10f, 14f, 0.5f),
+        FoodEntry(listOf("spring roll"), "2 rolls", 120, 220, 5f, 28f, 10f, 1.5f),
+        FoodEntry(listOf("momos", "momo", "dumpling"), "6 pieces", 150, 165, 7f, 25f, 4f, 1f),
+        FoodEntry(listOf("cutlet", "veg cutlet"), "2 pieces", 100, 230, 5f, 28f, 11f, 2.5f),
+        FoodEntry(listOf("halwa"), "1 katori", 100, 320, 4f, 45f, 14f, 1f),
+        FoodEntry(listOf("laddu", "ladoo", "laddoo"), "1 piece", 40, 400, 7f, 55f, 17f, 1.5f),
+        FoodEntry(listOf("pancake"), "2 pancakes", 100, 227, 6f, 28f, 10f, 1f),
+        FoodEntry(listOf("waffle"), "1 waffle", 75, 291, 8f, 33f, 14f, 1f),
+        FoodEntry(listOf("sushi"), "6 pieces", 180, 143, 6f, 26f, 1.5f, 0.8f),
+        FoodEntry(listOf("hamburger"), "1 burger", 180, 250, 12f, 27f, 11f, 1.5f),
+        FoodEntry(listOf("hot dog", "hotdog"), "1 piece", 100, 290, 10f, 25f, 17f, 1f),
+        FoodEntry(listOf("taco"), "2 tacos", 140, 226, 9f, 25f, 10f, 3f),
+        FoodEntry(listOf("shawarma", "kebab roll"), "1 roll", 200, 215, 12f, 22f, 9f, 1.5f),
+        FoodEntry(listOf("steak"), "1 serving", 150, 271, 26f, 0f, 18f, 0f),
+        FoodEntry(listOf("porridge", "daliya", "dalia"), "1 bowl", 200, 90, 3f, 17f, 1.2f, 2f),
     )
 
     // Sort by longest alias first — "moong dal" beats "dal", prevents double-counting

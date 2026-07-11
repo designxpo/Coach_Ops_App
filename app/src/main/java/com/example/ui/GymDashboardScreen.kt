@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
@@ -92,9 +94,23 @@ fun GymDashboardScreen(
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val members by viewModel.members.collectAsStateWithLifecycle()
     val claims by viewModel.paymentClaims.collectAsStateWithLifecycle()
+    val gyms by viewModel.gyms.collectAsStateWithLifecycle()
+    val activeGym by viewModel.activeGym.collectAsStateWithLifecycle()
 
     var showSetupSheet by remember { mutableStateOf(false) }
+    var showGymSwitcher by remember { mutableStateOf(false) }
     var setupDone by remember { mutableStateOf(viewModel.gymSetupComplete) }
+
+    if (showGymSwitcher) {
+        GymSwitcherSheet(
+            gyms = gyms,
+            activeGymId = activeGym?.id ?: "",
+            onSelect = { viewModel.switchGym(it); showGymSwitcher = false },
+            onAdd = { name, city, address, upi -> viewModel.addGym(name, city, address, upi) },
+            onDelete = { viewModel.deleteGym(it) },
+            onDismiss = { showGymSwitcher = false }
+        )
+    }
 
     // Action feedback (claim confirmations etc.)
     val dashContext = LocalContext.current
@@ -173,11 +189,28 @@ fun GymDashboardScreen(
                     Icon(Icons.Filled.Storefront, contentDescription = null, tint = CyberTextPrimary, modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(
-                    viewModel.userPreferences.gymName.ifEmpty { "My Gym" },
-                    fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
+                // Gym switcher — tap to switch location, add a gym, or delete one
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { showGymSwitcher = true }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Text(
+                            activeGym?.name ?: viewModel.userPreferences.gymName.ifEmpty { "My Gym" },
+                            fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        if ((activeGym?.city ?: "").isNotBlank()) {
+                            Text("📍 ${activeGym?.city}", fontSize = 11.sp, color = CyberTextMuted, maxLines = 1)
+                        }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text("▾", fontSize = 16.sp, color = CyberTextMuted)
+                }
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(CyberBgCard)
                         .clickable { showSetupSheet = true },
@@ -724,4 +757,186 @@ internal fun formatInr(amount: Int): String = when {
     amount >= 100000 -> "₹%.2fL".format(amount / 100000f)
     amount >= 1000   -> "₹%,d".format(amount)
     else             -> "₹$amount"
+}
+
+// ─── Gym switcher — one owner, multiple locations ─────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GymSwitcherSheet(
+    gyms: List<com.example.data.Gym>,
+    activeGymId: String,
+    onSelect: (com.example.data.Gym) -> Unit,
+    onAdd: (name: String, city: String, address: String, upi: String) -> Unit,
+    onDelete: (com.example.data.Gym) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showAddForm by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newCity by remember { mutableStateOf("") }
+    var newAddress by remember { mutableStateOf("") }
+    var newUpi by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<com.example.data.Gym?>(null) }
+
+    deleteTarget?.let { gym ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete ${gym.name}?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "This permanently deletes this gym with ALL its members, plans, " +
+                    "payment history and attendance — on this device and in the cloud. " +
+                    "This cannot be undone."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDelete(gym); deleteTarget = null
+                }) { Text("Delete Permanently", color = CyberDanger) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { deleteTarget = null }) {
+                    Text("Cancel", color = CyberAccent)
+                }
+            }
+        )
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = CyberBgCard,
+        tonalElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("My Gyms", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+
+            gyms.forEach { gym ->
+                val active = gym.id == activeGymId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) CyberAccent.copy(0.10f) else CyberBgCardElevated)
+                        .border(
+                            1.dp,
+                            if (active) CyberAccent.copy(0.35f) else Color.White.copy(0.06f),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .clickable { onSelect(gym) }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(if (active) "✓" else "🏋️", fontSize = 16.sp,
+                        color = if (active) CyberAccent else CyberTextSecondary)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(gym.name, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = if (active) CyberAccent else CyberTextPrimary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (gym.city.isNotBlank() || gym.address.isNotBlank()) {
+                            Text(
+                                gym.city.ifBlank { gym.address },
+                                fontSize = 12.sp, color = CyberTextMuted,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (gyms.size > 1) {
+                        Box(
+                            modifier = Modifier.size(32.dp).clip(CircleShape)
+                                .background(CyberDanger.copy(0.10f))
+                                .clickable { deleteTarget = gym },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete gym",
+                                tint = CyberDanger, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
+            if (!showAddForm) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CyberAccent.copy(0.08f))
+                        .border(1.dp, CyberAccent.copy(0.25f), RoundedCornerShape(16.dp))
+                        .clickable { showAddForm = true }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("＋", fontSize = 18.sp, color = CyberAccent)
+                    Text("Add another gym", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CyberAccent)
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CyberBgCardElevated)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("New Gym", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                    GymSwitcherField("Gym name *", newName) { newName = it }
+                    GymSwitcherField("City / area *", newCity) { newCity = it }
+                    GymSwitcherField("Address (optional)", newAddress) { newAddress = it }
+                    GymSwitcherField("UPI ID for payments (optional)", newUpi) { newUpi = it }
+                    val canAdd = newName.isNotBlank() && newCity.isNotBlank()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (canAdd) CyberAccent else CyberBgCard)
+                            .clickable(enabled = canAdd) {
+                                onAdd(newName, newCity, newAddress, newUpi)
+                                newName = ""; newCity = ""; newAddress = ""; newUpi = ""
+                                showAddForm = false
+                                onDismiss()
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Create Gym", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                            color = if (canAdd) CyberAccentDark else CyberTextMuted)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun GymSwitcherField(label: String, value: String, onChange: (String) -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(CyberBgCard)
+            .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 11.dp)
+    ) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = CyberTextPrimary, fontSize = 13.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(CyberAccent),
+            decorationBox = { inner ->
+                if (value.isEmpty()) Text(label, fontSize = 13.sp, color = CyberTextMuted)
+                inner()
+            }
+        )
+    }
 }
