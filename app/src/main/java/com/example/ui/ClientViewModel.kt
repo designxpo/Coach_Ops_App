@@ -147,7 +147,16 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         val lng = _clientLng.value
         if (lat == 0.0 && lng == 0.0) return   // no location — nothing to expand
 
-        autoFeedRadiusKm += 5
+        // Jump the radius to reach the NEXT nearest not-yet-shown coach (min +5km).
+        // A flat +5 stalled in sparse areas: if the next band had no coaches, the
+        // list didn't change so the scroll listener never re-fired and the user
+        // was stuck tapping "show more" repeatedly.
+        val nextDist = allCoachesCache
+            .filter { (it.lat != 0.0 || it.lng != 0.0) && it.uid !in displayedUids }
+            .minOfOrNull { GeoUtils.distanceKm(lat, lng, it.lat, it.lng) }
+        autoFeedRadiusKm = if (nextDist != null)
+            maxOf(autoFeedRadiusKm + 5, kotlin.math.ceil(nextDist).toInt() + 1)
+        else autoFeedRadiusKm + 5
         _autoFeedRadius.value = autoFeedRadiusKm
 
         viewModelScope.launch {

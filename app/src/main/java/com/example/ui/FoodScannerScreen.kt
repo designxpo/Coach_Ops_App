@@ -180,11 +180,10 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
         if (!success) return@rememberLauncherForActivityResult
         imageUri = cameraUri; voiceQuery = ""
         scope.launch {
-            val bmp = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(cameraUri)?.use { BitmapFactory.decodeStream(it) }
-            }
+            val bmp = withContext(Dispatchers.IO) { decodeDownsampled(context, cameraUri) }
             imageBitmap = bmp
-            if (bmp != null && mode == ScanMode.BARCODE) analyzeBarcode(bmp)
+            if (bmp == null) errorMsg = "Couldn't read that photo — try again."
+            else if (mode == ScanMode.BARCODE) analyzeBarcode(bmp)
         }
     }
 
@@ -195,11 +194,10 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
         if (uri == null) return@rememberLauncherForActivityResult
         imageUri = uri; imageBitmap = null; voiceQuery = ""; resetResult()
         scope.launch {
-            val bmp = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-            }
+            val bmp = withContext(Dispatchers.IO) { decodeDownsampled(context, uri) }
             imageBitmap = bmp
-            if (bmp != null && mode == ScanMode.BARCODE) analyzeBarcode(bmp)
+            if (bmp == null) errorMsg = "Couldn't read that photo — try again."
+            else if (mode == ScanMode.BARCODE) analyzeBarcode(bmp)
         }
     }
 
@@ -760,5 +758,26 @@ private fun MacroLegend(label: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
         Text(label, fontSize = 10.sp, color = CyberTextMuted)
+    }
+}
+
+/**
+ * Decode a photo with downsampling so a 12MP camera image (~48MB as ARGB_8888)
+ * can't OutOfMemory-crash a 2GB device — the exact low-RAM phone this feature
+ * targets. Reads bounds first, then samples to a ~1600px longest side.
+ */
+private fun decodeDownsampled(context: android.content.Context, uri: Uri, maxSide: Int = 1600): android.graphics.Bitmap? {
+    return try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (longest / sample > maxSide) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
+    } catch (_: OutOfMemoryError) {
+        null
+    } catch (_: Exception) {
+        null
     }
 }

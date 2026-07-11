@@ -199,9 +199,9 @@ fun DiscoverScreen(
             val coords = withContext(Dispatchers.IO) { GeoUtils.geocodeCity(context, savedCity) }
             isGeocoding = false
             if (coords != null) {
+                // setClientCoordinates already reloads the feed
                 viewModel.setClientCoordinates(coords.first, coords.second)
                 locationLabel = savedCity
-                viewModel.loadTrainers()
             } else {
                 viewModel.loadTrainers()
             }
@@ -391,8 +391,9 @@ fun DiscoverScreen(
                                             isSearchFocused = false
                                             if (cityQuery.isBlank()) {
                                                 locationLabel = ""
+                                                // setClientCoordinates already reloads — a
+                                                // second loadTrainers() double-fetched the feed
                                                 viewModel.setClientCoordinates(0.0, 0.0)
-                                                viewModel.loadTrainers()
                                             }
                                         },
                                     contentAlignment = Alignment.Center
@@ -423,9 +424,9 @@ fun DiscoverScreen(
                                                         viewModel.setClientCoordinates(coords.first, coords.second)
                                                         locationLabel = cityQuery
                                                     } else {
+                                                        // setClientCoordinates already reloads
                                                         viewModel.setClientCoordinates(0.0, 0.0)
                                                         locationLabel = ""
-                                                        viewModel.loadTrainers()
                                                     }
                                                 }
                                             }
