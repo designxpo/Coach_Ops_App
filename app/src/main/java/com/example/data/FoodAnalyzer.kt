@@ -22,8 +22,10 @@ object FoodAnalyzer {
 
     // Split a multi-food phrase. NOTE: we don't split on "with" so combined DB
     // entries like "coffee with milk" stay intact; LocalFoodParser still finds
-    // multiple foods inside a single segment on its own.
-    private val SEPARATORS = Regex("""\s*(?:,|;|\+|&|/|\band\b|\bplus\b|\n)\s*""", RegexOption.IGNORE_CASE)
+    // multiple foods inside a single segment on its own. We also DON'T split on
+    // "/" — that shattered fractions ("1/2 pizza" → "1" + "2 pizza"), and the
+    // stray "1" then matched the first supplement in the DB (a phantom whey row).
+    private val SEPARATORS = Regex("""\s*(?:,|;|\+|&|\band\b|\bplus\b|\n)\s*""", RegexOption.IGNORE_CASE)
 
     private val WORD_NUM = mapOf(
         "half" to 0.5f, "one" to 1f, "a" to 1f, "an" to 1f, "two" to 2f, "three" to 3f,
@@ -60,10 +62,12 @@ object FoodAnalyzer {
         var consumed = 0
         val asDigit = tokens[0].toFloatOrNull()
         val asWord = WORD_NUM[tokens[0].lowercase()]
+        val asFraction = parseFraction(tokens[0])   // "1/2" → 0.5, "3/4" → 0.75
         when {
-            asDigit != null -> { mult = asDigit; consumed = 1 }
-            asWord != null  -> { mult = asWord;  consumed = 1 }
-            else            -> return 1f to s   // no leading count
+            asFraction != null -> { mult = asFraction; consumed = 1 }
+            asDigit != null    -> { mult = asDigit; consumed = 1 }
+            asWord != null     -> { mult = asWord;  consumed = 1 }
+            else               -> return 1f to s   // no leading count
         }
 
         // token after the number
@@ -80,6 +84,14 @@ object FoodAnalyzer {
         var rest = tokens.drop(consumed).joinToString(" ")
         if (rest.startsWith("of ")) rest = rest.substring(3)
         return mult to rest.trim().ifEmpty { s }
+    }
+
+    /** "1/2" → 0.5, "3/4" → 0.75; null if not a simple fraction. */
+    private fun parseFraction(token: String): Float? {
+        val m = Regex("^(\\d+)/(\\d+)$").find(token) ?: return null
+        val num = m.groupValues[1].toFloat()
+        val den = m.groupValues[2].toFloatOrNull() ?: return null
+        return if (den != 0f) num / den else null
     }
 
     private fun segments(query: String): List<String> {

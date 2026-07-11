@@ -55,10 +55,18 @@ object SupplementDb {
     fun search(query: String, category: SupplementCategory? = null): List<SupplementProduct> {
         val base = if (category != null) PRODUCTS.filter { it.category == category } else PRODUCTS
         val tokens = query.lowercase().split(Regex("\\s+")).filter { it.length >= 2 }
-        if (tokens.isEmpty()) return base
+        // No usable token → NO match. Returning `base` here made the food
+        // analyzer's `.firstOrNull()` log a phantom "Applied Nutrition Critical
+        // Whey" for any noise segment (a bare "1", "big", etc.). The category
+        // browse UI uses byCategory()/brands(), not this, so returning empty is safe.
+        if (tokens.isEmpty()) return if (category != null) base else emptyList()
+        // Require at least one token to hit the brand/product NAME (not just the
+        // category label) — otherwise the single word "whey"/"protein" matched
+        // dozens of rows and picked an arbitrary first one.
         return base.filter { p ->
-            val hay = "${p.brand} ${p.name} ${p.category.label}".lowercase()
-            tokens.all { hay.contains(it) }
+            val nameHay = "${p.brand} ${p.name}".lowercase()
+            val hay = "$nameHay ${p.category.label}".lowercase()
+            tokens.all { hay.contains(it) } && tokens.any { nameHay.contains(it) }
         }.sortedWith(compareBy({ it.brand }, { it.name }))
     }
 

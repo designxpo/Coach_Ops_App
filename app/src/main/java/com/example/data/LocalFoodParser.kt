@@ -398,6 +398,14 @@ object LocalFoodParser {
         val gramsMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*(?:g|grams?|gm)\\s*$").find(before)
         if (gramsMatch != null) return gramsMatch.groupValues[1].toFloat()
 
+        // Fraction: "1/2 pizza" → 0.5 × default. MUST come before the plain-digit
+        // rule — otherwise "1/2 " matched its trailing "2" and DOUBLED the food.
+        val fracMatch = Regex("(\\d+)\\s*/\\s*(\\d+)\\s*$").find(before)
+        if (fracMatch != null) {
+            val den = fracMatch.groupValues[2].toFloatOrNull() ?: 1f
+            if (den != 0f) return fracMatch.groupValues[1].toFloat() / den * defaultGrams
+        }
+
         // Digit: "2 rotis" → 2 × defaultGrams
         val digitMatch = Regex("(\\d+(?:\\.\\d+)?)\\s*$").find(before)
         if (digitMatch != null) return digitMatch.groupValues[1].toFloat() * defaultGrams

@@ -2,6 +2,7 @@ package com.example
 
 import com.example.data.FoodAnalyzer
 import com.example.data.LocalFoodParser
+import com.example.data.SupplementDb
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -55,5 +56,43 @@ class FoodAnalyzerTest {
         val (mult, name) = FoodAnalyzer.quantityPrefix("3 scoops on whey")
         assertEquals(3f, mult, 0.001f)
         assertEquals("on whey", name)
+    }
+
+    // ── Fraction + phantom-supplement regressions (screenshot bug) ────────────
+
+    @Test
+    fun half_pizza_is_not_doubled() {
+        // "1/2 pizza" previously read the trailing "2" and logged 2× a pizza.
+        val half = LocalFoodParser.parseEach("1/2 pizza")
+        val whole = LocalFoodParser.parseEach("pizza")
+        assertEquals(1, half.size)
+        assertTrue("half a pizza must be fewer calories than a whole",
+            half[0].calories < whole[0].calories)
+    }
+
+    @Test
+    fun slash_does_not_split_a_fraction_into_phantom_items() {
+        // The reported input: "2 cheese pizza + 1/2 garlic bread + 1/2 pizza".
+        // It must NOT produce any "Applied Nutrition Critical Whey" rows.
+        val a = FoodAnalyzer.analyzeLocal("2 cheese pizza + 1/2 garlic bread + 1/2 pizza")
+        assertTrue("no phantom supplement should appear",
+            a.items.none { it.foodName.contains("Whey", ignoreCase = true) })
+    }
+
+    @Test
+    fun noise_segment_never_matches_a_supplement() {
+        // A bare number / empty / non-brand word must NOT match the first row.
+        assertTrue(SupplementDb.search("1").isEmpty())
+        assertTrue(SupplementDb.search("slice").isEmpty())
+        assertTrue(SupplementDb.search("").isEmpty())
+        // A real query still resolves.
+        assertTrue(SupplementDb.search("optimum whey").isNotEmpty())
+    }
+
+    @Test
+    fun leading_fraction_parses_as_half() {
+        val (mult, name) = FoodAnalyzer.quantityPrefix("1/2 scoop whey")
+        assertEquals(0.5f, mult, 0.001f)
+        assertEquals("whey", name)
     }
 }
