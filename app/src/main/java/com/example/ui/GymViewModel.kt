@@ -112,6 +112,19 @@ class GymViewModel(
             repository.syncFromFirestoreIfEmpty()
             ensureDefaultGym()
         }
+        // Reconcile a stale active gym id (e.g. after reinstall or the active
+        // gym was deleted on another device): the header falls back to the first
+        // gym for DISPLAY, but the member/plan/payment flows query _activeGymId
+        // directly — so a stale id showed a gym name with empty lists.
+        viewModelScope.launch {
+            gyms.collect { list ->
+                if (list.isNotEmpty() && list.none { it.id == _activeGymId.value }) {
+                    val firstId = list.first().id
+                    _activeGymId.value = firstId
+                    userPreferences.activeGymId = firstId
+                }
+            }
+        }
         startClaimsListener()
     }
 
@@ -333,6 +346,8 @@ class GymViewModel(
         userPreferences.gymLng = lng
         com.example.data.GymSync.gymName = userPreferences.gymName
         com.example.data.GymSync.gymUpiId = userPreferences.gymUpiId
+        // Was omitted — the re-pushed member index carried a stale gym address
+        com.example.data.GymSync.gymAddress = userPreferences.gymAddress
 
         // Mirror to user_records so the admin panel sees gym businesses
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return

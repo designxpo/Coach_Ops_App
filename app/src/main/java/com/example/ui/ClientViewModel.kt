@@ -293,7 +293,9 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
                     coachId           = trainer.uid,
                     coachName         = trainer.name,
                     clientId          = uid,
-                    clientName        = userPreferences.coachName,
+                    // Members store their name in clientName, not coachName — using
+                    // coachName sent a blank name on the request AND the public review
+                    clientName        = clientName,
                     feeAmount         = trainer.feePerSession,
                     notes             = notes,
                     sessionDateMillis = sessionDateMillis

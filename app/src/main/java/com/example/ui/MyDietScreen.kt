@@ -420,4 +420,4 @@ private fun DietLogSheet(
 }
 
 private fun todayDate(): String =
-    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())

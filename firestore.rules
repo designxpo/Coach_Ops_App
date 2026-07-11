@@ -137,6 +137,11 @@ service cloud.firestore {
           || (get(/databases/$(database)/documents/bookings/$(bid)).data.status == 'CONFIRMED'
               && get(/databases/$(database)/documents/bookings/$(bid)).data.sessionDateMillis > 0
               && get(/databases/$(database)/documents/bookings/$(bid)).data.sessionDateMillis < request.time.toMillis())
+          // No-date booking: ratable once confirmed for at least a day
+          || (get(/databases/$(database)/documents/bookings/$(bid)).data.status == 'CONFIRMED'
+              && get(/databases/$(database)/documents/bookings/$(bid)).data.get('sessionDateMillis', 0) == 0
+              && get(/databases/$(database)/documents/bookings/$(bid)).data.get('createdAtMillis', 0) > 0
+              && get(/databases/$(database)/documents/bookings/$(bid)).data.get('createdAtMillis', 0) < request.time.toMillis() - 86400000)
         );
     }
 

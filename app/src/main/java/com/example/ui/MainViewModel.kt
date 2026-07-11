@@ -113,6 +113,14 @@ class MainViewModel(
                     if (plan != null && plan != _currentPlan.value) {
                         userPreferences.subscriptionPlan = plan.name
                         _currentPlan.value = plan
+                        // Keep the marketplace league in sync with the plan the
+                        // moment it changes — otherwise a coach who upgrades stays
+                        // ranked/badged as free until they manually re-publish.
+                        if (userPreferences.trainerIsPublic) {
+                            viewModelScope.launch {
+                                FirestoreSync.updateTrainerPlanTier(plan.name.lowercase())
+                            }
+                        }
                     }
                 }
             }
@@ -675,13 +683,24 @@ class MainViewModel(
         }
     }
 
+    /** Emits a one-shot message when a booking action can't proceed (e.g. slot clash). */
+    private val _bookingActionError = MutableStateFlow("")
+    val bookingActionError: StateFlow<String> = _bookingActionError.asStateFlow()
+    fun clearBookingActionError() { _bookingActionError.value = "" }
+
     fun respondToBooking(bookingId: String, accept: Boolean, response: String = "") {
         viewModelScope.launch {
-            FirestoreSync.updateBookingStatus(bookingId, if (accept) "CONFIRMED" else "DECLINED", response)
-            if (accept) {
-                val booking = _coachBookings.value.find { it.id == bookingId }
-                if (booking != null) autoRegisterClientFromBooking(booking)
+            val booking = _coachBookings.value.find { it.id == bookingId }
+            // Don't let a coach confirm two requests for the same slot
+            if (accept && booking != null && booking.sessionDateMillis > 0L &&
+                FirestoreSync.isSlotTaken(booking.coachId, booking.sessionDateMillis)
+            ) {
+                _bookingActionError.value =
+                    "You already have a confirmed session at that time. Decline this or pick another slot with the member."
+                return@launch
             }
+            FirestoreSync.updateBookingStatus(bookingId, if (accept) "CONFIRMED" else "DECLINED", response)
+            if (accept && booking != null) autoRegisterClientFromBooking(booking)
             loadCoachBookings()
         }
     }

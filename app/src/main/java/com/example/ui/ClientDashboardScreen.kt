@@ -446,12 +446,15 @@ private fun BookingCard(
                 Text(cancelError, fontSize = 11.sp, color = CyberDanger)
             }
 
-            // Star rating: completed sessions, or confirmed sessions whose date
-            // has passed (coaches often forget to mark them completed — the
-            // member must still be able to rate)
+            // Star rating: completed sessions, confirmed sessions whose date has
+            // passed (coaches often forget to mark them completed), or a no-date
+            // confirmed booking at least a day old — matches the server rule.
+            val nowMs = System.currentTimeMillis()
             val canRate = booking.status == "COMPLETED" ||
                 (booking.status == "CONFIRMED" && booking.sessionDateMillis > 0 &&
-                 booking.sessionDateMillis < System.currentTimeMillis())
+                 booking.sessionDateMillis < nowMs) ||
+                (booking.status == "CONFIRMED" && booking.sessionDateMillis == 0L &&
+                 booking.createdAtMillis in 1..(nowMs - 86_400_000L))
             if (canRate) {
                 if (ratingSubmitted || booking.clientRating > 0f) {
                     val displayRating = if (booking.clientRating > 0f) booking.clientRating else pendingRating

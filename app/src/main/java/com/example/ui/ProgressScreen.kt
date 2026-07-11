@@ -71,7 +71,7 @@ fun ProgressScreen(viewModel: FitnessViewModel, onBack: (() -> Unit)? = null) {
 
     // Selected day state — tapping a calendar cell shows workouts for that date
     var selectedDateKey by remember { mutableStateOf("") }
-    val dateFmt    = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val dateFmt    = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     val displayFmt = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
 
     val selectedLogs = remember(selectedDateKey, logs) {
@@ -406,7 +406,7 @@ private fun WorkoutCalendarGrid(
     onDayClick: (String) -> Unit
 ) {
     val today   = Calendar.getInstance()
-    val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val todayKey = dateFmt.format(today.time)
 
     // Build 35 days: 4 completed weeks + current partial week

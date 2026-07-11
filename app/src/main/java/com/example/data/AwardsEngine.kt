@@ -163,7 +163,7 @@ object AwardsEngine {
     private fun workoutLogs(uid: String) =
         db.collection("client_fitness").document(uid).collection("logs")
 
-    private val fmt get() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val fmt get() = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
     // ── Evaluation ───────────────────────────────────────────────────────────
 

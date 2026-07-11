@@ -62,8 +62,10 @@ class HealthViewModel(
                             caloriesBurned = (steps * 0.04f).toInt()
                         )
                         _todayLog.value = log
-                        // Persist every 50 steps to avoid excessive Firestore writes
-                        if (steps > 0 && steps % 50 == 0) saveLog(log)
+                        // Persist every 50 steps to avoid excessive Firestore writes;
+                        // field-scoped so a concurrent water tap isn't clobbered
+                        if (steps > 0 && steps % 50 == 0)
+                            persist { repo.saveSteps(repo.todayKey(), log.stepsCount, log.caloriesBurned) }
                     }
                 }
             }
@@ -146,31 +148,39 @@ class HealthViewModel(
             caloriesBurned = (steps * 0.04f).toInt()
         )
         _todayLog.value = log
-        saveLog(log)
+        // Field-scoped: must not clobber water the step service may write
+        persist { repo.saveSteps(repo.todayKey(), log.stepsCount, log.caloriesBurned) }
     }
 
     fun addWater() {
         val log = _todayLog.value.copy(waterGlasses = (_todayLog.value.waterGlasses + 1).coerceAtMost(20))
         _todayLog.value = log
-        saveLog(log)
+        persist { repo.saveWater(repo.todayKey(), log.waterGlasses) }
     }
 
     fun removeWater() {
         val log = _todayLog.value.copy(waterGlasses = (_todayLog.value.waterGlasses - 1).coerceAtLeast(0))
         _todayLog.value = log
-        saveLog(log)
+        persist { repo.saveWater(repo.todayKey(), log.waterGlasses) }
     }
 
     fun setSleep(hours: Float) {
         val log = _todayLog.value.copy(sleepHours = hours)
         _todayLog.value = log
-        saveLog(log)
+        saveLog(log)   // merge — sleep+mood coexist with steps/water
     }
 
     fun setMood(rating: Int) {
         val log = _todayLog.value.copy(moodRating = rating)
         _todayLog.value = log
         saveLog(log)
+    }
+
+    private fun persist(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            block()
+            _weekLogs.value = repo.getLast7Days()
+        }
     }
 
     private fun saveLog(log: DailyHealthLog) {

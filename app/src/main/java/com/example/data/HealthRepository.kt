@@ -55,7 +55,7 @@ class HealthRepository(private val uid: String) {
     private fun cycle()   = db.collection("users").document(uid).collection("health_cycle")
 
     fun todayKey(): String =
-        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     // ── Daily log ─────────────────────────────────────────────────────────────
 
@@ -74,7 +74,12 @@ class HealthRepository(private val uid: String) {
     }
 
     suspend fun saveLog(log: DailyHealthLog) {
-        // Guarded: a denied/failed cloud write must never crash the app
+        // Guarded: a denied/failed cloud write must never crash the app.
+        // MERGE (not full set): the daily doc has multiple concurrent writers —
+        // the background step service and the in-app screens — so a full replace
+        // let one clobber the other's fields (a banner water tap was wiped by the
+        // next step save). Field-scoped helpers below keep writers from touching
+        // fields they don't own; saveLog merges the fields a full-form save sets.
         if (uid.isEmpty() || log.date.isEmpty()) return
         try {
             daily().document(log.date).set(mapOf(
@@ -83,7 +88,29 @@ class HealthRepository(private val uid: String) {
                 "sleepHours"     to log.sleepHours,
                 "moodRating"     to log.moodRating,
                 "caloriesBurned" to log.caloriesBurned
-            )).await()
+            ), com.google.firebase.firestore.SetOptions.merge()).await()
+        } catch (_: Exception) { }
+    }
+
+    /** Step service / step collector — writes ONLY steps + calories. */
+    suspend fun saveSteps(date: String, steps: Int, caloriesBurned: Int) {
+        if (uid.isEmpty() || date.isEmpty()) return
+        try {
+            daily().document(date).set(
+                mapOf("stepsCount" to steps, "caloriesBurned" to caloriesBurned),
+                com.google.firebase.firestore.SetOptions.merge()
+            ).await()
+        } catch (_: Exception) { }
+    }
+
+    /** Water tap (app or notification banner) — writes ONLY the water count. */
+    suspend fun saveWater(date: String, glasses: Int) {
+        if (uid.isEmpty() || date.isEmpty()) return
+        try {
+            daily().document(date).set(
+                mapOf("waterGlasses" to glasses),
+                com.google.firebase.firestore.SetOptions.merge()
+            ).await()
         } catch (_: Exception) { }
     }
 
@@ -91,7 +118,7 @@ class HealthRepository(private val uid: String) {
 
     /** Today back through the last [n] days (newest first). Used by Progress analytics. */
     suspend fun getLastNDays(n: Int): List<DailyHealthLog> {
-        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         return (0 until n).map { daysAgo ->
             val cal = java.util.Calendar.getInstance()
             cal.add(java.util.Calendar.DAY_OF_YEAR, -daysAgo)

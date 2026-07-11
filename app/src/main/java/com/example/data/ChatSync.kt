@@ -53,9 +53,14 @@ object ChatSync {
         // Always use authenticated UID as senderId — caller-supplied value is ignored to prevent spoofing
         val authenticatedSenderId = uid ?: throw Exception("Not authenticated")
         val now   = System.currentTimeMillis()
-        val msgId = now.toString()
-        db.collection("chats").document(chatId)
-            .collection("messages").document(msgId)
+        // Collision-safe id: two messages in the same millisecond (bursty sends,
+        // or coach + member at once) previously shared "$now" and one silently
+        // overwrote the other. Auto-id guarantees uniqueness; timestamp field
+        // still drives ordering.
+        val msgRef = db.collection("chats").document(chatId)
+            .collection("messages").document()
+        val msgId = msgRef.id
+        msgRef
             .set(mapOf(
                 "id"         to msgId,
                 "senderId"   to authenticatedSenderId,

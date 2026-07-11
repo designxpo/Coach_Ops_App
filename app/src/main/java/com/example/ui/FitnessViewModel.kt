@@ -250,7 +250,7 @@ class FitnessViewModel(private val userPreferences: UserPreferences) : ViewModel
 
     // Calendar heatmap: returns Map<dateString "yyyy-MM-dd" → count>
     fun workoutDayMap(): Map<String, Int> {
-        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
         return _logs.value
             .groupBy { fmt.format(java.util.Date(it.dateMillis)) }
             .mapValues { it.value.size }

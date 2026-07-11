@@ -57,6 +57,7 @@ import java.util.Locale
 @Composable
 fun CoachBookingsScreen(viewModel: MainViewModel) {
     val bookings by viewModel.coachBookings.collectAsState()
+    val actionError by viewModel.bookingActionError.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.loadCoachBookings() }
 
@@ -90,6 +91,24 @@ fun CoachBookingsScreen(viewModel: MainViewModel) {
                     ) {
                         Text("${pending.size} new", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CyberWarning)
                     }
+                }
+            }
+            if (actionError.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CyberDanger.copy(0.10f))
+                        .border(1.dp, CyberDanger.copy(0.3f), RoundedCornerShape(12.dp))
+                        .clickable { viewModel.clearBookingActionError() }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("⚠", fontSize = 14.sp)
+                    Text(actionError, fontSize = 12.sp, color = CyberDanger, modifier = Modifier.weight(1f), lineHeight = 16.sp)
+                    Text("✕", fontSize = 12.sp, color = CyberTextMuted)
                 }
             }
         }

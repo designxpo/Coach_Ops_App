@@ -374,6 +374,18 @@ object FirestoreSync {
         if (com.example.BuildConfig.DEBUG) android.util.Log.d("CoachOps", "publishTrainerProfile DONE — wrote to trainers/$uid")
     }
 
+    /** Re-stamp the marketplace league when the coach's plan changes, so an
+     *  upgrade takes effect in Discover ranking without re-publishing. */
+    suspend fun updateTrainerPlanTier(tier: String) {
+        val uid = uid ?: return
+        try {
+            if (db.collection("trainers").document(uid).get().await().exists()) {
+                db.collection("trainers").document(uid)
+                    .set(mapOf("planTier" to tier), com.google.firebase.firestore.SetOptions.merge()).await()
+            }
+        } catch (_: Exception) { }
+    }
+
     suspend fun getPublicTrainers(
         clientLat: Double = 0.0,
         clientLng: Double = 0.0,
@@ -455,6 +467,18 @@ object FirestoreSync {
 
     // ─── Marketplace: Bookings ────────────────────────────────────────────────
 
+    /** True if this coach already has a CONFIRMED session at this exact slot. */
+    suspend fun isSlotTaken(coachId: String, sessionDateMillis: Long): Boolean {
+        if (sessionDateMillis <= 0L) return false
+        return try {
+            db.collection("bookings")
+                .whereEqualTo("coachId", coachId)
+                .whereEqualTo("sessionDateMillis", sessionDateMillis)
+                .whereEqualTo("status", "CONFIRMED")
+                .limit(1).get().await().documents.isNotEmpty()
+        } catch (_: Exception) { false }   // fail-open on read error; confirm-time guard still applies
+    }
+
     suspend fun createBooking(
         coachId: String, coachName: String,
         clientId: String, clientName: String,
@@ -462,6 +486,21 @@ object FirestoreSync {
     ): String {
         // Always use the authenticated UID as clientId — clientId param is ignored to prevent IDOR
         val authenticatedClientId = uid ?: throw Exception("Not authenticated")
+        // Don't let a member request a slot already confirmed for someone else
+        if (sessionDateMillis > 0L && isSlotTaken(coachId, sessionDateMillis))
+            throw Exception("That time slot is already booked — please pick another.")
+        // Idempotency: a double-tap or post-timeout retry must not mint a second
+        // request. If this member already has a live (pending/confirmed) booking
+        // with this coach for this slot, return it instead of creating a dupe.
+        try {
+            val existing = db.collection("bookings")
+                .whereEqualTo("coachId", coachId)
+                .whereEqualTo("clientId", authenticatedClientId)
+                .whereEqualTo("sessionDateMillis", sessionDateMillis)
+                .get().await().documents
+                .firstOrNull { (it.getString("status") ?: "") in listOf("PENDING", "CONFIRMED") }
+            if (existing != null) return existing.id
+        } catch (_: Exception) { /* fall through and create */ }
         val bookingId = java.util.UUID.randomUUID().toString()
         db.collection("bookings").document(bookingId).set(mapOf(
             "id"                  to bookingId,
@@ -482,46 +521,46 @@ object FirestoreSync {
 
     suspend fun rateBooking(bookingId: String, rating: Float, review: String = "") {
         val currentUid = uid ?: throw Exception("Not authenticated")
-        // Fetch booking to verify ownership and prevent duplicate ratings
-        val bookingDoc = db.collection("bookings").document(bookingId).get().await()
-        val data = bookingDoc.data ?: throw Exception("Booking not found")
-        require(data["clientId"] == currentUid) { "Not your booking" }
-        // Only a session that actually happened can be rated (matches the
-        // server rule). Blocks rating a PENDING/DECLINED booking — which was
-        // how fake reviews could be forged.
-        val status = data["status"] as? String ?: "PENDING"
-        val sessionDate = data["sessionDateMillis"] as? Long ?: 0L
-        val ratable = status == "COMPLETED" ||
-            (status == "CONFIRMED" && sessionDate in 1 until System.currentTimeMillis())
-        require(ratable) { "You can rate this coach after the session is completed" }
-        val existingRating = (data["clientRating"] as? Double)?.toFloat()
-            ?: (data["clientRating"] as? Long)?.toFloat() ?: 0f
-        require(existingRating == 0f) { "Already rated" }
-        val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
         val clamped = rating.coerceIn(1f, 5f)
-        db.collection("bookings").document(bookingId)
-            .update(mapOf("clientRating" to clamped, "clientReview" to review)).await()
+        val now = System.currentTimeMillis()
+        val bRef = db.collection("bookings").document(bookingId)
+        // ONE transaction: verify → write booking rating → write review → bump
+        // aggregate, all-or-nothing. Previously these were three sequential
+        // awaits; a crash between them left the aggregate wrong forever and the
+        // 'already rated' guard blocked any repair.
+        db.runTransaction { txn ->
+            val data = txn.get(bRef).data ?: throw Exception("Booking not found")
+            require(data["clientId"] == currentUid) { "Not your booking" }
+            val status = data["status"] as? String ?: "PENDING"
+            val sessionDate = data["sessionDateMillis"] as? Long ?: 0L
+            val createdAt = data["createdAtMillis"] as? Long ?: 0L
+            // A completed session, a confirmed one whose date has passed, or —
+            // for a no-date booking — one confirmed at least a day ago.
+            val ratable = status == "COMPLETED" ||
+                (status == "CONFIRMED" && (
+                    (sessionDate in 1 until now) ||
+                    (sessionDate == 0L && createdAt in 1..(now - 86_400_000L))
+                ))
+            require(ratable) { "You can rate this coach after the session is completed" }
+            val existingRating = (data["clientRating"] as? Double)?.toFloat()
+                ?: (data["clientRating"] as? Long)?.toFloat() ?: 0f
+            require(existingRating == 0f) { "Already rated" }
+            val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
+            val tRef = db.collection("trainers").document(coachId)
+            val tSnap = txn.get(tRef)   // all reads before any write
+            val sum   = (tSnap.get("ratingSum") as? Number)?.toFloat() ?: 0f
+            val count = (tSnap.get("ratingCount") as? Number)?.toInt() ?: 0
+            val newSum = sum + clamped
+            val newCount = count + 1
 
-        // Public review entry — drives "What Clients Say" on the trainer profile
-        db.collection("trainers").document(coachId)
-            .collection("reviews").document(bookingId)
-            .set(mapOf(
+            txn.update(bRef, mapOf("clientRating" to clamped, "clientReview" to review))
+            txn.set(tRef.collection("reviews").document(bookingId), mapOf(
                 "clientId"        to currentUid,
                 "clientName"      to (data["clientName"] as? String ?: "Member"),
                 "rating"          to clamped,
                 "review"          to review,
-                "createdAtMillis" to System.currentTimeMillis()
-            )).await()
-
-        // Aggregate in a transaction so two members rating the same coach at
-        // once can't lose an update (plain read-modify-write dropped one).
-        val tRef = db.collection("trainers").document(coachId)
-        db.runTransaction { txn ->
-            val snap = txn.get(tRef)
-            val sum   = (snap.get("ratingSum") as? Number)?.toFloat() ?: 0f
-            val count = (snap.get("ratingCount") as? Number)?.toInt() ?: 0
-            val newSum = sum + clamped
-            val newCount = count + 1
+                "createdAtMillis" to now
+            ))
             txn.set(tRef, mapOf(
                 "ratingSum"   to newSum,
                 "ratingCount" to newCount,
@@ -557,21 +596,22 @@ object FirestoreSync {
      *  other coaches see on future booking requests). */
     suspend fun rateMember(bookingId: String, rating: Float) {
         val currentUid = uid ?: throw Exception("Not authenticated")
-        val doc = db.collection("bookings").document(bookingId).get().await()
-        val data = doc.data ?: throw Exception("Booking not found")
-        require(data["coachId"] == currentUid) { "Not your booking" }
-        require((data["status"] as? String) == "COMPLETED") { "Complete the session before rating the member" }
-        val existing = (data["coachRating"] as? Number)?.toFloat() ?: 0f
-        require(existing == 0f) { "Already rated" }
-        val memberId = data["clientId"] as? String ?: throw Exception("No client on booking")
         val clamped = rating.coerceIn(1f, 5f)
-        val memberName = data["clientName"] as? String ?: "Member"
-        db.collection("bookings").document(bookingId).update("coachRating", clamped).await()
-        val mRef = db.collection("member_ratings").document(memberId)
+        val bRef = db.collection("bookings").document(bookingId)
+        // Single transaction — same all-or-nothing guarantee as rateBooking
         db.runTransaction { txn ->
+            val d = txn.get(bRef).data ?: throw Exception("Booking not found")
+            require(d["coachId"] == currentUid) { "Not your booking" }
+            require((d["status"] as? String) == "COMPLETED") { "Complete the session before rating the member" }
+            val existing = (d["coachRating"] as? Number)?.toFloat() ?: 0f
+            require(existing == 0f) { "Already rated" }
+            val memberId = d["clientId"] as? String ?: throw Exception("No client on booking")
+            val memberName = d["clientName"] as? String ?: "Member"
+            val mRef = db.collection("member_ratings").document(memberId)
             val snap = txn.get(mRef)
             val sum   = (snap.get("ratingSum") as? Number)?.toFloat() ?: 0f
             val count = (snap.get("ratingCount") as? Number)?.toInt() ?: 0
+            txn.update(bRef, "coachRating", clamped)
             txn.set(mRef, mapOf(
                 "ratingSum"   to sum + clamped,
                 "ratingCount" to count + 1,
@@ -676,6 +716,12 @@ object FirestoreSync {
         val notesTask    = col("notes")?.get()
         val snapsTask    = col("revenue_snapshots")?.get()
 
+        // Await + map ALL collections BEFORE inserting anything. Previously
+        // clients were inserted first, then the next await could throw on a
+        // network drop — leaving Room with clients but no programs/payments/logs,
+        // and since the re-sync gate is "client count == 0", the rest was never
+        // pulled again. Now a mid-pull failure inserts nothing and the empty
+        // gate re-fires on the next launch.
         // Clients
         val clients = clientsTask?.await()?.documents?.mapNotNull { doc ->
             val d = doc.data ?: return@mapNotNull null
@@ -696,7 +742,6 @@ object FirestoreSync {
                 pausedAtMillis       = d["pausedAtMillis"] as? Long ?: 0L
             )
         } ?: emptyList()
-        if (clients.isNotEmpty()) coachDao.insertClients(clients)
 
         // Programs
         val programs = programsTask?.await()?.documents?.mapNotNull { doc ->
@@ -713,7 +758,6 @@ object FirestoreSync {
                 workingDays      = d["workingDays"] as? String ?: ""
             )
         } ?: emptyList()
-        if (programs.isNotEmpty()) coachDao.insertPrograms(programs)
 
         // Payments
         val payments = paymentsTask?.await()?.documents?.mapNotNull { doc ->
@@ -727,12 +771,11 @@ object FirestoreSync {
                 mandateStatus  = d["mandateStatus"] as? String ?: "ACTIVE"
             )
         } ?: emptyList()
-        if (payments.isNotEmpty()) coachDao.insertPayments(payments)
 
         // Workout logs
-        logsTask?.await()?.documents?.forEach { doc ->
-            val d = doc.data ?: return@forEach
-            coachDao.insertWorkoutLog(WorkoutLog(
+        val workoutLogs = logsTask?.await()?.documents?.mapNotNull { doc ->
+            val d = doc.data ?: return@mapNotNull null
+            WorkoutLog(
                 id                = d["id"] as? String ?: doc.id,
                 clientId          = d["clientId"] as? String ?: "",
                 programId         = (d["programId"] as? String)?.takeIf { it.isNotEmpty() },
@@ -743,41 +786,50 @@ object FirestoreSync {
                 notes             = d["notes"] as? String ?: "",
                 isMissed          = d["isMissed"] as? Boolean ?: false,
                 missedReason      = d["missedReason"] as? String ?: ""
-            ))
-        }
+            )
+        } ?: emptyList()
 
         // Measurements
-        measTask?.await()?.documents?.forEach { doc ->
-            val d = doc.data ?: return@forEach
-            coachDao.insertMeasurement(BodyMeasurement(
+        val measurements = measTask?.await()?.documents?.mapNotNull { doc ->
+            val d = doc.data ?: return@mapNotNull null
+            BodyMeasurement(
                 id         = d["id"] as? String ?: doc.id,
                 clientId   = d["clientId"] as? String ?: "",
                 dateMillis = d["dateMillis"] as? Long ?: System.currentTimeMillis(),
                 weightKg   = (d["weightKg"] as? Double)?.toFloat() ?: 0f,
                 bodyFatPct = (d["bodyFatPct"] as? Double)?.toFloat() ?: 0f,
                 notes      = d["notes"] as? String ?: ""
-            ))
-        }
+            )
+        } ?: emptyList()
 
         // Notes
-        notesTask?.await()?.documents?.forEach { doc ->
-            val d = doc.data ?: return@forEach
-            coachDao.insertNote(ClientNote(
+        val notes = notesTask?.await()?.documents?.mapNotNull { doc ->
+            val d = doc.data ?: return@mapNotNull null
+            ClientNote(
                 id         = d["id"] as? String ?: doc.id,
                 clientId   = d["clientId"] as? String ?: "",
                 dateMillis = d["dateMillis"] as? Long ?: System.currentTimeMillis(),
                 content    = d["content"] as? String ?: ""
-            ))
-        }
+            )
+        } ?: emptyList()
 
         // Revenue snapshots
-        snapsTask?.await()?.documents?.forEach { doc ->
-            val d = doc.data ?: return@forEach
-            coachDao.insertSnapshot(RevenueSnapshot(
+        val snapshots = snapsTask?.await()?.documents?.mapNotNull { doc ->
+            val d = doc.data ?: return@mapNotNull null
+            RevenueSnapshot(
                 monthYear = d["monthYear"] as? String ?: doc.id,
                 totalMrr  = (d["totalMrr"] as? Long)?.toInt() ?: 0
-            ))
-        }
+            )
+        } ?: emptyList()
+
+        // All fetches succeeded — NOW insert everything
+        if (clients.isNotEmpty())      coachDao.insertClients(clients)
+        if (programs.isNotEmpty())     coachDao.insertPrograms(programs)
+        if (payments.isNotEmpty())     coachDao.insertPayments(payments)
+        workoutLogs.forEach { coachDao.insertWorkoutLog(it) }
+        measurements.forEach { coachDao.insertMeasurement(it) }
+        notes.forEach { coachDao.insertNote(it) }
+        snapshots.forEach { coachDao.insertSnapshot(it) }
     }
 
     // ─── Exercise library (real-time from admin panel) ────────────────────────

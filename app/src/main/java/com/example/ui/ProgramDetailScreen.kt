@@ -88,7 +88,7 @@ fun ProgramDetailScreen(
     onClientClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val fmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val fmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     val allPrograms by viewModel.programs.collectAsStateWithLifecycle()
     val allClients by viewModel.clients.collectAsStateWithLifecycle()
     val enrolledClients by viewModel.getClientsForProgramFlow(programId).collectAsStateWithLifecycle(emptyList())

@@ -145,7 +145,7 @@ fun FitnessHubScreen(
     val calGoal = 2000
 
     // Streak
-    val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     val streak = remember(logs) {
         val dayMap = logs.groupBy { dateFmt.format(Date(it.dateMillis)) }.mapValues { it.value.size }
         val today = java.util.Calendar.getInstance()

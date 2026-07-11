@@ -106,12 +106,11 @@ class StepTrackingService : Service() {
                 val repo = HealthRepository(prefs.userId)
                 val today = repo.todayKey()
                 val log = repo.getLog(today)
-                val updated = log.copy(
-                    date = today,
-                    waterGlasses = (log.waterGlasses + 1).coerceAtMost(20)
-                )
-                repo.saveLog(updated)
-                waterToday = updated.waterGlasses
+                val newWater = (log.waterGlasses + 1).coerceAtMost(20)
+                // Field-scoped write — must not clobber the step count the app
+                // may be saving concurrently
+                repo.saveWater(today, newWater)
+                waterToday = newWater
                 notifyUpdate(StepCounterManager.getInstance(this@StepTrackingService).dailySteps.value)
             } catch (_: Exception) { }
         }

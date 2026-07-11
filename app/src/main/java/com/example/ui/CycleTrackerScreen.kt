@@ -31,7 +31,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val FMT = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+private val FMT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 private val DISPLAY_FMT = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
 private fun msToKey(ms: Long)     = FMT.format(Date(ms))

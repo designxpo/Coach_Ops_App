@@ -734,7 +734,17 @@ fun PortfolioBuilderScreen(
                                     val coords = withContext(Dispatchers.IO) {
                                         com.example.data.GeoUtils.geocodeCity(context, city.trim())
                                     }
-                                    (coords?.first ?: 0.0) to (coords?.second ?: 0.0)
+                                    // Geocode can fail on bad network / missing Geocoder.
+                                    // Never write 0,0 — that drops the coach out of every
+                                    // distance-radius search. Keep prior coords if we had
+                                    // them; otherwise block publish and tell the coach.
+                                    if (coords != null) coords.first to coords.second
+                                    else if (savedLat != 0.0 || savedLng != 0.0) savedLat to savedLng
+                                    else {
+                                        saving = false
+                                        uploadError = "Couldn't locate \"${city.trim()}\" — check your connection or tap the GPS button, then Publish again."
+                                        return@launch
+                                    }
                                 }
                             }
                             viewModel.publishPortfolio(buildDraft().copy(lat = lat, lng = lng), isPublic)
