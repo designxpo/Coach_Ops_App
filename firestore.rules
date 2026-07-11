@@ -106,32 +106,78 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // A booking doc (id) exists, belongs to this client, is for this coach,
+    // and has actually happened (completed, or confirmed with a past date).
+    // This is what makes a rating/review legitimate — not just "I'm signed in".
+    function ratableBooking(bid, coachId, clientUid) {
+      return exists(/databases/$(database)/documents/bookings/$(bid))
+        && get(/databases/$(database)/documents/bookings/$(bid)).data.clientId == clientUid
+        && get(/databases/$(database)/documents/bookings/$(bid)).data.coachId == coachId
+        && (
+          get(/databases/$(database)/documents/bookings/$(bid)).data.status == 'COMPLETED'
+          || (get(/databases/$(database)/documents/bookings/$(bid)).data.status == 'CONFIRMED'
+              && get(/databases/$(database)/documents/bookings/$(bid)).data.sessionDateMillis > 0
+              && get(/databases/$(database)/documents/bookings/$(bid)).data.sessionDateMillis < request.time.toMillis())
+        );
+    }
+
+    // A rating aggregate change that could only come from ONE new valid rating:
+    // count goes up by exactly 1, sum rises by a single 1–5★, nothing decreases,
+    // and the displayed average stays in range. Prevents one-shot sabotage
+    // (setting a rival to 1.0) or inflation (count = 9999).
+    function validRatingBump() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['rating', 'ratingSum', 'ratingCount'])
+        && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
+        && request.resource.data.ratingSum >= resource.data.get('ratingSum', 0) + 1
+        && request.resource.data.ratingSum <= resource.data.get('ratingSum', 0) + 5
+        && request.resource.data.rating >= 0 && request.resource.data.rating <= 5;
+    }
+
     // Trainer public profiles — any authenticated user reads; owner writes,
-    // admin too (certificate approve/reject sets certStatus). Members may
-    // update ONLY the rating aggregate fields (written when they rate a
-    // completed booking).
+    // admin too (certificate approve/reject sets certStatus). A member may
+    // bump ONLY the rating aggregate, and only by one valid star (validRatingBump).
     match /trainers/{trainerId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && (request.auth.uid == trainerId || isAdmin());
       allow update: if request.auth != null
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['rating', 'ratingSum', 'ratingCount']);
+        && request.auth.uid != trainerId          // a coach can't rate themselves
+        && validRatingBump();
 
-      // Member reviews of this coach — public read, author-only create
+      // Member reviews — public read; a member may post ONE review per booking
+      // and only for a booking they actually completed with this coach. The
+      // review doc id IS the booking id, so we can verify the booking directly.
       match /reviews/{reviewId} {
         allow read: if request.auth != null;
-        allow create, update: if request.auth != null
-          && request.resource.data.clientId == request.auth.uid;
-        allow delete: if isAdmin();
+        allow create: if request.auth != null
+          && request.resource.data.clientId == request.auth.uid
+          && request.auth.uid != trainerId
+          && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+          && ratableBooking(reviewId, trainerId, request.auth.uid);
+        allow update, delete: if isAdmin();   // reviews are immutable once posted
       }
     }
 
-    // Coach → member reliability ratings (aggregate). Any coach can update
-    // after completing a session; read by coaches evaluating a new request.
+    // Coach → member reliability ratings (aggregate). A coach bumps it after a
+    // real completed session; bounded to one valid star so it can't be forged
+    // wholesale. (memberId != writer prevents a member self-rating.)
     match /member_ratings/{memberId} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.uid != memberId
+        && request.resource.data.ratingCount == 1
+        && request.resource.data.ratingSum >= 1 && request.resource.data.ratingSum <= 5;
+      // Same bounded bump as validRatingBump, but the member_ratings doc also
+      // carries a 'name' label, so allow that key too.
+      allow update: if request.auth != null
+        && request.auth.uid != memberId
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['rating', 'ratingSum', 'ratingCount', 'name'])
+        && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
+        && request.resource.data.ratingSum >= resource.data.get('ratingSum', 0) + 1
+        && request.resource.data.ratingSum <= resource.data.get('ratingSum', 0) + 5
+        && request.resource.data.rating >= 0 && request.resource.data.rating <= 5;
       allow delete: if isAdmin();
     }
 
@@ -144,12 +190,36 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Bookings — any auth user creates; only the coach or client involved can read/update
+    // Bookings. Create only as yourself and only PENDING (you can't self-confirm
+    // a booking into a ratable state). Reads limited to the two parties.
+    // Updates are field-scoped by role: the COACH drives status/response/
+    // coachRating; the CLIENT may only cancel or write their own rating fields —
+    // crucially a client CANNOT move their own booking to CONFIRMED/COMPLETED,
+    // which previously let them forge a ratable session and fake reviews.
     match /bookings/{bookingId} {
-      allow create: if request.auth != null;
-      allow read, update: if request.auth != null
+      allow create: if request.auth != null
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.status == 'PENDING';
+      allow read: if request.auth != null
         && (resource.data.coachId == request.auth.uid
             || resource.data.clientId == request.auth.uid);
+      allow update: if request.auth != null && (
+        // Coach: status transitions, response, rating the member back
+        (resource.data.coachId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'coachResponse', 'coachRating', 'cancelledAt']))
+        ||
+        // Client: submit their own rating/review
+        (resource.data.clientId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['clientRating', 'clientReview']))
+        ||
+        // Client: cancel their own booking (never to a ratable status)
+        (resource.data.clientId == request.auth.uid
+          && request.resource.data.status == 'CANCELLED'
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'coachResponse', 'cancelledAt']))
+      );
     }
 
     // Personal health tracking (steps, water, sleep, mood, measurements,

@@ -486,12 +486,21 @@ object FirestoreSync {
         val bookingDoc = db.collection("bookings").document(bookingId).get().await()
         val data = bookingDoc.data ?: throw Exception("Booking not found")
         require(data["clientId"] == currentUid) { "Not your booking" }
+        // Only a session that actually happened can be rated (matches the
+        // server rule). Blocks rating a PENDING/DECLINED booking — which was
+        // how fake reviews could be forged.
+        val status = data["status"] as? String ?: "PENDING"
+        val sessionDate = data["sessionDateMillis"] as? Long ?: 0L
+        val ratable = status == "COMPLETED" ||
+            (status == "CONFIRMED" && sessionDate in 1 until System.currentTimeMillis())
+        require(ratable) { "You can rate this coach after the session is completed" }
         val existingRating = (data["clientRating"] as? Double)?.toFloat()
             ?: (data["clientRating"] as? Long)?.toFloat() ?: 0f
         require(existingRating == 0f) { "Already rated" }
         val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
+        val clamped = rating.coerceIn(1f, 5f)
         db.collection("bookings").document(bookingId)
-            .update(mapOf("clientRating" to rating, "clientReview" to review)).await()
+            .update(mapOf("clientRating" to clamped, "clientReview" to review)).await()
 
         // Public review entry — drives "What Clients Say" on the trainer profile
         db.collection("trainers").document(coachId)
@@ -499,25 +508,26 @@ object FirestoreSync {
             .set(mapOf(
                 "clientId"        to currentUid,
                 "clientName"      to (data["clientName"] as? String ?: "Member"),
-                "rating"          to rating,
+                "rating"          to clamped,
                 "review"          to review,
                 "createdAtMillis" to System.currentTimeMillis()
             )).await()
 
-        // Incremental aggregate. The old approach recomputed from ALL of the
-        // coach's bookings — which members can't read, so every rating submit
-        // was permission-denied at the server.
-        val tDoc = db.collection("trainers").document(coachId).get().await()
-        val sum   = (tDoc.get("ratingSum") as? Number)?.toFloat() ?: 0f
-        val count = (tDoc.get("ratingCount") as? Number)?.toInt() ?: 0
-        val newSum = sum + rating
-        val newCount = count + 1
-        db.collection("trainers").document(coachId)
-            .set(mapOf(
+        // Aggregate in a transaction so two members rating the same coach at
+        // once can't lose an update (plain read-modify-write dropped one).
+        val tRef = db.collection("trainers").document(coachId)
+        db.runTransaction { txn ->
+            val snap = txn.get(tRef)
+            val sum   = (snap.get("ratingSum") as? Number)?.toFloat() ?: 0f
+            val count = (snap.get("ratingCount") as? Number)?.toInt() ?: 0
+            val newSum = sum + clamped
+            val newCount = count + 1
+            txn.set(tRef, mapOf(
                 "ratingSum"   to newSum,
                 "ratingCount" to newCount,
                 "rating"      to newSum / newCount
-            ), com.google.firebase.firestore.SetOptions.merge()).await()
+            ), com.google.firebase.firestore.SetOptions.merge())
+        }.await()
     }
 
     data class CoachReview(
@@ -550,19 +560,25 @@ object FirestoreSync {
         val doc = db.collection("bookings").document(bookingId).get().await()
         val data = doc.data ?: throw Exception("Booking not found")
         require(data["coachId"] == currentUid) { "Not your booking" }
+        require((data["status"] as? String) == "COMPLETED") { "Complete the session before rating the member" }
         val existing = (data["coachRating"] as? Number)?.toFloat() ?: 0f
         require(existing == 0f) { "Already rated" }
         val memberId = data["clientId"] as? String ?: throw Exception("No client on booking")
-        db.collection("bookings").document(bookingId).update("coachRating", rating).await()
-        val mDoc = db.collection("member_ratings").document(memberId).get().await()
-        val sum   = (mDoc.get("ratingSum") as? Number)?.toFloat() ?: 0f
-        val count = (mDoc.get("ratingCount") as? Number)?.toInt() ?: 0
-        db.collection("member_ratings").document(memberId).set(mapOf(
-            "ratingSum"   to sum + rating,
-            "ratingCount" to count + 1,
-            "rating"      to (sum + rating) / (count + 1),
-            "name"        to (data["clientName"] as? String ?: "Member")
-        )).await()
+        val clamped = rating.coerceIn(1f, 5f)
+        val memberName = data["clientName"] as? String ?: "Member"
+        db.collection("bookings").document(bookingId).update("coachRating", clamped).await()
+        val mRef = db.collection("member_ratings").document(memberId)
+        db.runTransaction { txn ->
+            val snap = txn.get(mRef)
+            val sum   = (snap.get("ratingSum") as? Number)?.toFloat() ?: 0f
+            val count = (snap.get("ratingCount") as? Number)?.toInt() ?: 0
+            txn.set(mRef, mapOf(
+                "ratingSum"   to sum + clamped,
+                "ratingCount" to count + 1,
+                "rating"      to (sum + clamped) / (count + 1),
+                "name"        to memberName
+            ), com.google.firebase.firestore.SetOptions.merge())
+        }.await()
     }
 
     /** (avg, count) of coach ratings for a member, or null if never rated. */
