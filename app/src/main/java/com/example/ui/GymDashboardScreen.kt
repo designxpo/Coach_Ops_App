@@ -99,7 +99,45 @@ fun GymDashboardScreen(
 
     var showSetupSheet by remember { mutableStateOf(false) }
     var showGymSwitcher by remember { mutableStateOf(false) }
+    var confirmDeleteActive by remember { mutableStateOf(false) }
     var setupDone by remember { mutableStateOf(viewModel.gymSetupComplete) }
+
+    if (confirmDeleteActive) {
+        // Deleting the ACTIVE gym from Gym Settings — falls back to the default
+        // gym identity for owners whose profile predates multi-gym
+        val target = activeGym ?: com.example.data.Gym(
+            id = com.example.data.DEFAULT_GYM_ID,
+            name = viewModel.userPreferences.gymName.ifBlank { "My Gym" }
+        )
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteActive = false },
+            title = { Text("Delete ${target.name}?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "This permanently deletes this gym with ALL its members, plans, " +
+                    "payment history and attendance — on this device and in the cloud. " +
+                    "This cannot be undone." +
+                    if (gyms.size <= 1)
+                        "\n\nThis is your only gym — deleting it removes your gym account " +
+                        "and the Gym Suite returns to setup."
+                    else ""
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDeleteActive = false
+                    val wasLast = gyms.count { it.id != target.id } == 0
+                    viewModel.deleteGym(target)
+                    if (wasLast) setupDone = false
+                }) { Text("Delete Permanently", color = CyberDanger) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteActive = false }) {
+                    Text("Cancel", color = CyberAccent)
+                }
+            }
+        )
+    }
 
     if (showGymSwitcher) {
         GymSwitcherSheet(
@@ -107,7 +145,15 @@ fun GymDashboardScreen(
             activeGymId = activeGym?.id ?: "",
             onSelect = { viewModel.switchGym(it); showGymSwitcher = false },
             onAdd = { name, city, address, upi -> viewModel.addGym(name, city, address, upi) },
-            onDelete = { viewModel.deleteGym(it) },
+            onDelete = { gym ->
+                val wasLast = gyms.count { it.id != gym.id } == 0
+                viewModel.deleteGym(gym)
+                if (wasLast) {
+                    // Gym account removed — back to first-run setup
+                    showGymSwitcher = false
+                    setupDone = false
+                }
+            },
             onDismiss = { showGymSwitcher = false }
         )
     }
@@ -138,6 +184,10 @@ fun GymDashboardScreen(
                 viewModel.saveGymProfile(name, address, gstin, upiId, city, lat, lng)
                 setupDone = true
                 showSetupSheet = false
+            },
+            onDeleteGym = {
+                showSetupSheet = false
+                confirmDeleteActive = true
             }
         )
     }
@@ -466,7 +516,8 @@ fun GymSetupSheet(
     isEdit: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (name: String, address: String, gstin: String, upiId: String,
-             city: String, lat: Double, lng: Double) -> Unit
+             city: String, lat: Double, lng: Double) -> Unit,
+    onDeleteGym: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -612,6 +663,29 @@ fun GymSetupSheet(
                     Text(if (isEdit) "Save Changes" else "Save & Start",
                         fontWeight = FontWeight.Bold, fontSize = 15.sp,
                         color = if (name.isNotBlank()) CyberAccentDark else CyberTextMuted)
+                }
+
+                // Delete this gym — visible in edit mode; confirmation + cascade
+                // happen at the dashboard level
+                if (isEdit && onDeleteGym != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CyberDanger.copy(alpha = 0.10f))
+                            .border(1.dp, CyberDanger.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                            .clickable { onDeleteGym() }
+                            .padding(vertical = 14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = null,
+                            tint = CyberDanger, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete This Gym", fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold, color = CyberDanger)
+                    }
                 }
             }
         }
@@ -786,7 +860,11 @@ private fun GymSwitcherSheet(
                 Text(
                     "This permanently deletes this gym with ALL its members, plans, " +
                     "payment history and attendance — on this device and in the cloud. " +
-                    "This cannot be undone."
+                    "This cannot be undone." +
+                    if (gyms.size <= 1)
+                        "\n\nThis is your only gym — deleting it removes your gym account " +
+                        "and the Gym Suite returns to setup."
+                    else ""
                 )
             },
             confirmButton = {
@@ -848,16 +926,14 @@ private fun GymSwitcherSheet(
                             )
                         }
                     }
-                    if (gyms.size > 1) {
-                        Box(
-                            modifier = Modifier.size(32.dp).clip(CircleShape)
-                                .background(CyberDanger.copy(0.10f))
-                                .clickable { deleteTarget = gym },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete gym",
-                                tint = CyberDanger, modifier = Modifier.size(16.dp))
-                        }
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(CircleShape)
+                            .background(CyberDanger.copy(0.10f))
+                            .clickable { deleteTarget = gym },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete gym",
+                            tint = CyberDanger, modifier = Modifier.size(16.dp))
                     }
                 }
             }

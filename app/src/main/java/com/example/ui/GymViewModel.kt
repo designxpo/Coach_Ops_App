@@ -157,18 +157,35 @@ class GymViewModel(
         }
     }
 
-    /** Permanently removes a location and all its members, payments & attendance. */
+    /**
+     * Permanently removes a location and all its members, payments & attendance.
+     * Deleting the ONLY gym is allowed — that's "delete my gym account": all
+     * data is wiped and the Gym Suite returns to first-run setup.
+     */
     fun deleteGym(gym: com.example.data.Gym) {
         viewModelScope.launch {
-            if (gyms.value.size <= 1) {
-                _snackbar.value = "You need at least one gym — add another before deleting this one"
-                return@launch
-            }
+            val wasLast = gyms.value.count { it.id != gym.id } == 0
             repository.deleteGymCascade(gym.id)
-            if (_activeGymId.value == gym.id) {
-                gyms.value.firstOrNull { it.id != gym.id }?.let { switchGym(it) }
+            if (wasLast) {
+                userPreferences.gymName = ""
+                userPreferences.gymAddress = ""
+                userPreferences.gymCity = ""
+                userPreferences.gymGstin = ""
+                userPreferences.gymUpiId = ""
+                userPreferences.gymLat = 0.0
+                userPreferences.gymLng = 0.0
+                userPreferences.activeGymId = com.example.data.DEFAULT_GYM_ID
+                _activeGymId.value = com.example.data.DEFAULT_GYM_ID
+                com.example.data.GymSync.gymName = ""
+                com.example.data.GymSync.gymUpiId = ""
+                com.example.data.GymSync.gymAddress = ""
+                _snackbar.value = "${gym.name} deleted — gym account removed"
+            } else {
+                if (_activeGymId.value == gym.id) {
+                    gyms.value.firstOrNull { it.id != gym.id }?.let { switchGym(it) }
+                }
+                _snackbar.value = "${gym.name} deleted"
             }
-            _snackbar.value = "${gym.name} deleted"
         }
     }
 
