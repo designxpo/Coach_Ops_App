@@ -511,6 +511,15 @@ object FirestoreSync {
         db.collection("bookings").whereEqualTo("coachId", coachId)
             .get().await().documents.mapNotNull { mapDocToBooking(it) }
 
+    /** Marks a confirmed session completed — unlocks the member's star rating.
+     *  Status-only update so the coach's acceptance note is preserved. */
+    suspend fun completeBooking(bookingId: String) {
+        val currentUid = uid ?: return
+        val data = db.collection("bookings").document(bookingId).get().await().data ?: return
+        if (data["coachId"] != currentUid) return
+        db.collection("bookings").document(bookingId).update("status", "COMPLETED").await()
+    }
+
     suspend fun updateBookingStatus(bookingId: String, status: String, coachResponse: String = "") {
         val currentUid = uid ?: return
         val data = db.collection("bookings").document(bookingId).get().await().data ?: return

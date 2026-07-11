@@ -661,6 +661,13 @@ class MainViewModel(
         return result
     }
 
+    fun completeBooking(bookingId: String) {
+        viewModelScope.launch {
+            try { FirestoreSync.completeBooking(bookingId) } catch (_: Exception) { }
+            loadCoachBookings()
+        }
+    }
+
     fun respondToBooking(bookingId: String, accept: Boolean, response: String = "") {
         viewModelScope.launch {
             FirestoreSync.updateBookingStatus(bookingId, if (accept) "CONFIRMED" else "DECLINED", response)

@@ -125,11 +125,12 @@ fun CoachBookingsScreen(viewModel: MainViewModel) {
                 item { SectionLabel("Confirmed Sessions") }
                 items(confirmed, key = { it.id }) { booking ->
                     CoachBookingCard(
-                        booking   = booking,
-                        readOnly  = true,
-                        onCancel  = { viewModel.viewModelScope.launch {
+                        booking    = booking,
+                        readOnly   = true,
+                        onCancel   = { viewModel.viewModelScope.launch {
                             viewModel.cancelBooking(booking.id)
-                        }}
+                        }},
+                        onComplete = { viewModel.completeBooking(booking.id) }
                     )
                 }
             }
@@ -161,7 +162,8 @@ private fun CoachBookingCard(
     dimmed: Boolean = false,
     onAccept: (String) -> Unit = {},
     onDecline: (String) -> Unit = {},
-    onCancel: (() -> Unit)? = null
+    onCancel: (() -> Unit)? = null,
+    onComplete: (() -> Unit)? = null
 ) {
     var responseText    by remember(booking.id) { mutableStateOf("") }
     var showCancelDialog by remember { mutableStateOf(false) }
@@ -318,6 +320,23 @@ private fun CoachBookingCard(
                     ) {
                         Text("Accept", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccentDark)
                     }
+                }
+            }
+
+            // Mark completed — moves the session to Past and unlocks the
+            // member's star rating for this coach
+            if (onComplete != null && booking.status == "CONFIRMED") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .background(CyberAccent)
+                        .clickable { onComplete() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✓ Mark Session Completed", fontSize = 12.sp,
+                        color = CyberAccentDark, fontWeight = FontWeight.ExtraBold)
                 }
             }
 

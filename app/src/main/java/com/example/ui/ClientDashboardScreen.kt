@@ -446,8 +446,13 @@ private fun BookingCard(
                 Text(cancelError, fontSize = 11.sp, color = CyberDanger)
             }
 
-            // Star rating for COMPLETED bookings not yet rated
-            if (booking.status == "COMPLETED") {
+            // Star rating: completed sessions, or confirmed sessions whose date
+            // has passed (coaches often forget to mark them completed — the
+            // member must still be able to rate)
+            val canRate = booking.status == "COMPLETED" ||
+                (booking.status == "CONFIRMED" && booking.sessionDateMillis > 0 &&
+                 booking.sessionDateMillis < System.currentTimeMillis())
+            if (canRate) {
                 if (ratingSubmitted || booking.clientRating > 0f) {
                     val displayRating = if (booking.clientRating > 0f) booking.clientRating else pendingRating
                     Row(
