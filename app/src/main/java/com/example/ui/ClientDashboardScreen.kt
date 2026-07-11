@@ -465,6 +465,7 @@ private fun BookingCard(
                         }
                     }
                 } else {
+                    var reviewText by remember(booking.id) { mutableStateOf("") }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Rate this session:", fontSize = 12.sp, color = CyberTextMuted, fontWeight = FontWeight.SemiBold)
                         Row(
@@ -493,20 +494,44 @@ private fun BookingCard(
                                     Text("⭐", fontSize = 16.sp)
                                 }
                             }
-                            if (pendingRating > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(CyberAccent)
-                                        .clickable {
-                                            viewModel.rateCoach(booking.id, booking.coachId, pendingRating) { success ->
-                                                if (success) ratingSubmitted = true
-                                            }
+                        }
+                        if (pendingRating > 0f) {
+                            // Optional testimonial — appears on the coach's public profile
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CyberBgCardElevated)
+                                    .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = reviewText,
+                                    onValueChange = { reviewText = it.take(220) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = androidx.compose.ui.text.TextStyle(color = CyberTextPrimary, fontSize = 13.sp),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(CyberAccent),
+                                    decorationBox = { inner ->
+                                        if (reviewText.isEmpty()) Text(
+                                            "Write a short review (optional) — shown on the coach's profile",
+                                            fontSize = 12.sp, color = CyberTextMuted, lineHeight = 16.sp
+                                        )
+                                        inner()
+                                    }
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CyberAccent)
+                                    .clickable {
+                                        viewModel.rateCoach(booking.id, booking.coachId, pendingRating, reviewText.trim()) { success ->
+                                            if (success) ratingSubmitted = true
                                         }
-                                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                                ) {
-                                    Text("Submit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
-                                }
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Text("Submit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
                             }
                         }
                     }

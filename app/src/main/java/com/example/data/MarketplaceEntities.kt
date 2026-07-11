@@ -63,7 +63,8 @@ data class Booking(
     val coachResponse: String = "",
     val createdAtMillis: Long = 0L,
     val sessionDateMillis: Long = 0L,   // preferred session date chosen by client
-    val clientRating: Float = 0f        // 1–5 stars, set by client after completion
+    val clientRating: Float = 0f,       // 1–5 stars, set by client after completion
+    val coachRating: Float = 0f         // 1–5 stars, coach rates the member back
 )
 
 // ─── Portfolio completeness scoring ──────────────────────────────────────────

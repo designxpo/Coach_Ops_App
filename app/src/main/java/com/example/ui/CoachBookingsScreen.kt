@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -138,7 +139,12 @@ fun CoachBookingsScreen(viewModel: MainViewModel) {
             if (past.isNotEmpty()) {
                 item { SectionLabel("Past") }
                 items(past, key = { it.id }) { booking ->
-                    CoachBookingCard(booking = booking, readOnly = true, dimmed = true)
+                    CoachBookingCard(
+                        booking      = booking,
+                        readOnly     = true,
+                        dimmed       = true,
+                        onRateMember = { stars -> viewModel.rateMember(booking.id, stars) }
+                    )
                 }
             }
 
@@ -163,10 +169,21 @@ private fun CoachBookingCard(
     onAccept: (String) -> Unit = {},
     onDecline: (String) -> Unit = {},
     onCancel: (() -> Unit)? = null,
-    onComplete: (() -> Unit)? = null
+    onComplete: (() -> Unit)? = null,
+    onRateMember: ((Float) -> Unit)? = null
 ) {
     var responseText    by remember(booking.id) { mutableStateOf("") }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var pendingMemberStars by remember(booking.id) { mutableStateOf(0f) }
+    var memberRatingSubmitted by remember(booking.id) { mutableStateOf(booking.coachRating > 0f) }
+
+    // Reliability signal on NEW requests — how other coaches rated this member
+    var memberReliability by remember(booking.id) { mutableStateOf<Pair<Float, Int>?>(null) }
+    if (booking.status == "PENDING" && !readOnly) {
+        androidx.compose.runtime.LaunchedEffect(booking.id) {
+            memberReliability = com.example.data.FirestoreSync.getMemberRating(booking.clientId)
+        }
+    }
 
     val now = remember(booking.sessionDateMillis) { System.currentTimeMillis() }
     val canCancel = onCancel != null && booking.status == "CONFIRMED" &&
@@ -258,6 +275,17 @@ private fun CoachBookingCard(
                 Text("₹${booking.feeAmount}/session", fontSize = 13.sp, color = CyberAccent, fontWeight = FontWeight.Bold)
             }
 
+            // Member reliability from other coaches (new requests only)
+            if (booking.status == "PENDING" && !readOnly) {
+                memberReliability?.let { (avg, count) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("⭐ %.1f".format(avg), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
+                        Text("member rating · $count coach${if (count > 1) "es" else ""}",
+                            fontSize = 11.sp, color = CyberTextMuted)
+                    }
+                }
+            }
+
             if (booking.notes.isNotBlank()) {
                 Box(
                     modifier = Modifier
@@ -337,6 +365,57 @@ private fun CoachBookingCard(
                 ) {
                     Text("✓ Mark Session Completed", fontSize = 12.sp,
                         color = CyberAccentDark, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+
+            // Rate the member back (completed sessions) — builds the
+            // reliability score other coaches see on future requests
+            if (booking.status == "COMPLETED" && onRateMember != null) {
+                if (memberRatingSubmitted) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("You rated ${booking.clientName}:", fontSize = 12.sp, color = CyberTextMuted)
+                        val shown = if (booking.coachRating > 0f) booking.coachRating else pendingMemberStars
+                        repeat(5) { i -> Text(if (i < shown.toInt()) "⭐" else "☆", fontSize = 13.sp) }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Rate this member:", fontSize = 12.sp, color = CyberTextMuted, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            listOf(1f, 2f, 3f, 4f, 5f).forEach { star ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (pendingMemberStars >= star) CyberAccent.copy(0.15f)
+                                            else CyberBgCardElevated
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (pendingMemberStars >= star) CyberAccent.copy(0.4f)
+                                            else Color.White.copy(0.06f),
+                                            RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { pendingMemberStars = star },
+                                    contentAlignment = Alignment.Center
+                                ) { Text("⭐", fontSize = 14.sp) }
+                            }
+                            if (pendingMemberStars > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(CyberAccent)
+                                        .clickable {
+                                            memberRatingSubmitted = true
+                                            onRateMember(pendingMemberStars)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                                ) {
+                                    Text("Submit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CyberAccentDark)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

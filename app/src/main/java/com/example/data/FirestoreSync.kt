@@ -478,7 +478,7 @@ object FirestoreSync {
         return bookingId
     }
 
-    suspend fun rateBooking(bookingId: String, rating: Float) {
+    suspend fun rateBooking(bookingId: String, rating: Float, review: String = "") {
         val currentUid = uid ?: throw Exception("Not authenticated")
         // Fetch booking to verify ownership and prevent duplicate ratings
         val bookingDoc = db.collection("bookings").document(bookingId).get().await()
@@ -489,19 +489,87 @@ object FirestoreSync {
         require(existingRating == 0f) { "Already rated" }
         val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
         db.collection("bookings").document(bookingId)
-            .update("clientRating", rating).await()
-        // Recompute aggregate rating for this coach
-        val allDocs = db.collection("bookings").whereEqualTo("coachId", coachId).get().await().documents
-        val ratings = allDocs.mapNotNull { doc ->
-            val r = (doc.data?.get("clientRating") as? Double)?.toFloat()
-                ?: (doc.data?.get("clientRating") as? Long)?.toFloat() ?: 0f
-            if (r > 0f) r else null
-        }
-        if (ratings.isNotEmpty()) {
-            val avg = ratings.sum() / ratings.size
-            db.collection("trainers").document(coachId).update("rating", avg)
-        }
+            .update(mapOf("clientRating" to rating, "clientReview" to review)).await()
+
+        // Public review entry — drives "What Clients Say" on the trainer profile
+        db.collection("trainers").document(coachId)
+            .collection("reviews").document(bookingId)
+            .set(mapOf(
+                "clientId"        to currentUid,
+                "clientName"      to (data["clientName"] as? String ?: "Member"),
+                "rating"          to rating,
+                "review"          to review,
+                "createdAtMillis" to System.currentTimeMillis()
+            )).await()
+
+        // Incremental aggregate. The old approach recomputed from ALL of the
+        // coach's bookings — which members can't read, so every rating submit
+        // was permission-denied at the server.
+        val tDoc = db.collection("trainers").document(coachId).get().await()
+        val sum   = (tDoc.get("ratingSum") as? Number)?.toFloat() ?: 0f
+        val count = (tDoc.get("ratingCount") as? Number)?.toInt() ?: 0
+        val newSum = sum + rating
+        val newCount = count + 1
+        db.collection("trainers").document(coachId)
+            .set(mapOf(
+                "ratingSum"   to newSum,
+                "ratingCount" to newCount,
+                "rating"      to newSum / newCount
+            ), com.google.firebase.firestore.SetOptions.merge()).await()
     }
+
+    data class CoachReview(
+        val clientName: String,
+        val rating: Float,
+        val review: String,
+        val createdAtMillis: Long
+    )
+
+    /** Latest member reviews for a coach — shown on the public trainer profile. */
+    suspend fun getCoachReviews(coachId: String, limit: Long = 10): List<CoachReview> = try {
+        db.collection("trainers").document(coachId).collection("reviews")
+            .orderBy("createdAtMillis", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(limit)
+            .get().await().documents.mapNotNull { d ->
+                val rating = (d.get("rating") as? Number)?.toFloat() ?: return@mapNotNull null
+                CoachReview(
+                    clientName      = d.getString("clientName") ?: "Member",
+                    rating          = rating,
+                    review          = d.getString("review") ?: "",
+                    createdAtMillis = d.getLong("createdAtMillis") ?: 0L
+                )
+            }
+    } catch (_: Exception) { emptyList() }
+
+    /** Coach rates a member after a completed session (reliability signal
+     *  other coaches see on future booking requests). */
+    suspend fun rateMember(bookingId: String, rating: Float) {
+        val currentUid = uid ?: throw Exception("Not authenticated")
+        val doc = db.collection("bookings").document(bookingId).get().await()
+        val data = doc.data ?: throw Exception("Booking not found")
+        require(data["coachId"] == currentUid) { "Not your booking" }
+        val existing = (data["coachRating"] as? Number)?.toFloat() ?: 0f
+        require(existing == 0f) { "Already rated" }
+        val memberId = data["clientId"] as? String ?: throw Exception("No client on booking")
+        db.collection("bookings").document(bookingId).update("coachRating", rating).await()
+        val mDoc = db.collection("member_ratings").document(memberId).get().await()
+        val sum   = (mDoc.get("ratingSum") as? Number)?.toFloat() ?: 0f
+        val count = (mDoc.get("ratingCount") as? Number)?.toInt() ?: 0
+        db.collection("member_ratings").document(memberId).set(mapOf(
+            "ratingSum"   to sum + rating,
+            "ratingCount" to count + 1,
+            "rating"      to (sum + rating) / (count + 1),
+            "name"        to (data["clientName"] as? String ?: "Member")
+        )).await()
+    }
+
+    /** (avg, count) of coach ratings for a member, or null if never rated. */
+    suspend fun getMemberRating(memberId: String): Pair<Float, Int>? = try {
+        val d = db.collection("member_ratings").document(memberId).get().await()
+        val count = (d.get("ratingCount") as? Number)?.toInt() ?: 0
+        if (count == 0) null
+        else Pair((d.get("rating") as? Number)?.toFloat() ?: 0f, count)
+    } catch (_: Exception) { null }
 
     suspend fun getClientBookings(clientId: String): List<Booking> =
         db.collection("bookings").whereEqualTo("clientId", clientId)
@@ -569,7 +637,8 @@ object FirestoreSync {
             createdAtMillis    = d["createdAtMillis"] as? Long ?: 0L,
             sessionDateMillis  = d["sessionDateMillis"] as? Long ?: 0L,
             clientRating       = (d["clientRating"] as? Double)?.toFloat()
-                                 ?: (d["clientRating"] as? Long)?.toFloat() ?: 0f
+                                 ?: (d["clientRating"] as? Long)?.toFloat() ?: 0f,
+            coachRating        = (d["coachRating"] as? Number)?.toFloat() ?: 0f
         )
     }
 

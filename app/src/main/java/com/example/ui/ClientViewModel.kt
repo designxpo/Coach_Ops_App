@@ -62,6 +62,9 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     private val _selectedTrainer = MutableStateFlow<TrainerProfile?>(null)
     val selectedTrainer: StateFlow<TrainerProfile?> = _selectedTrainer.asStateFlow()
 
+    private val _coachReviews = MutableStateFlow<List<FirestoreSync.CoachReview>>(emptyList())
+    val coachReviews: StateFlow<List<FirestoreSync.CoachReview>> = _coachReviews.asStateFlow()
+
     private val _clientLat = MutableStateFlow(userPreferences.clientLat)
     private val _clientLng = MutableStateFlow(userPreferences.clientLng)
     private val _radiusKm  = MutableStateFlow(userPreferences.clientRadiusKm)
@@ -248,6 +251,7 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
     fun loadTrainerById(uid: String) {
         viewModelScope.launch {
             _selectedTrainer.value = FirestoreSync.getTrainerById(uid)
+            _coachReviews.value = FirestoreSync.getCoachReviews(uid)
         }
     }
 
@@ -296,10 +300,10 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         }
     }
 
-    fun rateCoach(bookingId: String, coachId: String, rating: Float, onResult: (Boolean) -> Unit) {
+    fun rateCoach(bookingId: String, coachId: String, rating: Float, review: String = "", onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
-                FirestoreSync.rateBooking(bookingId, rating)
+                FirestoreSync.rateBooking(bookingId, rating, review)
                 loadMyBookings()
                 onResult(true)
             } catch (_: Exception) {

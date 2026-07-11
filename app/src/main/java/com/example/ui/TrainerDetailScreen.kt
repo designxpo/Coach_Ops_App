@@ -288,29 +288,67 @@ fun TrainerDetailScreen(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // Testimonials
-            val quotes = t.testimonials.split("\n").filter { it.isNotBlank() }
-            if (quotes.isNotEmpty()) {
+            // What clients say — verified member reviews first (rating flow),
+            // the coach's self-added quotes only as fallback
+            val memberReviews by viewModel.coachReviews.collectAsState()
+            val realReviews = memberReviews.filter { it.review.isNotBlank() }
+            if (realReviews.isNotEmpty()) {
                 SectionCard {
                     Text("What Clients Say", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        quotes.forEach { q ->
-                            Row(
+                        realReviews.take(5).forEach { r ->
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(CyberBgCardElevated)
                                     .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("❝", fontSize = 14.sp, color = CyberAccent)
-                                Text(q, fontSize = 13.sp, color = CyberTextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("⭐".repeat(r.rating.toInt().coerceIn(1, 5)), fontSize = 11.sp)
+                                    Text(r.clientName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted,
+                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    Box(
+                                        Modifier.clip(RoundedCornerShape(999.dp))
+                                            .background(CyberSuccess.copy(0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    ) {
+                                        Text("✓ Booked here", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CyberSuccess,
+                                            maxLines = 1, softWrap = false)
+                                    }
+                                }
+                                Text(r.review, fontSize = 13.sp, color = CyberTextSecondary, lineHeight = 18.sp)
                             }
                         }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+            } else {
+                val quotes = t.testimonials.split("\n").filter { it.isNotBlank() }
+                if (quotes.isNotEmpty()) {
+                    SectionCard {
+                        Text("What Clients Say", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberTextMuted)
+                        Spacer(Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            quotes.forEach { q ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(CyberBgCardElevated)
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("❝", fontSize = 14.sp, color = CyberAccent)
+                                    Text(q, fontSize = 13.sp, color = CyberTextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
             }
 
             // Instagram

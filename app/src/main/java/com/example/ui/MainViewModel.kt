@@ -668,6 +668,13 @@ class MainViewModel(
         }
     }
 
+    fun rateMember(bookingId: String, rating: Float) {
+        viewModelScope.launch {
+            try { FirestoreSync.rateMember(bookingId, rating) } catch (_: Exception) { }
+            loadCoachBookings()
+        }
+    }
+
     fun respondToBooking(bookingId: String, accept: Boolean, response: String = "") {
         viewModelScope.launch {
             FirestoreSync.updateBookingStatus(bookingId, if (accept) "CONFIRMED" else "DECLINED", response)
