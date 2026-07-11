@@ -29,3 +29,7 @@ prioritized_debt.txt
 .antigravity/
 .build-outputs/
 .claude/
+
+# Firebase emulator
+firestore-debug.log
+firebase-debug.log
