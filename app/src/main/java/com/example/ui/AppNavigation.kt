@@ -882,7 +882,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 )
             }
             composable("nutrition_coach") {
-                if (entitlements.memberPremium) {
+                if (entitlements.aiNutritionCoachUnlocked) {
                     NutritionCoachScreen(
                         onBack          = { navController.popBackStack() },
                         userPreferences = userPreferences
@@ -896,7 +896,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                 }
             }
             composable("meal_planner") {
-                if (entitlements.memberPremium) {
+                if (entitlements.aiMealPlannerUnlocked) {
                     MealPlannerScreen(
                         onBack            = { navController.popBackStack() },
                         userPreferences   = userPreferences,

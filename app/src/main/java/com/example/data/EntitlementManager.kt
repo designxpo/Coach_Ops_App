@@ -29,7 +29,9 @@ data class Entitlements(
     val plan: SubscriptionPlan = SubscriptionPlan.STARTER,
     val memberPremium: Boolean = false,
     val gymTrialStartedAt: Long = 0L,
-    val gymTrialDays: Int = 30
+    val gymTrialDays: Int = 30,
+    // Admin-controlled per-tier feature matrix (empty = use hardcoded defaults)
+    val featureMatrix: FeatureMatrix = emptyMap()
 ) {
     val gymTrialActive: Boolean
         get() = gymTrialStartedAt > 0L &&
@@ -41,8 +43,25 @@ data class Entitlements(
 
     val gymTrialUsed: Boolean get() = gymTrialStartedAt > 0L
 
-    /** Gym Suite is open on the Business plan or during the free trial. */
-    val gymUnlocked: Boolean get() = plan.has(PlanFeature.GYM_SUITE) || gymTrialActive
+    // ─── Per-tier feature gates (matrix override → hardcoded default) ─────────
+    /** Gym Suite entitlement from the plan/matrix, ignoring the trial. */
+    val gymSuiteEntitled: Boolean
+        get() = FeatureGate.coachUnlocked(featureMatrix, GatedFeature.GYM_SUITE, plan)
+
+    /** Gym Suite is open when the tier grants it OR the free trial is active. */
+    val gymUnlocked: Boolean get() = gymSuiteEntitled || gymTrialActive
+
+    val revenueAnalyticsUnlocked: Boolean
+        get() = FeatureGate.coachUnlocked(featureMatrix, GatedFeature.REVENUE_ANALYTICS, plan)
+
+    val broadcastUnlocked: Boolean
+        get() = FeatureGate.coachUnlocked(featureMatrix, GatedFeature.BROADCAST, plan)
+
+    val aiNutritionCoachUnlocked: Boolean
+        get() = FeatureGate.memberUnlocked(featureMatrix, GatedFeature.AI_NUTRITION_COACH, memberPremium)
+
+    val aiMealPlannerUnlocked: Boolean
+        get() = FeatureGate.memberUnlocked(featureMatrix, GatedFeature.AI_MEAL_PLANNER, memberPremium)
 }
 
 object EntitlementManager {
@@ -54,12 +73,33 @@ object EntitlementManager {
     val entitlements: StateFlow<Entitlements> = _entitlements.asStateFlow()
 
     private var listener: ListenerRegistration? = null
+    private var matrixListener: ListenerRegistration? = null
     private var boundUid: String = ""
 
+    // Latest raw inputs — the user record and the admin feature matrix arrive on
+    // independent listeners; rebuild() folds whichever is current into one value.
+    private var curPlan = SubscriptionPlan.STARTER
+    private var curMemberPremium = false
+    private var curGymTrialStartedAt = 0L
+    private var curMatrix: FeatureMatrix = emptyMap()
+
+    /** Latest feature matrix, for non-reactive consumers (e.g. marketplace badges). */
+    val currentMatrix: FeatureMatrix get() = curMatrix
+
+    private fun rebuild() {
+        _entitlements.value = Entitlements(
+            plan              = curPlan,
+            memberPremium     = curMemberPremium,
+            gymTrialStartedAt = curGymTrialStartedAt,
+            featureMatrix     = curMatrix
+        )
+    }
+
     /**
-     * Start (or restart) the real-time listener for the signed-in user.
-     * Safe to call repeatedly — no-ops when already bound to the same UID.
-     * Seeds instantly from the local cache so gates render correctly offline.
+     * Start (or restart) the real-time listeners for the signed-in user and the
+     * admin feature matrix. Safe to call repeatedly — no-ops when already bound
+     * to the same UID. Seeds instantly from the local cache so gates render
+     * correctly offline.
      */
     fun start(prefs: UserPreferences? = null) {
         val uid = auth.currentUser?.uid ?: run { stop(); return }
@@ -69,11 +109,10 @@ object EntitlementManager {
 
         // Seed from local cache before the first network round-trip
         if (prefs != null) {
-            _entitlements.value = Entitlements(
-                plan              = prefs.currentPlan,
-                memberPremium     = prefs.memberPremium,
-                gymTrialStartedAt = prefs.gymTrialStartedAt
-            )
+            curPlan              = prefs.currentPlan
+            curMemberPremium     = prefs.memberPremium
+            curGymTrialStartedAt = prefs.gymTrialStartedAt
+            rebuild()
         }
 
         listener = db.collection("user_records").document(uid)
@@ -81,26 +120,51 @@ object EntitlementManager {
                 if (err != null || snap == null || !snap.exists()) return@addSnapshotListener
                 val d = snap.data ?: return@addSnapshotListener
                 val planStr = d["plan"] as? String ?: SubscriptionPlan.STARTER.name
-                val plan    = SubscriptionPlan.entries.find { it.name == planStr } ?: SubscriptionPlan.STARTER
-                val next = Entitlements(
-                    plan              = plan,
-                    memberPremium     = d["memberPremium"] as? Boolean ?: false,
-                    gymTrialStartedAt = d["gymTrialStartedAt"] as? Long ?: 0L
-                )
-                _entitlements.value = next
+                curPlan              = SubscriptionPlan.entries.find { it.name == planStr } ?: SubscriptionPlan.STARTER
+                curMemberPremium     = d["memberPremium"] as? Boolean ?: false
+                curGymTrialStartedAt = d["gymTrialStartedAt"] as? Long ?: 0L
+                rebuild()
                 // Refresh cache so gates work offline next launch
                 prefs?.let {
-                    it.subscriptionPlan   = next.plan.name
-                    it.memberPremium      = next.memberPremium
-                    it.gymTrialStartedAt  = next.gymTrialStartedAt
+                    it.subscriptionPlan   = curPlan.name
+                    it.memberPremium      = curMemberPremium
+                    it.gymTrialStartedAt  = curGymTrialStartedAt
                 }
+            }
+
+        // Admin feature matrix — one global doc, gates every tiered feature.
+        matrixListener = db.collection("admin_config").document("feature_matrix")
+            .addSnapshotListener { snap, err ->
+                curMatrix = if (err != null || snap == null || !snap.exists()) emptyMap()
+                            else parseMatrix(snap.data)
+                rebuild()
             }
     }
 
+    private fun parseMatrix(data: Map<String, Any?>?): FeatureMatrix {
+        if (data == null) return emptyMap()
+        val out = HashMap<String, Map<String, Boolean>>()
+        for ((featureKey, raw) in data) {
+            val inner = raw as? Map<*, *> ?: continue
+            val tiers = HashMap<String, Boolean>()
+            for ((tk, tv) in inner) {
+                val tierKey = tk as? String ?: continue
+                val b = tv as? Boolean ?: continue
+                tiers[tierKey] = b
+            }
+            if (tiers.isNotEmpty()) out[featureKey] = tiers
+        }
+        return out
+    }
+
     fun stop() {
-        listener?.remove()
-        listener = null
+        listener?.remove(); listener = null
+        matrixListener?.remove(); matrixListener = null
         boundUid = ""
+        curPlan = SubscriptionPlan.STARTER
+        curMemberPremium = false
+        curGymTrialStartedAt = 0L
+        curMatrix = emptyMap()
         _entitlements.value = Entitlements()
     }
 

@@ -94,6 +94,8 @@ fun HomeScreen(
     val payments by viewModel.payments.collectAsStateWithLifecycle()
     val coachName by viewModel.coachName.collectAsStateWithLifecycle()
     val businessMetrics by viewModel.businessMetrics.collectAsStateWithLifecycle()
+    // Broadcast is admin-gated per tier (unlocked for all by default)
+    val entitlements by com.example.data.EntitlementManager.entitlements.collectAsStateWithLifecycle()
 
     var showNotificationsSheet by remember { mutableStateOf(false) }
     var showBroadcastSheet by remember { mutableStateOf(false) }
@@ -426,14 +428,16 @@ fun HomeScreen(
                 Text("Priority Cards", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CyberTextPrimary)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${signals.size} signals", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextMuted)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(CyberBgCard)
-                            .clickable { showBroadcastSheet = true }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Broadcast", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberAccent)
+                    if (entitlements.broadcastUnlocked) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(CyberBgCard)
+                                .clickable { showBroadcastSheet = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Broadcast", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CyberAccent)
+                        }
                     }
                 }
             }

@@ -290,7 +290,7 @@ fun GymDashboardScreen(
         }
 
         // Trial banner
-        if (entitlements.gymTrialActive && !entitlements.plan.has(PlanFeature.GYM_SUITE)) {
+        if (entitlements.gymTrialActive && !entitlements.gymSuiteEntitled) {
             item {
                 Row(
                     modifier = Modifier

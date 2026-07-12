@@ -77,7 +77,9 @@ fun BillingScreen(viewModel: MainViewModel, onUpgradeClick: () -> Unit = {}) {
     val clients by viewModel.clients.collectAsStateWithLifecycle()
     val snapshots by viewModel.revenueSnapshots.collectAsStateWithLifecycle()
     val currentPlan by viewModel.currentPlan.collectAsStateWithLifecycle()
-    val hasAnalytics = currentPlan.has(PlanFeature.REVENUE_ANALYTICS)
+    // Revenue analytics is gated by the admin feature matrix (Pro+ by default)
+    val entitlements by com.example.data.EntitlementManager.entitlements.collectAsStateWithLifecycle()
+    val hasAnalytics = entitlements.revenueAnalyticsUnlocked
 
     val totalMrr = clients.sumOf { it.mrr }
     val activeCount = payments.count { it.mandateStatus == "ACTIVE" }

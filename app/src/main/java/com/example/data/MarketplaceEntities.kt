@@ -49,9 +49,17 @@ data class TrainerProfile(
 val TrainerProfile.isCertVerified: Boolean
     get() = certStatus == "verified" || certStatus == "verified_auto"
 
-/** Paying coaches are surfaced first in Discover with a Featured badge. */
+/**
+ * Paying coaches are surfaced first in Discover with a Featured badge.
+ * Which tiers earn it is admin-controlled via the feature matrix (Pro+ by
+ * default); the plan→feature mapping falls back to the historical behaviour.
+ */
 val TrainerProfile.isFeatured: Boolean
-    get() = planTier == "pro" || planTier == "business"
+    get() = FeatureGate.coachUnlocked(
+        EntitlementManager.currentMatrix,
+        GatedFeature.FEATURED_MARKETPLACE,
+        FeatureGate.planFromTierString(planTier)
+    )
 
 // ─── Discover ranking: leagues + merit ───────────────────────────────────────
 // Coaches compete WITHIN their subscription level: Business league above Pro,
