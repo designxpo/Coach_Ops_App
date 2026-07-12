@@ -154,6 +154,17 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
         return
     }
 
+    // ── Compulsory update gate (version-count based) ──────────────────────────
+    // Applies to EVERYONE — sits before the coach/member fork below. When a user
+    // is more than `compulsoryUpdateAfter` versions behind the latest release
+    // (set in the admin App Control page), they must update to keep using the app.
+    val versionsBehind = if (appControl.latestVersionCode > 0)
+        appControl.latestVersionCode - com.example.BuildConfig.VERSION_CODE else 0
+    if (versionsBehind > appControl.compulsoryUpdateAfter) {
+        UpdateGateSheet(appControl.updateMessage)
+        return
+    }
+
     // ── Role self-heal ────────────────────────────────────────────────────────
     // Older builds never persisted role for members who signed in via Google on
     // the login screen, so the admin panel showed them as coaches (its default
@@ -194,6 +205,9 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
     }
     val entitlements by com.example.data.EntitlementManager.entitlements.collectAsState()
     val isGymOwner = userPreferences.userRole == "gym_owner"
+
+    // Soft "update available" nudge — dismissible for this session
+    var updateNudgeDismissed by remember { mutableStateOf(false) }
 
     val navController = rememberNavController()
     // Always 5 tabs (Instagram-style) — Gym lives in the Home top bar + quick access
@@ -236,6 +250,11 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
             // ── Announcement banner (shown when logged in and on main tabs) ───
             if (showBottomBar && appControl.announcementEnabled && appControl.announcementText.isNotEmpty()) {
                 AnnouncementBanner(appControl)
+            }
+            // ── Soft update nudge (behind, but within the compulsory threshold) ─
+            if (showBottomBar && appControl.updateNudgeEnabled && !updateNudgeDismissed &&
+                versionsBehind in 1..appControl.compulsoryUpdateAfter) {
+                UpdateNudgeBanner(appControl.updateMessage) { updateNudgeDismissed = true }
             }
             NavHost(
                 navController,
@@ -1123,6 +1142,104 @@ fun ForceUpdateScreen(message: String) {
                 Text("Update on Play Store", fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
             }
         }
+    }
+}
+
+// ─── Update gate & nudge (version-count based) ────────────────────────────────
+
+private fun openPlayStore(context: android.content.Context) {
+    val id = "com.aistudio.coachops.abxyzm"
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id")))
+    } catch (_: Exception) {
+        context.startActivity(Intent(Intent.ACTION_VIEW,
+            Uri.parse("https://play.google.com/store/apps/details?id=$id")))
+    }
+}
+
+/**
+ * Compulsory update — a non-dismissable sheet anchored to the bottom, shown when
+ * a user is too many versions behind. Replaces the app until they update.
+ */
+@Composable
+fun UpdateGateSheet(message: String) {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CyberBgPrimary.copy(alpha = 0.97f))
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .background(CyberBgCard)
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("🚀", fontSize = 44.sp)
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Time to update ProCoach India",
+                color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center, lineHeight = 26.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                message.ifBlank { "You're several versions behind. Update now for the best experience and the latest features." },
+                color = CyberTextMuted, fontSize = 14.sp,
+                textAlign = TextAlign.Center, lineHeight = 22.sp
+            )
+            Spacer(Modifier.height(22.dp))
+            androidx.compose.material3.Button(
+                onClick = { openPlayStore(context) },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = CyberAccent),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Update Now", color = Color(0xFF1A1A1A), fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Soft update nudge — a dismissible banner shown to users who are behind but
+ * still within the compulsory threshold.
+ */
+@Composable
+fun UpdateNudgeBanner(message: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberAccent.copy(alpha = 0.14f))
+            .clickable { openPlayStore(context) }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = message.ifBlank { "A new version is available — tap to update for the best experience." },
+            color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            lineHeight = 17.sp, modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(CyberAccent)
+                .clickable { openPlayStore(context) }
+                .padding(horizontal = 12.dp, vertical = 5.dp)
+        ) {
+            Text("Update", color = Color(0xFF1A1A1A), fontSize = 12.sp, fontWeight = FontWeight.Black)
+        }
+        Text(
+            "✕", color = CyberTextMuted, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clickable { onDismiss() }.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
     }
 }
 

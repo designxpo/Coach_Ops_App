@@ -13,7 +13,16 @@ data class AppControlState(
     val updateMessage:       String  = "A new version of ProCoach India is required. Please update from the Play Store.",
     val announcementEnabled: Boolean = false,
     val announcementText:    String  = "",
-    val announcementType:    String  = "info"  // info | warning | success
+    val announcementType:    String  = "info",  // info | warning | success
+    // ── Version-count update gate ─────────────────────────────────────────────
+    // latestVersionCode: the newest versionCode on Play (0 = disabled).
+    // updateNudgeEnabled: show a dismissible "update available" banner to anyone
+    //   who is behind but within the compulsory threshold.
+    // compulsoryUpdateAfter: when a user is behind by MORE than this many
+    //   versions, a non-dismissable "update to continue" sheet is shown.
+    val latestVersionCode:     Int     = 0,
+    val updateNudgeEnabled:    Boolean = false,
+    val compulsoryUpdateAfter: Int     = 4
 )
 
 data class RemoteConfig(
@@ -64,7 +73,10 @@ object AppControlManager {
                     updateMessage       = d["updateMessage"]       as? String  ?: AppControlState().updateMessage,
                     announcementEnabled = d["announcementEnabled"] as? Boolean ?: false,
                     announcementText    = d["announcementText"]    as? String  ?: "",
-                    announcementType    = d["announcementType"]    as? String  ?: "info"
+                    announcementType    = d["announcementType"]    as? String  ?: "info",
+                    latestVersionCode     = (d["latestVersionCode"]     as? Long)?.toInt() ?: 0,
+                    updateNudgeEnabled    = d["updateNudgeEnabled"]     as? Boolean ?: false,
+                    compulsoryUpdateAfter = (d["compulsoryUpdateAfter"] as? Long)?.toInt() ?: 4
                 )
                 callback(appControl)
             }
@@ -117,7 +129,10 @@ object AppControlManager {
                     updateMessage       = d["updateMessage"]       as? String  ?: appControl.updateMessage,
                     announcementEnabled = d["announcementEnabled"] as? Boolean ?: false,
                     announcementText    = d["announcementText"]    as? String  ?: "",
-                    announcementType    = d["announcementType"]    as? String  ?: "info"
+                    announcementType    = d["announcementType"]    as? String  ?: "info",
+                    latestVersionCode     = (d["latestVersionCode"]     as? Long)?.toInt() ?: 0,
+                    updateNudgeEnabled    = d["updateNudgeEnabled"]     as? Boolean ?: false,
+                    compulsoryUpdateAfter = (d["compulsoryUpdateAfter"] as? Long)?.toInt() ?: 4
                 )
             }
             val rcDoc = db.collection("admin_config").document("remote_config").get().await()
