@@ -147,7 +147,7 @@ fun MealPlannerScreen(
                     color = CyberTextMuted
                 )
             }
-            // Gemini badge
+            // ProCoach AI badge
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
@@ -156,7 +156,7 @@ fun MealPlannerScreen(
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    "✦ Gemini",
+                    "✦ ProCoach AI",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = CyberAccent
@@ -397,7 +397,7 @@ fun MealPlannerScreen(
                                 modifier = Modifier.size(52.dp)
                             )
                             Text(
-                                "✦ Gemini is crafting your plan...",
+                                "✦ ProCoach AI is crafting your plan...",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = CyberAccent

@@ -91,17 +91,16 @@ object GeminiCoach {
             val raw = if (code in 200..299) {
                 conn.inputStream.bufferedReader().readText()
             } else {
-                val errBody = conn.errorStream?.bufferedReader()?.readText() ?: ""
+                // Drain & close the error stream, but never surface the vendor's
+                // raw message to users — map to neutral, on-brand copy instead.
+                conn.errorStream?.bufferedReader()?.readText()
                 conn.disconnect()
-                val errMsg = try {
-                    JSONObject(errBody).getJSONObject("error").optString("message", "")
-                } catch (_: Exception) { "" }
                 return@withContext Result.failure(Exception(
                     when (code) {
                         400  -> "Invalid request. Please try again."
-                        403  -> "API key not authorized. Enable 'Generative Language API' in Google Cloud Console."
+                        403  -> "ProCoach AI is unavailable right now. Please try again later."
                         429  -> "Too many requests. Please wait a moment and try again."
-                        else -> if (errMsg.isNotBlank()) errMsg else "Server error ($code). Please try again."
+                        else -> "ProCoach AI had a problem ($code). Please try again."
                     }
                 ))
             }

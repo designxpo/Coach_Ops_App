@@ -89,7 +89,7 @@ object MealPlannerAI {
             conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode
             val raw = if (code in 200..299) conn.inputStream.bufferedReader().readText()
-                      else return@withContext Result.failure(Exception("Gemini error $code"))
+                      else return@withContext Result.failure(Exception("AI service error $code"))
             conn.disconnect()
 
             val text = JSONObject(raw)

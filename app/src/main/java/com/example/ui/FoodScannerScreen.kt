@@ -262,10 +262,10 @@ fun FoodScannerScreen(onBack: () -> Unit, onOpenDiary: () -> Unit = {}) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Brush.horizontalGradient(listOf(Color(0xFF4285F4), Color(0xFF0F9D58))))
+                    .background(Brush.horizontalGradient(listOf(CyberAccent, CyberAccentDark)))
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("AI", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text("ProCoach AI", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1A1A1A))
             }
         }
 
