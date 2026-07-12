@@ -260,6 +260,19 @@ fun MemberPremiumScreen(
     var requesting by remember { mutableStateOf(false) }
     var requested by remember { mutableStateOf(false) }
 
+    // Member Premium price is admin-editable (admin_config/plans) — fetch it live
+    // so a price change in the panel shows here without an app update.
+    var priceMonthly by remember { mutableStateOf(199) }
+    var priceYearly by remember { mutableStateOf(999) }
+    LaunchedEffect(Unit) {
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection("admin_config").document("plans").get()
+            .addOnSuccessListener { doc ->
+                doc.getLong("memberPremiumMonthly")?.let { priceMonthly = it.toInt() }
+                doc.getLong("memberPremiumYearly")?.let { priceYearly = it.toInt() }
+            }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -303,7 +316,7 @@ fun MemberPremiumScreen(
                 .padding(24.dp)
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("₹199", fontSize = 34.sp, fontWeight = FontWeight.Black, color = CyberTextPrimary)
+                Text("₹$priceMonthly", fontSize = 34.sp, fontWeight = FontWeight.Black, color = CyberTextPrimary)
                 Text("/month", fontSize = 14.sp, color = CyberTextMuted, modifier = Modifier.padding(bottom = 6.dp, start = 2.dp))
                 Spacer(Modifier.weight(1f))
                 Box(
@@ -311,7 +324,7 @@ fun MemberPremiumScreen(
                         .background(CyberAccent.copy(alpha = 0.15f))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
-                    Text("₹999/year", fontSize = 11.sp, fontWeight = FontWeight.Black, color = CyberAccent)
+                    Text("₹$priceYearly/year", fontSize = 11.sp, fontWeight = FontWeight.Black, color = CyberAccent)
                 }
             }
             Spacer(Modifier.height(16.dp))
