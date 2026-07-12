@@ -85,6 +85,19 @@ class StepCounterManager private constructor(private val appContext: Context) : 
      * Merges an externally stored count for today (Firestore restore on a new
      * device/reinstall). Takes the max so local live counting never goes backwards.
      */
+    /**
+     * Re-publishes today's count from storage. loadTodaySteps() returns 0 when
+     * the stored day is no longer today, so calling this after midnight rolls
+     * the displayed count to 0 WITHOUT a sensor event — fixing the pinned
+     * notification that showed yesterday's steps until the app was reopened.
+     * The real reset (and midnight-spanning-delta discard) still happens in
+     * handleReading() on the next step.
+     */
+    @Synchronized
+    fun refreshDisplay() {
+        _dailySteps.value = loadTodaySteps()
+    }
+
     @Synchronized
     fun mergeExternal(steps: Int) {
         val today = dayKey()

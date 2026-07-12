@@ -312,6 +312,8 @@ private fun BookingCard(
 
     var pendingRating    by remember(booking.id) { mutableStateOf(0f) }
     var ratingSubmitted  by remember(booking.id) { mutableStateOf(booking.clientRating > 0f) }
+    var ratingSubmitting by remember(booking.id) { mutableStateOf(false) }
+    var ratingError      by remember(booking.id) { mutableStateOf("") }
     var showCancelDialog by remember { mutableStateOf(false) }
     var cancelError      by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -526,16 +528,25 @@ private fun BookingCard(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(CyberAccent)
-                                    .clickable {
-                                        viewModel.rateCoach(booking.id, booking.coachId, pendingRating, reviewText.trim()) { success ->
+                                    .background(if (ratingSubmitting) CyberBgCardElevated else CyberAccent)
+                                    .clickable(enabled = !ratingSubmitting) {
+                                        ratingSubmitting = true
+                                        ratingError = ""
+                                        viewModel.rateCoach(booking.id, booking.coachId, pendingRating, reviewText.trim()) { success, error ->
+                                            ratingSubmitting = false
                                             if (success) ratingSubmitted = true
+                                            else ratingError = error ?: "Couldn't submit — try again."
                                         }
                                     }
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
-                                Text("Submit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
+                                Text(if (ratingSubmitting) "Submitting…" else "Submit",
+                                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = if (ratingSubmitting) CyberTextMuted else Color(0xFF0A0A0A))
                             }
+                        }
+                        if (ratingError.isNotBlank()) {
+                            Text(ratingError, fontSize = 11.sp, color = CyberDanger, lineHeight = 15.sp)
                         }
                     }
                 }

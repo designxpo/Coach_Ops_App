@@ -317,14 +317,29 @@ class ClientViewModel(val userPreferences: UserPreferences) : ViewModel() {
         }
     }
 
-    fun rateCoach(bookingId: String, coachId: String, rating: Float, review: String = "", onResult: (Boolean) -> Unit) {
+    fun rateCoach(
+        bookingId: String, coachId: String, rating: Float, review: String = "",
+        onResult: (success: Boolean, error: String?) -> Unit
+    ) {
         viewModelScope.launch {
             try {
                 FirestoreSync.rateBooking(bookingId, rating, review)
                 loadMyBookings()
-                onResult(true)
-            } catch (_: Exception) {
-                onResult(false)
+                onResult(true, null)
+            } catch (e: Exception) {
+                // Surface a real reason instead of a silent star reset. "Already
+                // rated" means it actually went through on a previous tap.
+                val msg = e.message ?: ""
+                if (msg.contains("Already rated", ignoreCase = true)) {
+                    loadMyBookings()
+                    onResult(true, null)
+                } else {
+                    onResult(false, when {
+                        msg.contains("PERMISSION", true) || msg.contains("denied", true) ->
+                            "Couldn't submit your rating. Please update the app and try again."
+                        else -> "Couldn't submit — check your connection and try again."
+                    })
+                }
             }
         }
     }

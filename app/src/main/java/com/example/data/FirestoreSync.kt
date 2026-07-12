@@ -524,18 +524,18 @@ object FirestoreSync {
         val clamped = rating.coerceIn(1f, 5f)
         val now = System.currentTimeMillis()
         val bRef = db.collection("bookings").document(bookingId)
-        // ONE transaction: verify → write booking rating → write review → bump
-        // aggregate, all-or-nothing. Previously these were three sequential
-        // awaits; a crash between them left the aggregate wrong forever and the
-        // 'already rated' guard blocked any repair.
+
+        // Part 1 — the member's OWN rating + the public review. Atomic and gated
+        // on a real booking. This is what "rating succeeded" means to the member,
+        // and the reviews subcollection is the source of truth for a coach's
+        // average, so this must succeed for the rating to count.
+        var coachId = ""
         db.runTransaction { txn ->
             val data = txn.get(bRef).data ?: throw Exception("Booking not found")
             require(data["clientId"] == currentUid) { "Not your booking" }
             val status = data["status"] as? String ?: "PENDING"
             val sessionDate = data["sessionDateMillis"] as? Long ?: 0L
             val createdAt = data["createdAtMillis"] as? Long ?: 0L
-            // A completed session, a confirmed one whose date has passed, or —
-            // for a no-date booking — one confirmed at least a day ago.
             val ratable = status == "COMPLETED" ||
                 (status == "CONFIRMED" && (
                     (sessionDate in 1 until now) ||
@@ -545,28 +545,39 @@ object FirestoreSync {
             val existingRating = (data["clientRating"] as? Double)?.toFloat()
                 ?: (data["clientRating"] as? Long)?.toFloat() ?: 0f
             require(existingRating == 0f) { "Already rated" }
-            val coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
-            val tRef = db.collection("trainers").document(coachId)
-            val tSnap = txn.get(tRef)   // all reads before any write
-            val sum   = (tSnap.get("ratingSum") as? Number)?.toFloat() ?: 0f
-            val count = (tSnap.get("ratingCount") as? Number)?.toInt() ?: 0
-            val newSum = sum + clamped
-            val newCount = count + 1
+            coachId = data["coachId"] as? String ?: throw Exception("No coachId on booking")
 
             txn.update(bRef, mapOf("clientRating" to clamped, "clientReview" to review))
-            txn.set(tRef.collection("reviews").document(bookingId), mapOf(
+            txn.set(db.collection("trainers").document(coachId)
+                .collection("reviews").document(bookingId), mapOf(
                 "clientId"        to currentUid,
                 "clientName"      to (data["clientName"] as? String ?: "Member"),
                 "rating"          to clamped,
                 "review"          to review,
                 "createdAtMillis" to now
             ))
-            txn.set(tRef, mapOf(
-                "ratingSum"   to newSum,
-                "ratingCount" to newCount,
-                "rating"      to newSum / newCount
-            ), com.google.firebase.firestore.SetOptions.merge())
         }.await()
+
+        // Part 2 — best-effort denormalised aggregate on the trainer doc (drives
+        // Discover ranking). Kept OUT of Part 1 so a missing trainers doc or a
+        // rules edge case on the aggregate can't silently fail the whole rating;
+        // the review already recorded it and the average recomputes from reviews.
+        try {
+            val tRef = db.collection("trainers").document(coachId)
+            db.runTransaction { txn ->
+                val tSnap = txn.get(tRef)
+                if (!tSnap.exists()) return@runTransaction   // no profile to denormalise onto
+                val sum   = (tSnap.get("ratingSum") as? Number)?.toFloat() ?: 0f
+                val count = (tSnap.get("ratingCount") as? Number)?.toInt() ?: 0
+                val newSum = sum + clamped
+                val newCount = count + 1
+                txn.set(tRef, mapOf(
+                    "ratingSum"   to newSum,
+                    "ratingCount" to newCount,
+                    "rating"      to newSum / newCount
+                ), com.google.firebase.firestore.SetOptions.merge())
+            }.await()
+        } catch (_: Exception) { /* review is the source of truth; average self-heals */ }
     }
 
     data class CoachReview(

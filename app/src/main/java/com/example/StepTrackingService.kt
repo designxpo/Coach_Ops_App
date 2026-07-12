@@ -88,8 +88,31 @@ class StepTrackingService : Service() {
                 }
             } catch (_: Exception) { }
         }
+
+        // Midnight rollover watcher — without walking or reopening the app, the
+        // sensor never fires after midnight, so the banner used to show
+        // yesterday's steps all morning. Tick every few minutes: when the day
+        // changes, reset the displayed count to 0 and clear water.
+        scope.launch {
+            var lastDay = dayKey()
+            while (true) {
+                try {
+                    kotlinx.coroutines.delay(5 * 60 * 1000L)
+                    val today = dayKey()
+                    if (today != lastDay) {
+                        lastDay = today
+                        waterToday = 0
+                        StepCounterManager.getInstance(this@StepTrackingService).refreshDisplay()
+                        notifyUpdate(StepCounterManager.getInstance(this@StepTrackingService).dailySteps.value)
+                    }
+                } catch (_: Exception) { /* keep the service alive */ }
+            }
+        }
         return START_STICKY
     }
+
+    private fun dayKey(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
 
     override fun onDestroy() {
         scope.cancel()
