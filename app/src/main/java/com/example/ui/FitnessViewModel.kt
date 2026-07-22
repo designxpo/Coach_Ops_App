@@ -27,6 +27,9 @@ import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
+import com.example.data.ExerciseCatalog
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -68,8 +71,13 @@ class FitnessViewModel(private val userPreferences: UserPreferences) : ViewModel
     private val _selectedExercise = MutableStateFlow<Exercise?>(null)
     val selectedExercise: StateFlow<Exercise?> = _selectedExercise.asStateFlow()
 
+    private var selectedExerciseId: String? = null
+
     fun selectExercise(id: String) {
-        // Use the live merged list so admin image updates are reflected immediately
+        // Remember the id so the shared-catalog collector below can resolve it
+        // once the (async) full list arrives — imported exercises may not be in
+        // the seed list at the instant the detail screen opens.
+        selectedExerciseId = id
         _selectedExercise.value = _allExercises.value.find { it.id == id }
             ?: ExerciseRepository.byId(id)
     }
@@ -144,14 +152,20 @@ class FitnessViewModel(private val userPreferences: UserPreferences) : ViewModel
                 plans.firstOrNull()?.let { loadMyDietLogs(it.id) }
             }
         }
-        // Listen to admin-panel changes — runs for both coach and member
-        exerciseLibraryListener = FirestoreSync.listenExercises { merged ->
-            _allExercises.value = merged
-            // If a detail screen is open, refresh it too
-            _selectedExercise.value?.let { current ->
-                _selectedExercise.value = merged.find { it.id == current.id } ?: current
+        // Observe the SHARED exercise catalog (one app-wide listener) instead of
+        // starting a per-ViewModel listener over the whole 1,300+ doc collection.
+        ExerciseCatalog.start()
+        ExerciseCatalog.all
+            .onEach { merged ->
+                _allExercises.value = merged
+                // Resolve/refresh the open detail from the fresh list — even if it
+                // wasn't found yet when the screen opened (fixes stuck loading on
+                // imported exercises).
+                selectedExerciseId?.let { id ->
+                    merged.find { it.id == id }?.let { _selectedExercise.value = it }
+                }
             }
-        }
+            .launchIn(viewModelScope)
         nutritionPlanListener = FirestoreSync.listenNutritionPlan(clientGoal) { fsPlan ->
             _mealPlan.value = fsPlan ?: NutritionRepository.forGoal(clientGoal)
         }
