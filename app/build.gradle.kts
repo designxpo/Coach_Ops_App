@@ -23,8 +23,8 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 22
-    versionName = "1.3.7"
+    versionCode = 23
+    versionName = "1.3.8"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -94,7 +94,7 @@ dependencies {
   // Unbundled OCR — model comes via Google Play services, keeps the app small
   implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
   implementation("androidx.health.connect:connect-client:1.1.0-rc01")
-  implementation("com.android.billingclient:billing-ktx:7.0.0")
+  implementation("com.android.billingclient:billing-ktx:9.1.0")
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)

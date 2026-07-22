@@ -101,10 +101,11 @@ object BillingManager {
                 .build()
         }
         val params = QueryProductDetailsParams.newBuilder().setProductList(products).build()
-        c.queryProductDetailsAsync(params) { result, list ->
+        // Billing Library 8+ hands back a QueryProductDetailsResult (was List<ProductDetails> in v7)
+        c.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryProductDetailsAsync
             val map = mutableMapOf<SubscriptionPlan, PlanOffer>()
-            for (pd in list) {
+            for (pd in queryResult.productDetailsList) {
                 val plan = planFor(pd.productId) ?: continue
                 val offer = pd.subscriptionOfferDetails?.firstOrNull() ?: continue
                 // last pricing phase = the recurring price (earlier phases may be a free trial)
