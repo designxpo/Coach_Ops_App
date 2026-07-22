@@ -170,15 +170,27 @@ fun ExerciseDetailScreen(
                         .fillMaxWidth()
                         .height(300.dp)
                 ) {
-                    // Prefer the animation GIF, fall back to the static thumbnail
-                    val media = exercise.gifUrl.ifBlank { exercise.imageUrl }
-                    if (media.isNotBlank()) {
-                        AsyncImage(
-                            model = media,
-                            contentDescription = exercise.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                    // Two layers so the media feels instant: the lightweight static
+                    // thumbnail loads first, then the heavier animation GIF crossfades
+                    // in on top once it's downloaded + decoded.
+                    val hasMedia = exercise.imageUrl.isNotBlank() || exercise.gifUrl.isNotBlank()
+                    if (hasMedia) {
+                        if (exercise.imageUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = exercise.imageUrl,
+                                contentDescription = exercise.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        if (exercise.gifUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = exercise.gifUrl,
+                                contentDescription = exercise.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     } else {
                         Box(
                             modifier = Modifier.fillMaxSize()

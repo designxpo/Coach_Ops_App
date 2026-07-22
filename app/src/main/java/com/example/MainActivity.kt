@@ -42,6 +42,17 @@ class MainActivity : ComponentActivity() {
                     else add(coil.decode.GifDecoder.Factory())
                 }
                 .crossfade(true)
+                // Cache exercise GIFs/thumbnails so they download only once, then
+                // load instantly from disk on every later view.
+                .memoryCache {
+                    coil.memory.MemoryCache.Builder(applicationContext).maxSizePercent(0.25).build()
+                }
+                .diskCache {
+                    coil.disk.DiskCache.Builder()
+                        .directory(applicationContext.cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(200L * 1024 * 1024)   // 200 MB
+                        .build()
+                }
                 .build()
         )
         enableEdgeToEdge()
