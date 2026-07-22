@@ -184,7 +184,11 @@ data class Exercise(
     val muscleEmoji: String,
     val estimatedMinutes: Int = 15,
     /** Direct Unsplash photo URL – stable, free, no API key */
-    val imageUrl: String = ""
+    val imageUrl: String = "",
+    /** Animation GIF URL (e.g. Gym visual 180×180). Empty = show static image only. */
+    val gifUrl: String = "",
+    /** Media credit shown on the detail screen, e.g. "© Gym visual — https://gymvisual.com/". */
+    val attribution: String = ""
 )
 
 // ─── Nutrition ────────────────────────────────────────────────────────────────

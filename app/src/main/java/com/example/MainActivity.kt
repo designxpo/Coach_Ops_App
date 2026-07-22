@@ -33,6 +33,17 @@ class MainActivity : ComponentActivity() {
         // First thing: every crash gets written to files/crash_log.txt before
         // reaching Crashlytics — no crash is ever untraceable again
         com.example.data.CrashLogger.install(this)
+        // Coil ImageLoader that decodes animated GIFs (exercise animations) — set once,
+        // used by every AsyncImage. GifDecoder pre-API28, ImageDecoderDecoder on 28+.
+        coil.Coil.setImageLoader(
+            coil.ImageLoader.Builder(applicationContext)
+                .components {
+                    if (android.os.Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory())
+                    else add(coil.decode.GifDecoder.Factory())
+                }
+                .crossfade(true)
+                .build()
+        )
         enableEdgeToEdge()
         val repository = CoachRepository.getInstance(applicationContext)
         val userPreferences = UserPreferences.getInstance(applicationContext)

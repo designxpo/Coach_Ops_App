@@ -23,8 +23,8 @@ android {
     applicationId = "com.aistudio.coachops.abxyzm"
     minSdk = 26
     targetSdk = 36
-    versionCode = 24
-    versionName = "1.3.9"
+    versionCode = 25
+    versionName = "1.4.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -110,6 +110,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  implementation("io.coil-kt:coil-gif:2.7.0")   // animated exercise GIFs (Gym visual)
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   implementation(libs.androidx.work.runtime.ktx)

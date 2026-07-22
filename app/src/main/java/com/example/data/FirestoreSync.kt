@@ -950,7 +950,9 @@ object FirestoreSync {
                 caloriesBurned = d["caloriesBurned"] as? String ?: "",
                 muscleEmoji    = d["muscleEmoji"] as? String ?: "💪",
                 estimatedMinutes = (d["estimatedMinutes"] as? Long)?.toInt() ?: 20,
-                imageUrl       = d["imageUrl"] as? String ?: ""
+                imageUrl       = d["imageUrl"] as? String ?: "",
+                gifUrl         = d["gifUrl"] as? String ?: "",
+                attribution    = d["attribution"] as? String ?: ""
             )
         } catch (e: Exception) {
             android.util.Log.e("CoachOps", "toFullExercise $id failed: ${e.message}")

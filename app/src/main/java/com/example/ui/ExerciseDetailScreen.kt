@@ -170,9 +170,11 @@ fun ExerciseDetailScreen(
                         .fillMaxWidth()
                         .height(300.dp)
                 ) {
-                    if (exercise.imageUrl.isNotBlank()) {
+                    // Prefer the animation GIF, fall back to the static thumbnail
+                    val media = exercise.gifUrl.ifBlank { exercise.imageUrl }
+                    if (media.isNotBlank()) {
                         AsyncImage(
-                            model = exercise.imageUrl,
+                            model = media,
                             contentDescription = exercise.name,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -198,6 +200,16 @@ fun ExerciseDetailScreen(
                             )
                         )
                     )
+
+                    // Required media credit (e.g. © Gym visual)
+                    if (exercise.attribution.isNotBlank()) {
+                        Text(
+                            exercise.attribution,
+                            fontSize = 9.sp,
+                            color = Color.White.copy(0.65f),
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+                        )
+                    }
 
                     // Back button
                     Box(
