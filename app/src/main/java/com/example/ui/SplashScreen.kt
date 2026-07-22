@@ -42,11 +42,13 @@ import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberBgPrimary
 import com.example.ui.theme.CyberTextMuted
 import com.example.ui.theme.CyberTextPrimary
+import com.example.ui.theme.rememberReducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SplashScreen(onComplete: () -> Unit) {
+    val reduceMotion = rememberReducedMotion()
     val logoScale = remember { Animatable(0.4f) }
     val logoAlpha = remember { Animatable(0f) }
     val textAlpha = remember { Animatable(0f) }
@@ -73,6 +75,13 @@ fun SplashScreen(onComplete: () -> Unit) {
     )
 
     LaunchedEffect(Unit) {
+        if (reduceMotion) {
+            // No bouncy scale under reduced-motion — reveal instantly, hold, continue.
+            logoScale.snapTo(1f); logoAlpha.snapTo(1f); textAlpha.snapTo(1f); taglineAlpha.snapTo(1f)
+            delay(1600)
+            onComplete()
+            return@LaunchedEffect
+        }
         launch {
             logoScale.animateTo(
                 1f,

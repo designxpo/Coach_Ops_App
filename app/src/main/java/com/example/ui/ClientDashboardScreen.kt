@@ -24,6 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.example.ui.theme.bounceClick
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
@@ -473,30 +480,39 @@ private fun BookingCard(
                     var reviewText by remember(booking.id) { mutableStateOf("") }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Rate this session:", fontSize = 12.sp, color = CyberTextMuted, fontWeight = FontWeight.SemiBold)
+                        val haptic = LocalHapticFeedback.current
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             listOf(1f, 2f, 3f, 4f, 5f).forEach { star ->
+                                val active = pendingRating >= star
+                                // Selected stars pop with an under-damped spring; colour eases in.
+                                val starScale by animateFloatAsState(
+                                    targetValue = if (active) 1.18f else 1f,
+                                    animationSpec = spring(dampingRatio = 0.45f, stiffness = 380f),
+                                    label = "starScale"
+                                )
+                                val bg by animateColorAsState(
+                                    if (active) CyberAccent.copy(0.15f) else CyberBgCardElevated, label = "starBg"
+                                )
+                                val stroke by animateColorAsState(
+                                    if (active) CyberAccent.copy(0.4f) else Color.White.copy(0.06f), label = "starStroke"
+                                )
                                 Box(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            if (pendingRating >= star) CyberAccent.copy(0.15f)
-                                            else CyberBgCardElevated
-                                        )
-                                        .border(
-                                            1.dp,
-                                            if (pendingRating >= star) CyberAccent.copy(0.4f)
-                                            else Color.White.copy(0.06f),
-                                            RoundedCornerShape(10.dp)
-                                        )
-                                        .clickable { pendingRating = star },
+                                        .background(bg)
+                                        .border(1.dp, stroke, RoundedCornerShape(10.dp))
+                                        .bounceClick(pressedScale = 0.88f) {
+                                            pendingRating = star
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("⭐", fontSize = 16.sp)
+                                    Text("⭐", fontSize = 16.sp, modifier = Modifier.scale(starScale))
                                 }
                             }
                         }

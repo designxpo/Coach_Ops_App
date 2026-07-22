@@ -63,6 +63,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.navigation.NavBackStackEntry
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import com.example.ui.theme.rememberReducedMotion
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.bounceClick
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -89,6 +104,32 @@ import com.example.ui.theme.CyberTextPrimary
  */
 private fun androidx.navigation.NavHostController.push(route: String) =
     navigate(route) { launchSingleTop = true }
+
+// ── Screen transitions ────────────────────────────────────────────────────────
+// Native directional push: a new screen slides in from the right and the old
+// one slides out left; pop reverses it (Apple #7, spatial consistency). Under
+// reduced-motion this collapses to a short opacity fade — no travel.
+private const val NAV_MS = 300
+private fun navEnter(reduce: Boolean): AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+    if (reduce) fadeIn(androidx.compose.animation.core.tween(120))
+    else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, androidx.compose.animation.core.tween(NAV_MS)) +
+        fadeIn(androidx.compose.animation.core.tween(NAV_MS))
+}
+private fun navExit(reduce: Boolean): AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+    if (reduce) fadeOut(androidx.compose.animation.core.tween(120))
+    else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, androidx.compose.animation.core.tween(NAV_MS)) +
+        fadeOut(androidx.compose.animation.core.tween(NAV_MS))
+}
+private fun navPopEnter(reduce: Boolean): AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+    if (reduce) fadeIn(androidx.compose.animation.core.tween(120))
+    else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, androidx.compose.animation.core.tween(NAV_MS)) +
+        fadeIn(androidx.compose.animation.core.tween(NAV_MS))
+}
+private fun navPopExit(reduce: Boolean): AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+    if (reduce) fadeOut(androidx.compose.animation.core.tween(120))
+    else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, androidx.compose.animation.core.tween(NAV_MS)) +
+        fadeOut(androidx.compose.animation.core.tween(NAV_MS))
+}
 
 sealed class Screen(
     val route: String,
@@ -208,6 +249,7 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
 
     // Soft "update available" nudge — dismissible for this session
     var updateNudgeDismissed by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReducedMotion()
 
     val navController = rememberNavController()
     // Always 5 tabs (Instagram-style) — Gym lives in the Home top bar + quick access
@@ -248,18 +290,30 @@ fun MainAppScreen(viewModel: MainViewModel, userPreferences: UserPreferences, ch
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             // ── Announcement banner (shown when logged in and on main tabs) ───
-            if (showBottomBar && appControl.announcementEnabled && appControl.announcementText.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = showBottomBar && appControl.announcementEnabled && appControl.announcementText.isNotEmpty(),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 AnnouncementBanner(appControl)
             }
             // ── Soft update nudge (behind, but within the compulsory threshold) ─
-            if (showBottomBar && appControl.updateNudgeEnabled && !updateNudgeDismissed &&
-                versionsBehind in 1..appControl.compulsoryUpdateAfter) {
+            AnimatedVisibility(
+                visible = showBottomBar && appControl.updateNudgeEnabled && !updateNudgeDismissed &&
+                    versionsBehind in 1..appControl.compulsoryUpdateAfter,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 UpdateNudgeBanner(appControl.updateMessage) { updateNudgeDismissed = true }
             }
             NavHost(
                 navController,
                 startDestination = "splash",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enterTransition = navEnter(reduceMotion),
+                exitTransition = navExit(reduceMotion),
+                popEnterTransition = navPopEnter(reduceMotion),
+                popExitTransition = navPopExit(reduceMotion)
             ) {
                 composable("splash") {
                     val dest = remember {
@@ -681,6 +735,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
     val memberUnread = chatThreads.sumOf { it.unreadMember }
 
     val context = LocalContext.current
+    val reduceMotion = rememberReducedMotion()
     val navController = rememberNavController()
     val clientItems = listOf(ClientScreen.Discover, ClientScreen.Fitness, ClientScreen.MyBookings, ClientScreen.Messages, ClientScreen.Profile)
     var sharedMealPlan by remember { mutableStateOf<WeeklyMealPlan?>(null) }
@@ -723,7 +778,11 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
         }
     ) { innerPadding ->
         NavHost(navController, startDestination = ClientScreen.Discover.route,
-            modifier = Modifier.padding(innerPadding).fillMaxSize()
+            modifier = Modifier.padding(innerPadding).fillMaxSize(),
+            enterTransition = navEnter(reduceMotion),
+            exitTransition = navExit(reduceMotion),
+            popEnterTransition = navPopEnter(reduceMotion),
+            popExitTransition = navPopExit(reduceMotion)
         ) {
             composable(ClientScreen.Discover.route) {
                 DiscoverScreen(
@@ -1172,6 +1231,13 @@ fun UpdateGateSheet(message: String) {
             .navigationBarsPadding(),
         contentAlignment = Alignment.BottomCenter
     ) {
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        AnimatedVisibility(
+            visible = shown,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = fadeOut()
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1203,6 +1269,7 @@ fun UpdateGateSheet(message: String) {
                 Text("Update Now", color = Color(0xFF1A1A1A), fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(vertical = 4.dp))
             }
+        }
         }
     }
 }
@@ -1341,8 +1408,28 @@ private fun NavTabItem(
     val badgeSize    = if (compact) 15.dp  else 18.dp
     val badgeFont    = if (compact) 8.sp   else 9.sp
 
+    // Spring the selection pill between tabs + press-down feedback (the nav bar
+    // is the most-tapped control; it used to have neither).
+    val pillWidth by animateDpAsState(
+        targetValue = if (selected) pillSelW else pillUnselW,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = 0.72f,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "pillWidth"
+    )
+    val pillColor by animateColorAsState(
+        targetValue = if (selected) CyberAccent else Color.Transparent,
+        label = "pillColor"
+    )
+    val iconTint by animateColorAsState(
+        targetValue = if (selected) CyberAccentDark else CyberTextMuted,
+        label = "iconTint"
+    )
+
     Column(
         modifier = modifier
+            .pressScale(interactionSource, pressedScale = 0.90f)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -1362,15 +1449,15 @@ private fun NavTabItem(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .height(pillHeight)
-                    .width(if (selected) pillSelW else pillUnselW)
+                    .width(pillWidth)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(if (selected) CyberAccent else Color.Transparent),
+                    .background(pillColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = if (selected) CyberAccentDark else CyberTextMuted,
+                    tint = iconTint,
                     modifier = Modifier.size(iconSize)
                 )
             }

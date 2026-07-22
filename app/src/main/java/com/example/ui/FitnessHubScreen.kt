@@ -48,6 +48,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.example.ui.theme.animatedProgress
+import com.example.ui.theme.bounceClick
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -250,8 +255,9 @@ fun FitnessHubScreen(
                     }
                 }
                 Spacer(Modifier.height(10.dp))
+                val goalProgress = animatedProgress(todayCount.toFloat() / dailyGoal)
                 LinearProgressIndicator(
-                    progress = { (todayCount.toFloat() / dailyGoal).coerceIn(0f, 1f) },
+                    progress = { goalProgress },
                     modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                     color = if (todayCount >= dailyGoal) CyberAccent else CyberAccent.copy(0.7f),
                     trackColor = CyberBgCardElevated,
@@ -584,8 +590,9 @@ fun FitnessHubScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (log.stepsCount == 0 && !autoSteps) CyberTextMuted else CyberTextPrimary
                                 )
+                                val stepProgress = animatedProgress((log.stepsCount / 10_000f))
                                 LinearProgressIndicator(
-                                    progress = { (log.stepsCount / 10_000f).coerceIn(0f, 1f) },
+                                    progress = { stepProgress },
                                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
                                     color = Color(0xFF3B82F6), trackColor = Color(0xFF3B82F6).copy(0.15f)
                                 )
@@ -601,14 +608,19 @@ fun FitnessHubScreen(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text("💧 Water", fontSize = 12.sp, color = CyberTextMuted)
+                            val waterHaptic = LocalHapticFeedback.current
+                            val waterCount by animateIntAsState(targetValue = log.waterGlasses, label = "water")
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(Modifier.size(26.dp).clip(CircleShape).background(CyberBgCardElevated)
-                                    .clickable { healthViewModel.removeWater() }, contentAlignment = Alignment.Center) {
+                                    .bounceClick(pressedScale = 0.85f) { healthViewModel.removeWater() }, contentAlignment = Alignment.Center) {
                                     Text("−", fontSize = 16.sp, color = CyberTextPrimary, fontWeight = FontWeight.Bold)
                                 }
-                                Text("${log.waterGlasses}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF06B6D4))
+                                Text("$waterCount", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF06B6D4))
                                 Box(Modifier.size(26.dp).clip(CircleShape).background(Color(0xFF06B6D4).copy(0.2f))
-                                    .clickable { healthViewModel.addWater() }, contentAlignment = Alignment.Center) {
+                                    .bounceClick(pressedScale = 0.85f) {
+                                        healthViewModel.addWater()
+                                        waterHaptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }, contentAlignment = Alignment.Center) {
                                     Text("+", fontSize = 16.sp, color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold)
                                 }
                             }

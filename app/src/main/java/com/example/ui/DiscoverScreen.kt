@@ -78,6 +78,8 @@ import com.example.data.TrainerProfile
 import com.example.data.isFeatured
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
+import com.example.ui.theme.shimmerLoading
+import com.example.ui.theme.bounceClick
 import com.example.ui.theme.CyberBgCard
 import com.example.ui.theme.CyberBgCardElevated
 import com.example.ui.theme.CyberBgPrimary
@@ -833,9 +835,16 @@ fun DiscoverScreen(
 
                 when {
                     isLoading || isGeocoding -> item {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 40.dp),
-                            contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = CyberAccent, modifier = Modifier.size(32.dp))
+                        // Skeleton placeholders read as "loading content" faster than a spinner
+                        Column(Modifier.padding(top = 8.dp)) {
+                            repeat(4) {
+                                Box(
+                                    Modifier.fillMaxWidth()
+                                        .padding(horizontal = 20.dp).padding(bottom = 12.dp)
+                                        .height(92.dp)
+                                        .shimmerLoading(20)
+                                )
+                            }
                         }
                     }
                     topTrainers.isEmpty() -> item {
@@ -860,7 +869,8 @@ fun DiscoverScreen(
                                 trainer  = trainer,
                                 rank     = index + 1,
                                 onClick  = { onTrainerClick(trainer.uid) },
-                                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
+                                modifier = Modifier.animateItem()
+                                    .padding(horizontal = 20.dp).padding(bottom = 12.dp)
                             )
                         }
 
@@ -968,7 +978,7 @@ private fun NearbyAreaRow(area: NearbyArea, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .bounceClick { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1072,7 +1082,7 @@ fun TrainerCard(
                 if (rank == 1) CyberAccent.copy(0.35f) else Color.White.copy(0.06f),
                 RoundedCornerShape(20.dp)
             )
-            .clickable { onClick() }.padding(16.dp)
+            .bounceClick { onClick() }.padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
