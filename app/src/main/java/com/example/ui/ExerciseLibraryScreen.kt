@@ -102,6 +102,7 @@ fun ExerciseCategoryScreen(
 ) {
     var selectedCategory by remember { mutableStateOf(category) }
     var selectedMuscle by remember { mutableStateOf<MuscleGroup?>(null) }
+    var selectedSub by remember { mutableStateOf<String?>(null) }
     var diffFilter  by remember { mutableStateOf<DifficultyLevel?>(null) }
     var sortMode    by remember { mutableStateOf<ExSortMode>(ExSortMode.DEFAULT) }
     var showSearch  by remember { mutableStateOf(false) }
@@ -124,11 +125,33 @@ fun ExerciseCategoryScreen(
         }
     }
 
-    val exercises = remember(allExercises, selectedCategory, selectedMuscle, diffFilter, sortMode, searchQuery) {
+    // Category + body-part + difficulty + search filtered (before the sub-target chip).
+    val muscleScoped = remember(allExercises, selectedCategory, selectedMuscle, diffFilter, searchQuery) {
         var list = allExercises.filter { it.category == selectedCategory }
         selectedMuscle?.let { mg -> list = list.filter { mg in it.primaryMuscles } }
         if (diffFilter != null) list = list.filter { it.difficulty == diffFilter }
         if (searchQuery.isNotBlank()) list = list.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        list
+    }
+
+    // Granular sub-targets within the chosen body part (e.g. Upper / Lower / Inner
+    // Chest), derived from the exercise name. Only regions that actually have
+    // exercises are shown, each with a live count.
+    val subFilters: List<Pair<String, Int>> = remember(muscleScoped, selectedMuscle) {
+        val mg = selectedMuscle
+        val specs = if (mg != null) subTargets[mg] else null
+        if (mg == null || specs == null) emptyList()
+        else {
+            val counts = HashMap<String, Int>()
+            muscleScoped.forEach { ex -> subTargetOf(ex, mg)?.let { counts[it] = (counts[it] ?: 0) + 1 } }
+            specs.mapNotNull { s -> counts[s.label]?.let { c -> s.label to c } }
+        }
+    }
+
+    val exercises = remember(muscleScoped, selectedMuscle, selectedSub, sortMode) {
+        val mg = selectedMuscle
+        var list = if (mg != null && selectedSub != null) muscleScoped.filter { subTargetOf(it, mg) == selectedSub }
+                   else muscleScoped
         when (sortMode) {
             ExSortMode.AZ       -> list.sortedBy { it.name }
             ExSortMode.DURATION -> list.sortedBy { it.estimatedMinutes }
@@ -139,7 +162,7 @@ fun ExerciseCategoryScreen(
     // Show the body-part chooser until a part is picked (search bypasses it).
     val showBodyPartGrid = selectedMuscle == null && searchQuery.isBlank()
     // System back clears the selected body part before leaving the screen.
-    BackHandler(enabled = selectedMuscle != null) { selectedMuscle = null }
+    BackHandler(enabled = selectedMuscle != null) { selectedMuscle = null; selectedSub = null }
 
     Column(
         modifier = Modifier
@@ -193,7 +216,7 @@ fun ExerciseCategoryScreen(
                             if (sel) Color.Transparent else Color.White.copy(0.1f),
                             RoundedCornerShape(999.dp)
                         )
-                        .clickable { selectedCategory = cat; selectedMuscle = null; diffFilter = null; searchQuery = "" }
+                        .clickable { selectedCategory = cat; selectedMuscle = null; selectedSub = null; diffFilter = null; searchQuery = "" }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
                     Text(
@@ -326,7 +349,7 @@ fun ExerciseCategoryScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(bodyParts, key = { it.muscle.name }) { bp ->
-                    BodyPartCard(bp) { selectedMuscle = bp.muscle }
+                    BodyPartCard(bp) { selectedMuscle = bp.muscle; selectedSub = null }
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
             }
@@ -336,14 +359,30 @@ fun ExerciseCategoryScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { selectedMuscle = null }
+                        .clickable { selectedMuscle = null; selectedSub = null }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text("‹ Body parts", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberAccent)
                     Text("·", fontSize = 13.sp, color = CyberTextMuted)
-                    Text("${mg.emoji} ${mg.label}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+                    Text(mg.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+                }
+            }
+
+            // ── Sub-target chips (Upper / Lower / Inner …) ────────────────────
+            if (subFilters.size >= 2) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SubChip("All", muscleScoped.size, selectedSub == null) { selectedSub = null }
+                    subFilters.forEach { (label, count) ->
+                        SubChip(label, count, selectedSub == label) { selectedSub = label }
+                    }
                 }
             }
 
@@ -380,6 +419,91 @@ fun ExerciseCategoryScreen(
     }
 }
 
+// ─── Sub-target classifier ────────────────────────────────────────────────────
+// Splits a body part into granular regions (e.g. Chest → Upper / Lower / Inner)
+// from the exercise name. Specs are ordered by priority; the first whose keyword
+// appears in the name wins. A trailing spec with no keywords is the catch-all for
+// everything that didn't match a specific region.
+
+private data class SubTarget(val label: String, val keywords: List<String>)
+
+private val subTargets: Map<MuscleGroup, List<SubTarget>> = mapOf(
+    MuscleGroup.CHEST to listOf(
+        SubTarget("Upper", listOf("incline")),
+        SubTarget("Lower", listOf("decline", "dip")),
+        SubTarget("Inner", listOf("fly", "flye", "crossover", "cross-over", "cross over", "pec deck", "pec-deck", "pec-fly", "squeeze")),
+        SubTarget("Mid / Overall", emptyList())
+    ),
+    MuscleGroup.BACK to listOf(
+        SubTarget("Lats", listOf("pulldown", "pull-down", "pull down", "pull up", "pull-up", "pullup", "chin", "pullover", "pull-over", "lat ")),
+        SubTarget("Traps", listOf("shrug", "trap")),
+        SubTarget("Lower Back", listOf("hyperextension", "back extension", "good morning", "superman", "back raise")),
+        SubTarget("Rows / Mid", listOf("row")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.SHOULDERS to listOf(
+        SubTarget("Front Delts", listOf("front raise", "overhead press", "military", "shoulder press", "arnold", "z press")),
+        SubTarget("Side Delts", listOf("lateral", "side raise", "upright row")),
+        SubTarget("Rear Delts", listOf("rear", "reverse fly", "reverse flye", "reverse delt", "face pull", "bent over", "bent-over")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.BICEPS to listOf(
+        SubTarget("Peak / Long Head", listOf("incline", "drag", "bayesian")),
+        SubTarget("Short Head", listOf("preacher", "concentration", "spider")),
+        SubTarget("Brachialis", listOf("hammer", "reverse", "cross body", "cross-body")),
+        SubTarget("Overall Curls", emptyList())
+    ),
+    MuscleGroup.TRICEPS to listOf(
+        SubTarget("Long Head", listOf("overhead", "french", "skull", "lying", "nose")),
+        SubTarget("Lateral / Medial", listOf("pushdown", "push-down", "push down", "pressdown", "kickback", "dip")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.FOREARMS to listOf(
+        SubTarget("Flexors", listOf("wrist curl", "wrist-curl")),
+        SubTarget("Extensors", listOf("reverse", "extension")),
+        SubTarget("Grip", listOf("grip", "farmer", "hold")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.CORE to listOf(
+        SubTarget("Upper Abs", listOf("crunch", "sit up", "sit-up", "situp")),
+        SubTarget("Lower Abs", listOf("leg raise", "knee raise", "reverse crunch", "hanging", "flutter", "scissor")),
+        SubTarget("Obliques", listOf("oblique", "twist", "side bend", "russian", "woodchop", "wood chop", "side plank", "windmill")),
+        SubTarget("Overall Core", emptyList())
+    ),
+    MuscleGroup.QUADS to listOf(
+        SubTarget("Squats", listOf("squat")),
+        SubTarget("Lunges", listOf("lunge", "split squat", "step up", "step-up")),
+        SubTarget("Leg Press", listOf("leg press", "hack")),
+        SubTarget("Extensions", listOf("extension")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.HAMSTRINGS to listOf(
+        SubTarget("Curls", listOf("curl")),
+        SubTarget("Hip Hinge", listOf("deadlift", "good morning", "rdl", "romanian", "swing")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.GLUTES to listOf(
+        SubTarget("Thrust / Bridge", listOf("thrust", "bridge")),
+        SubTarget("Kickback / Abduction", listOf("kickback", "kick back", "abduction", "abductor")),
+        SubTarget("Overall", emptyList())
+    ),
+    MuscleGroup.CALVES to listOf(
+        SubTarget("Standing", listOf("standing")),
+        SubTarget("Seated", listOf("seated")),
+        SubTarget("Overall", emptyList())
+    )
+)
+
+private fun subTargetOf(ex: Exercise, muscle: MuscleGroup): String? {
+    val specs = subTargets[muscle] ?: return null
+    val n = ex.name.lowercase()
+    for (s in specs) {
+        if (s.keywords.isEmpty()) return s.label
+        if (s.keywords.any { n.contains(it) }) return s.label
+    }
+    return specs.lastOrNull()?.label
+}
+
 // ─── Body-part chooser card ───────────────────────────────────────────────────
 
 private data class BodyPart(val muscle: MuscleGroup, val count: Int, val image: String)
@@ -413,7 +537,7 @@ private fun BodyPartCard(bp: BodyPart, onClick: () -> Unit) {
         Column(
             modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
         ) {
-            Text("${bp.muscle.emoji} ${bp.muscle.label}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text(bp.muscle.label, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             Text("${bp.count} exercises", fontSize = 11.sp, color = Color.White.copy(0.75f))
         }
     }
@@ -457,7 +581,12 @@ private fun WorkoutPhotoCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(exercise.muscleEmoji, fontSize = 52.sp)
+                Text(
+                    exercise.primaryMuscles.firstOrNull()?.label ?: "Exercise",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White.copy(0.85f)
+                )
             }
         }
 
@@ -578,6 +707,24 @@ private fun VerticalBar() {
             .height(20.dp)
             .background(Color.White.copy(0.1f))
     )
+}
+
+@Composable
+private fun SubChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) CyberAccent else CyberBgCardElevated)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            "$label · $count",
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+            color = if (selected) CyberAccentDark else CyberTextMuted
+        )
+    }
 }
 
 @Composable

@@ -197,7 +197,12 @@ fun ExerciseDetailScreen(
                                 .background(Brush.verticalGradient(listOf(Color(0xFF1A1A2E), Color(0xFF16213E)))),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(exercise.muscleEmoji, fontSize = 72.sp)
+                            Text(
+                                exercise.primaryMuscles.firstOrNull()?.label ?: exercise.name,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White.copy(0.85f)
+                            )
                         }
                     }
 
@@ -658,7 +663,7 @@ private fun RelatedExerciseRow(exercise: Exercise, onClick: () -> Unit = {}) {
                 Box(
                     Modifier.fillMaxSize().background(CyberAccent.copy(0.12f)),
                     contentAlignment = Alignment.Center
-                ) { Text(exercise.muscleEmoji, fontSize = 24.sp) }
+                ) { Text(exercise.primaryMuscles.firstOrNull()?.label?.take(3)?.uppercase() ?: "EX", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent) }
             }
         }
 
