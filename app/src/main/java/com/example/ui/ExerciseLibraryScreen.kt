@@ -59,9 +59,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.activity.compose.BackHandler
 import com.example.data.DifficultyLevel
 import com.example.data.Exercise
 import com.example.data.ExerciseCategory
+import com.example.data.MuscleGroup
 import com.example.data.ExerciseRepository
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
@@ -99,6 +101,7 @@ fun ExerciseCategoryScreen(
     onBack: () -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf(category) }
+    var selectedMuscle by remember { mutableStateOf<MuscleGroup?>(null) }
     var diffFilter  by remember { mutableStateOf<DifficultyLevel?>(null) }
     var sortMode    by remember { mutableStateOf<ExSortMode>(ExSortMode.DEFAULT) }
     var showSearch  by remember { mutableStateOf(false) }
@@ -108,8 +111,22 @@ fun ExerciseCategoryScreen(
 
     // Use live Firestore-merged data so admin image/howTo updates appear in real-time
     val allExercises by viewModel.allExercises.collectAsState()
-    val exercises = remember(allExercises, selectedCategory, diffFilter, sortMode, searchQuery) {
+
+    // Body parts (muscle groups) present in this category, each with a count + photo.
+    // With 1,300+ exercises we show these first so the user drills in by body part
+    // instead of scrolling one giant flat list.
+    val bodyParts = remember(allExercises, selectedCategory) {
+        val inCat = allExercises.filter { it.category == selectedCategory }
+        MuscleGroup.entries.mapNotNull { mg ->
+            val items = inCat.filter { mg in it.primaryMuscles }
+            if (items.isEmpty()) null
+            else BodyPart(mg, items.size, items.firstOrNull { it.imageUrl.isNotBlank() }?.imageUrl ?: "")
+        }
+    }
+
+    val exercises = remember(allExercises, selectedCategory, selectedMuscle, diffFilter, sortMode, searchQuery) {
         var list = allExercises.filter { it.category == selectedCategory }
+        selectedMuscle?.let { mg -> list = list.filter { mg in it.primaryMuscles } }
         if (diffFilter != null) list = list.filter { it.difficulty == diffFilter }
         if (searchQuery.isNotBlank()) list = list.filter { it.name.contains(searchQuery, ignoreCase = true) }
         when (sortMode) {
@@ -118,6 +135,11 @@ fun ExerciseCategoryScreen(
             else               -> list
         }
     }
+
+    // Show the body-part chooser until a part is picked (search bypasses it).
+    val showBodyPartGrid = selectedMuscle == null && searchQuery.isBlank()
+    // System back clears the selected body part before leaving the screen.
+    BackHandler(enabled = selectedMuscle != null) { selectedMuscle = null }
 
     Column(
         modifier = Modifier
@@ -171,7 +193,7 @@ fun ExerciseCategoryScreen(
                             if (sel) Color.Transparent else Color.White.copy(0.1f),
                             RoundedCornerShape(999.dp)
                         )
-                        .clickable { selectedCategory = cat; diffFilter = null; searchQuery = "" }
+                        .clickable { selectedCategory = cat; selectedMuscle = null; diffFilter = null; searchQuery = "" }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
                     Text(
@@ -288,34 +310,111 @@ fun ExerciseCategoryScreen(
             }
         }
 
-        // ── Results count ─────────────────────────────────────────────────────
-        Text(
-            "${exercises.size} exercises",
-            fontSize = 11.sp,
-            color = CyberTextMuted,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        // ── 2-column photo grid ───────────────────────────────────────────────
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(exercises, key = { it.id }) { ex ->
-                WorkoutPhotoCard(
-                    exercise = ex,
-                    isBookmarked = ex.id in bookmarked,
-                    onBookmark = {
-                        if (ex.id in bookmarked) bookmarked = bookmarked - ex.id
-                        else bookmarked = bookmarked + ex.id
-                    },
-                    onClick = { onExerciseClick(ex.id) }
-                )
+        if (showBodyPartGrid) {
+            // ── Body-part chooser (drill in before seeing exercises) ──────────
+            Text(
+                "Choose a body part",
+                fontSize = 11.sp,
+                color = CyberTextMuted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(bodyParts, key = { it.muscle.name }) { bp ->
+                    BodyPartCard(bp) { selectedMuscle = bp.muscle }
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
             }
-            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
+        } else {
+            // ── Selected body-part header — tap to go back to the chooser ─────
+            selectedMuscle?.let { mg ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedMuscle = null }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("‹ Body parts", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = CyberAccent)
+                    Text("·", fontSize = 13.sp, color = CyberTextMuted)
+                    Text("${mg.emoji} ${mg.label}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CyberTextPrimary)
+                }
+            }
+
+            // ── Results count ─────────────────────────────────────────────────
+            Text(
+                "${exercises.size} exercises",
+                fontSize = 11.sp,
+                color = CyberTextMuted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            // ── 2-column photo grid ───────────────────────────────────────────
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(exercises, key = { it.id }) { ex ->
+                    WorkoutPhotoCard(
+                        exercise = ex,
+                        isBookmarked = ex.id in bookmarked,
+                        onBookmark = {
+                            if (ex.id in bookmarked) bookmarked = bookmarked - ex.id
+                            else bookmarked = bookmarked + ex.id
+                        },
+                        onClick = { onExerciseClick(ex.id) }
+                    )
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
+            }
+        }
+    }
+}
+
+// ─── Body-part chooser card ───────────────────────────────────────────────────
+
+private data class BodyPart(val muscle: MuscleGroup, val count: Int, val image: String)
+
+@Composable
+private fun BodyPartCard(bp: BodyPart, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(CyberBgCard)
+            .clickable { onClick() }
+    ) {
+        if (bp.image.isNotBlank()) {
+            AsyncImage(
+                model = bp.image,
+                contentDescription = bp.muscle.label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(0.25f),
+                    1f to Color.Black.copy(0.8f)
+                )
+            )
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+        ) {
+            Text("${bp.muscle.emoji} ${bp.muscle.label}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text("${bp.count} exercises", fontSize = 11.sp, color = Color.White.copy(0.75f))
         }
     }
 }
