@@ -892,6 +892,66 @@ object FirestoreSync {
             }
     }
 
+    // ─── Indian food library (real-time from admin panel) ─────────────────────
+
+    /**
+     * Listens to the Firestore `indian_foods` collection. Merges admin edits on
+     * top of the built-in [IndianFoodLibrary.all] (edited fields override, an
+     * unpublished built-in is hidden) and appends admin-created dishes.
+     */
+    fun listenIndianFoods(callback: (List<LibraryFood>) -> Unit): ListenerRegistration {
+        return db.collection("indian_foods")
+            .addSnapshotListener { snap, err ->
+                if (err != null || snap == null) {
+                    callback(IndianFoodLibrary.all)
+                    return@addSnapshotListener
+                }
+                val fsMap = snap.documents.associateBy { it.id }
+                val hardcodedIds = IndianFoodLibrary.all.map { it.id }.toSet()
+
+                val merged = IndianFoodLibrary.all.mapNotNull { base ->
+                    val doc = fsMap[base.id] ?: return@mapNotNull base
+                    if (doc.getBoolean("isPublished") == false) return@mapNotNull null
+                    base.copy(
+                        name         = doc.getString("name")?.ifBlank { null } ?: base.name,
+                        quantity     = doc.getString("quantity")?.ifBlank { null } ?: base.quantity,
+                        calories     = doc.getLong("calories")?.toInt() ?: base.calories,
+                        proteinG     = doc.getLong("proteinG")?.toInt() ?: base.proteinG,
+                        carbsG       = doc.getLong("carbsG")?.toInt() ?: base.carbsG,
+                        fatG         = doc.getLong("fatG")?.toInt() ?: base.fatG,
+                        isVegetarian = doc.getBoolean("isVegetarian") ?: base.isVegetarian,
+                        category     = enumSafe<IndianFoodCategory>(doc.getString("category")) ?: base.category,
+                        region       = enumSafe<IndianRegion>(doc.getString("region")) ?: base.region,
+                        benefits     = doc.getString("benefits")?.ifBlank { null } ?: base.benefits
+                    )
+                }
+
+                val newFoods = snap.documents
+                    .filter { it.id !in hardcodedIds && it.getBoolean("isPublished") != false }
+                    .mapNotNull { it.toIndianFood() }
+
+                callback(merged + newFoods)
+            }
+    }
+
+    private fun DocumentSnapshot.toIndianFood(): LibraryFood? {
+        val n = getString("name")?.ifBlank { null } ?: return null
+        return LibraryFood(
+            id           = id,
+            name         = n,
+            quantity     = getString("quantity") ?: "",
+            calories     = getLong("calories")?.toInt() ?: 0,
+            proteinG     = getLong("proteinG")?.toInt() ?: 0,
+            carbsG       = getLong("carbsG")?.toInt() ?: 0,
+            fatG         = getLong("fatG")?.toInt() ?: 0,
+            isVegetarian = getBoolean("isVegetarian") ?: true,
+            category     = enumSafe<IndianFoodCategory>(getString("category")) ?: IndianFoodCategory.MAINS,
+            region       = enumSafe<IndianRegion>(getString("region")),
+            benefits     = getString("benefits") ?: "",
+            isPublished  = getBoolean("isPublished") ?: true
+        )
+    }
+
     /** Extracts only the fields the admin panel can override (for merging onto hardcoded). */
     private fun DocumentSnapshot.toExerciseOverride(): Exercise {
         val d = data ?: return Exercise(

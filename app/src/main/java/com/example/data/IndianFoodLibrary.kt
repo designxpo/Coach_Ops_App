@@ -44,7 +44,8 @@ fun regionForLocation(location: String?): IndianRegion? {
     }
 }
 
-/** The signature region of a dish, or null if it's pan-Indian (shown everywhere). */
+/** The signature region of a dish by name, or null if it's pan-Indian. Used as a
+ *  fallback for the built-in dishes that don't carry an explicit region tag. */
 fun regionOfDish(name: String): IndianRegion? {
     val n = name.lowercase()
     fun any(vararg keys: String) = keys.any { it in n }
@@ -61,6 +62,26 @@ fun regionOfDish(name: String): IndianRegion? {
     }
 }
 
+/** A dish's effective region: the explicit admin/data tag if present, else the
+ *  name-based guess. This is what filtering & region-boosting use. */
+fun effectiveRegion(food: LibraryFood): IndianRegion? = food.region ?: regionOfDish(food.name)
+
+/** Rough region from GPS coordinates (fallback when the city text is unknown). */
+fun regionForCoordinates(lat: Double, lng: Double): IndianRegion? {
+    if (lat == 0.0 && lng == 0.0) return null
+    if (lat < 6.0 || lat > 37.0 || lng < 68.0 || lng > 98.0) return null   // outside India
+    return when {
+        lng >= 85.0 && lat >= 20.0 -> IndianRegion.EAST    // Bengal, Bihar, Odisha, NE
+        lat < 18.0                 -> IndianRegion.SOUTH   // peninsular south
+        lng < 77.0 && lat < 24.0   -> IndianRegion.WEST    // Maharashtra, Gujarat, Goa
+        else                       -> IndianRegion.NORTH
+    }
+}
+
+/** Resolve the member's culinary region: prefer the typed/geocoded city, then GPS. */
+fun resolveUserRegion(city: String?, lat: Double, lng: Double): IndianRegion? =
+    regionForLocation(city) ?: regionForCoordinates(lat, lng)
+
 enum class IndianFoodCategory(val label: String, val image: String) {
     BREAKFAST("Breakfast", u("1614961233913-a5113a4a34ed")),
     MAINS("Sabzi & Mains", u("1585937421612-70a008356fbe")),
@@ -76,6 +97,7 @@ enum class IndianFoodCategory(val label: String, val image: String) {
 private fun u(id: String) = "https://images.unsplash.com/photo-$id?w=200&h=200&fit=crop&q=80"
 
 data class LibraryFood(
+    val id: String,
     val name: String,
     val quantity: String,
     val calories: Int,
@@ -84,15 +106,22 @@ data class LibraryFood(
     val fatG: Int,
     val isVegetarian: Boolean,
     val category: IndianFoodCategory,
-    val benefits: String
+    val region: IndianRegion? = null,   // explicit tag; null = pan-Indian / inferred
+    val benefits: String,
+    val isPublished: Boolean = true
 )
 
 object IndianFoodLibrary {
 
     private fun f(
         name: String, qty: String, cal: Int, pro: Int, carb: Int, fat: Int,
-        cat: IndianFoodCategory, benefit: String, veg: Boolean = true
-    ) = LibraryFood(name, qty, cal, pro, carb, fat, veg, cat, benefit)
+        cat: IndianFoodCategory, benefit: String, veg: Boolean = true,
+        region: IndianRegion? = null
+    ) = LibraryFood(
+        id = "food-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-'),
+        name = name, quantity = qty, calories = cal, proteinG = pro, carbsG = carb, fatG = fat,
+        isVegetarian = veg, category = cat, region = region, benefits = benefit
+    )
 
     private val B = IndianFoodCategory.BREAKFAST
     private val M = IndianFoodCategory.MAINS

@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,13 +55,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.data.IndianFoodCatalog
 import com.example.data.IndianFoodCategory
-import com.example.data.IndianFoodLibrary
 import com.example.data.IndianRegion
 import com.example.data.LibraryFood
 import com.example.data.UserPreferences
-import com.example.data.regionForLocation
-import com.example.data.regionOfDish
+import com.example.data.effectiveRegion
+import com.example.data.resolveUserRegion
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -74,18 +76,26 @@ private enum class VegFilter(val label: String) { ALL("All"), VEG("Veg"), NONVEG
 @Composable
 fun IndianFoodsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    // Culinary region inferred from the member's saved city — used to surface
-    // region-relevant dishes first.
-    val userRegion = remember { regionForLocation(UserPreferences.getInstance(context).clientCity) }
+    // Live admin-editable catalog (built-in dishes merged with Firestore edits).
+    LaunchedEffect(Unit) { IndianFoodCatalog.start() }
+    val allFoods by IndianFoodCatalog.all.collectAsState()
+
+    // Culinary region — from the member's saved city, falling back to GPS coords.
+    val userRegion = remember {
+        val p = UserPreferences.getInstance(context)
+        resolveUserRegion(p.clientCity, p.clientLat, p.clientLng)
+    }
     var regionFirst by remember { mutableStateOf(true) }
 
     var selectedCategory by remember { mutableStateOf<IndianFoodCategory?>(null) }
+    var selectedRegion   by remember { mutableStateOf<IndianRegion?>(null) }
     var vegFilter        by remember { mutableStateOf(VegFilter.ALL) }
     var searchQuery      by remember { mutableStateOf("") }
 
-    val foods = remember(selectedCategory, vegFilter, searchQuery, userRegion, regionFirst) {
-        val list = IndianFoodLibrary.all
+    val foods = remember(allFoods, selectedCategory, selectedRegion, vegFilter, searchQuery, userRegion, regionFirst) {
+        val list = allFoods
             .filter { selectedCategory == null || it.category == selectedCategory }
+            .filter { selectedRegion == null || effectiveRegion(it) == selectedRegion }
             .filter {
                 when (vegFilter) {
                     VegFilter.ALL    -> true
@@ -94,9 +104,9 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
                 }
             }
             .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-        // Stable sort: dishes from the user's region float to the top, order kept otherwise.
-        if (userRegion != null && regionFirst && searchQuery.isBlank())
-            list.sortedByDescending { regionOfDish(it.name) == userRegion }
+        // Auto region-boost only in the unfiltered default view.
+        if (userRegion != null && regionFirst && selectedRegion == null && searchQuery.isBlank())
+            list.sortedByDescending { effectiveRegion(it) == userRegion }
         else list
     }
 
@@ -122,7 +132,7 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
             }
             Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Indian Foods", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
-                Text("${IndianFoodLibrary.all.size} dishes · calories & macros", fontSize = 10.sp, color = CyberTextMuted)
+                Text("${allFoods.size} dishes · calories & macros", fontSize = 10.sp, color = CyberTextMuted)
             }
         }
 
@@ -227,6 +237,19 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(10.dp))
 
+        // ── Region cuisine chips ──────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CategoryChip("All regions", selectedRegion == null) { selectedRegion = null }
+            IndianRegion.entries.forEach { r ->
+                CategoryChip(r.label, selectedRegion == r) { selectedRegion = if (selectedRegion == r) null else r }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
         // ── Category chips ────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -251,8 +274,9 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(foods, key = { it.name }) { food ->
-                FoodLibraryRow(food, isLocal = userRegion != null && regionOfDish(food.name) == userRegion)
+            items(foods, key = { it.id }) { food ->
+                val region = effectiveRegion(food)
+                FoodLibraryRow(food, region = region, isLocal = userRegion != null && region == userRegion)
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -278,7 +302,7 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun FoodLibraryRow(food: LibraryFood, isLocal: Boolean = false) {
+private fun FoodLibraryRow(food: LibraryFood, region: IndianRegion? = null, isLocal: Boolean = false) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(
@@ -309,15 +333,24 @@ private fun FoodLibraryRow(food: LibraryFood, isLocal: Boolean = false) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
+                Text(food.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(food.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (isLocal) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(CyberAccent.copy(0.18f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text("📍 Local", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent, maxLines = 1)
+                    Text(food.quantity, fontSize = 11.sp, color = CyberTextMuted)
+                    if (region != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isLocal) CyberAccent.copy(0.18f) else Color.White.copy(0.06f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                (if (isLocal) "📍 " else "") + region.label,
+                                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                                color = if (isLocal) CyberAccent else CyberTextMuted, maxLines = 1
+                            )
                         }
                     }
                 }
-                Text(food.quantity, fontSize = 11.sp, color = CyberTextMuted)
             }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFF0D3320)).padding(horizontal = 8.dp, vertical = 4.dp)
