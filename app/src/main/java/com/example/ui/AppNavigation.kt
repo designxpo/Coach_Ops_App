@@ -819,6 +819,7 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                     onProgressClick      = { navController.push("fitness_progress") },
                     onHealthMetricsClick = { navController.push("health_metrics") },
                     onMyDietClick        = { navController.push("my_diet") },
+                    onFoodLibraryClick   = { navController.push("indian_foods") },
                     onFoodScanClick         = { navController.push("food_scanner") },
                     onFoodDiaryClick        = { navController.push("food_diary") },
                     onBodyMeasurementsClick = { navController.push("body_measurements") },
@@ -837,6 +838,9 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                         }
                     }
                 )
+            }
+            composable("indian_foods") {
+                IndianFoodsScreen(onBack = { navController.popBackStack() })
             }
             composable("health_metrics") {
                 val fitnessViewModel: FitnessViewModel = androidx.lifecycle.viewmodel.compose.viewModel(

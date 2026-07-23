@@ -109,6 +109,7 @@ fun FitnessHubScreen(
     onProgressClick: () -> Unit,
     onHealthMetricsClick: () -> Unit = {},
     onMyDietClick: () -> Unit = {},
+    onFoodLibraryClick: () -> Unit = {},
     onFoodScanClick: () -> Unit = {},
     onFoodDiaryClick: () -> Unit = {},
     onBodyMeasurementsClick: () -> Unit = {},
@@ -866,6 +867,14 @@ fun FitnessHubScreen(
                         onClick  = onMyDietClick
                     )
                 }
+                QuickLinkCard(
+                    imageUrl = "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&h=200&fit=crop",
+                    title    = "Indian Foods",
+                    subtitle = "${com.example.data.IndianFoodLibrary.all.size} dishes · veg & non-veg · calories & macros",
+                    color    = Color(0xFF7C2D12),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick  = onFoodLibraryClick
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
