@@ -345,6 +345,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Indian food library — any authenticated user reads, admin-only writes
+    match /indian_foods/{foodId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // Early access sign-ups — public create (unauthenticated website visitors), admin read/delete
     match /early_access/{docId} {
       allow create: if request.resource.data.keys().hasAll(['name', 'email', 'role', 'signedUpAt'])
