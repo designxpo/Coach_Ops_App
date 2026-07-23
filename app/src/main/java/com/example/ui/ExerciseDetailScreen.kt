@@ -268,12 +268,14 @@ fun ExerciseDetailScreen(
             }
 
             // ── About ─────────────────────────────────────────────────────────
-            item {
-                DetailSection(title = "About") {
-                    Text(
-                        exercise.bodyEffect,
-                        fontSize = 14.sp, color = CyberTextSecondary, lineHeight = 22.sp
-                    )
+            if (exercise.bodyEffect.isNotBlank()) {
+                item {
+                    DetailSection(title = "About") {
+                        Text(
+                            exercise.bodyEffect,
+                            fontSize = 14.sp, color = CyberTextSecondary, lineHeight = 22.sp
+                        )
+                    }
                 }
             }
 
@@ -303,6 +305,7 @@ fun ExerciseDetailScreen(
             // ── Guide (expandable how-to) ─────────────────────────────────────
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    if (exercise.howTo.isNotEmpty()) {
                     NavRow(
                         icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = CyberTextMuted, modifier = Modifier.size(18.dp)) },
                         title = "Guide",
@@ -341,9 +344,11 @@ fun ExerciseDetailScreen(
                             }
                         }
                     }
+                    }
                     Spacer(Modifier.height(4.dp))
 
                     // Common mistakes
+                    if (exercise.commonErrors.isNotEmpty()) {
                     NavRow(
                         icon = { Icon(Icons.Filled.Warning, null, tint = CyberDanger, modifier = Modifier.size(18.dp)) },
                         title = "Common Mistakes",
@@ -381,6 +386,7 @@ fun ExerciseDetailScreen(
                                 }
                             }
                         }
+                    }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
