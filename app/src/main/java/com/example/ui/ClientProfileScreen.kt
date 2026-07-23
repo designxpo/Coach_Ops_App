@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.data.GeoUtils
+import com.example.data.IndianRegion
 import com.example.data.NearbyArea
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
@@ -83,6 +85,7 @@ fun ClientProfileScreen(
 
     var name by remember { mutableStateOf(viewModel.clientName) }
     var city by remember { mutableStateOf(viewModel.clientCity) }
+    var cuisine by remember { mutableStateOf(viewModel.userPreferences.preferredCuisine) }
     var showReportSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
@@ -402,6 +405,30 @@ fun ClientProfileScreen(
                 }
             }
 
+            ProfileFieldSection(label = "Preferred Cuisine") {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CuisineChip("Auto", cuisine.isEmpty()) {
+                            cuisine = ""; viewModel.userPreferences.preferredCuisine = ""
+                        }
+                        IndianRegion.entries.forEach { r ->
+                            CuisineChip(r.label.removeSuffix(" Indian"), cuisine == r.name) {
+                                cuisine = r.name; viewModel.userPreferences.preferredCuisine = r.name
+                            }
+                        }
+                    }
+                    Text(
+                        if (cuisine.isEmpty())
+                            "Auto — we use your location to show local dishes first in the food library."
+                        else "Showing ${IndianRegion.entries.find { it.name == cuisine }?.label ?: cuisine} dishes first (overrides your location).",
+                        color = CyberTextMuted, fontSize = 11.sp, lineHeight = 15.sp
+                    )
+                }
+            }
+
             ProfileFieldSection(label = "Email") {
                 Box(
                     modifier = Modifier
@@ -578,6 +605,24 @@ fun ClientProfileScreen(
         onDismiss = { showDeleteDialog = false },
         onDeleted = onLogout   // session is gone — reuse logout to wipe local state + navigate
     )
+}
+
+@Composable
+private fun CuisineChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) CyberAccent else CyberBgCard)
+            .border(1.dp, if (selected) Color.Transparent else Color.White.copy(0.1f), RoundedCornerShape(999.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 9.dp)
+    ) {
+        Text(
+            label, fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
+            color = if (selected) CyberAccentDark else CyberTextMuted
+        )
+    }
 }
 
 @Composable

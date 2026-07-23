@@ -78,9 +78,15 @@ fun regionForCoordinates(lat: Double, lng: Double): IndianRegion? {
     }
 }
 
-/** Resolve the member's culinary region: prefer the typed/geocoded city, then GPS. */
-fun resolveUserRegion(city: String?, lat: Double, lng: Double): IndianRegion? =
-    regionForLocation(city) ?: regionForCoordinates(lat, lng)
+/**
+ * Resolve the member's culinary region. A manual preference (an IndianRegion
+ * name) wins outright; otherwise fall back to the typed/geocoded city, then GPS.
+ */
+fun resolveUserRegion(preferred: String?, city: String?, lat: Double, lng: Double): IndianRegion? {
+    val manual = IndianRegion.entries.find { it.name == preferred }
+    if (manual != null) return manual
+    return regionForLocation(city) ?: regionForCoordinates(lat, lng)
+}
 
 enum class IndianFoodCategory(val label: String, val image: String) {
     BREAKFAST("Breakfast", u("1614961233913-a5113a4a34ed")),

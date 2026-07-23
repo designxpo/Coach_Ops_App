@@ -199,6 +199,12 @@ class UserPreferences private constructor(private val context: Context) {
         get() = prefs.getString("client_city", "") ?: ""
         set(value) { prefs.edit().putString("client_city", value).apply() }
 
+    // Manual cuisine-region override for the food library. "" = auto-detect from
+    // location; otherwise an IndianRegion name (NORTH/SOUTH/WEST/EAST).
+    var preferredCuisine: String
+        get() = prefs.getString("preferred_cuisine", "") ?: ""
+        set(value) { prefs.edit().putString("preferred_cuisine", value).apply() }
+
     var clientGoal: String
         get() = prefs.getString("client_goal", "") ?: ""
         set(value) { prefs.edit().putString("client_goal", value).apply() }

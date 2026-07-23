@@ -80,10 +80,10 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { IndianFoodCatalog.start() }
     val allFoods by IndianFoodCatalog.all.collectAsState()
 
-    // Culinary region — from the member's saved city, falling back to GPS coords.
+    // Culinary region — manual profile preference wins, else city, else GPS coords.
     val userRegion = remember {
         val p = UserPreferences.getInstance(context)
-        resolveUserRegion(p.clientCity, p.clientLat, p.clientLng)
+        resolveUserRegion(p.preferredCuisine, p.clientCity, p.clientLat, p.clientLng)
     }
     var regionFirst by remember { mutableStateOf(true) }
 
