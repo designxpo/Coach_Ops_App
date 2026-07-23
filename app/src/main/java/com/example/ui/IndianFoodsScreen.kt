@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +55,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.IndianFoodCategory
 import com.example.data.IndianFoodLibrary
+import com.example.data.IndianRegion
 import com.example.data.LibraryFood
+import com.example.data.UserPreferences
+import com.example.data.regionForLocation
+import com.example.data.regionOfDish
 import com.example.ui.theme.CyberAccent
 import com.example.ui.theme.CyberAccentDark
 import com.example.ui.theme.CyberBgCard
@@ -68,12 +73,18 @@ private enum class VegFilter(val label: String) { ALL("All"), VEG("Veg"), NONVEG
 
 @Composable
 fun IndianFoodsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    // Culinary region inferred from the member's saved city — used to surface
+    // region-relevant dishes first.
+    val userRegion = remember { regionForLocation(UserPreferences.getInstance(context).clientCity) }
+    var regionFirst by remember { mutableStateOf(true) }
+
     var selectedCategory by remember { mutableStateOf<IndianFoodCategory?>(null) }
     var vegFilter        by remember { mutableStateOf(VegFilter.ALL) }
     var searchQuery      by remember { mutableStateOf("") }
 
-    val foods = remember(selectedCategory, vegFilter, searchQuery) {
-        IndianFoodLibrary.all
+    val foods = remember(selectedCategory, vegFilter, searchQuery, userRegion, regionFirst) {
+        val list = IndianFoodLibrary.all
             .filter { selectedCategory == null || it.category == selectedCategory }
             .filter {
                 when (vegFilter) {
@@ -83,6 +94,10 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
                 }
             }
             .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+        // Stable sort: dishes from the user's region float to the top, order kept otherwise.
+        if (userRegion != null && regionFirst && searchQuery.isBlank())
+            list.sortedByDescending { regionOfDish(it.name) == userRegion }
+        else list
     }
 
     Column(
@@ -109,6 +124,33 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
                 Text("Indian Foods", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
                 Text("${IndianFoodLibrary.all.size} dishes · calories & macros", fontSize = 10.sp, color = CyberTextMuted)
             }
+        }
+
+        // ── Region banner (surfaces local favourites first) ──────────────────
+        if (userRegion != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberAccent.copy(0.10f))
+                    .border(1.dp, CyberAccent.copy(0.25f), RoundedCornerShape(12.dp))
+                    .clickable { regionFirst = !regionFirst }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("📍", fontSize = 14.sp)
+                Text(
+                    if (regionFirst) "Showing ${userRegion.label} favourites first"
+                    else "Tap to show ${userRegion.label} favourites first",
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    color = CyberAccent, modifier = Modifier.weight(1f)
+                )
+                Text(if (regionFirst) "ON" else "OFF", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (regionFirst) CyberAccent else CyberTextMuted)
+            }
+            Spacer(Modifier.height(10.dp))
         }
 
         // ── Search ────────────────────────────────────────────────────────────
@@ -209,7 +251,9 @@ fun IndianFoodsScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(foods, key = { it.name }) { food -> FoodLibraryRow(food) }
+            items(foods, key = { it.name }) { food ->
+                FoodLibraryRow(food, isLocal = userRegion != null && regionOfDish(food.name) == userRegion)
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -234,7 +278,7 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun FoodLibraryRow(food: LibraryFood) {
+private fun FoodLibraryRow(food: LibraryFood, isLocal: Boolean = false) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(
@@ -265,7 +309,14 @@ private fun FoodLibraryRow(food: LibraryFood) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(food.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(food.name, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (isLocal) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(CyberAccent.copy(0.18f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                            Text("📍 Local", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent, maxLines = 1)
+                        }
+                    }
+                }
                 Text(food.quantity, fontSize = 11.sp, color = CyberTextMuted)
             }
             Box(

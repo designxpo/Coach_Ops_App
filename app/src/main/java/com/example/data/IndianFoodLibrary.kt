@@ -7,6 +7,60 @@ package com.example.data
  * meal PLANS in [NutritionRepository]. Values are typical home-portion estimates.
  */
 
+// ─── Regional cuisine ─────────────────────────────────────────────────────────
+
+enum class IndianRegion(val label: String) {
+    NORTH("North Indian"),
+    SOUTH("South Indian"),
+    WEST("West Indian"),
+    EAST("East Indian")
+}
+
+/**
+ * Best-effort map from the member's saved city/area text to a culinary region,
+ * so region-relevant dishes can be surfaced first. Returns null when unknown
+ * (then the default order is kept).
+ */
+fun regionForLocation(location: String?): IndianRegion? {
+    val s = (location ?: "").lowercase()
+    if (s.isBlank()) return null
+    fun any(vararg keys: String) = keys.any { it in s }
+    return when {
+        any("chennai", "madras", "tamil", "bengaluru", "bangalore", "karnataka", "kerala",
+            "kochi", "cochin", "trivandrum", "thiruvananthapuram", "hyderabad", "telangana",
+            "andhra", "vijayawada", "visakhapatnam", "vizag", "mysore", "mysuru", "coimbatore",
+            "madurai", "mangalore", "udupi", "salem", "tirupati", "guntur") -> IndianRegion.SOUTH
+        any("kolkata", "calcutta", "bengal", "assam", "guwahati", "odisha", "orissa",
+            "bhubaneswar", "patna", "bihar", "ranchi", "jharkhand", "siliguri", "durgapur",
+            "cuttack", "shillong", "agartala") -> IndianRegion.EAST
+        any("mumbai", "bombay", "pune", "maharashtra", "nagpur", "nashik", "gujarat",
+            "ahmedabad", "surat", "vadodara", "rajkot", "goa", "panaji", "thane", "aurangabad",
+            "kolhapur", "indore", "bhopal", "madhya") -> IndianRegion.WEST
+        any("delhi", "punjab", "amritsar", "ludhiana", "chandigarh", "haryana", "gurgaon",
+            "gurugram", "noida", "lucknow", "kanpur", "uttar pradesh", "jaipur", "rajasthan",
+            "jammu", "kashmir", "srinagar", "himachal", "shimla", "uttarakhand", "dehradun",
+            "agra", "varanasi", "jalandhar", "patiala", "meerut", "faridabad") -> IndianRegion.NORTH
+        else -> null
+    }
+}
+
+/** The signature region of a dish, or null if it's pan-Indian (shown everywhere). */
+fun regionOfDish(name: String): IndianRegion? {
+    val n = name.lowercase()
+    fun any(vararg keys: String) = keys.any { it in n }
+    return when {
+        any("dosa", "idli", "sambar", "uttapam", "ragi", "medu vada", "curd rice",
+            "lemon rice", "coconut water", "rasam") -> IndianRegion.SOUTH
+        any("poha", "dhokla", "thepla", "sabudana", "pav bhaji", "bhel", "shrikhand",
+            "vada pav", "misal") -> IndianRegion.WEST
+        any("rasgulla", "sandesh", "sattu", "kheer") -> IndianRegion.EAST
+        any("paratha", "chole", "chana masala", "rajma", "dal makhani", "paneer butter",
+            "malai kofta", "naan", "tandoori", "missi", "lassi", "gajar halwa", "biryani",
+            "keema") -> IndianRegion.NORTH
+        else -> null
+    }
+}
+
 enum class IndianFoodCategory(val label: String, val image: String) {
     BREAKFAST("Breakfast", u("1614961233913-a5113a4a34ed")),
     MAINS("Sabzi & Mains", u("1585937421612-70a008356fbe")),
