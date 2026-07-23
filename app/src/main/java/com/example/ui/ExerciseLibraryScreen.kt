@@ -113,6 +113,12 @@ fun ExerciseCategoryScreen(
     // Use live Firestore-merged data so admin image/howTo updates appear in real-time
     val allExercises by viewModel.allExercises.collectAsState()
 
+    // Only surface category tabs that actually have exercises (hides empty ones).
+    val presentCategories = remember(allExercises) {
+        ExerciseCategory.entries.filter { cat -> allExercises.any { it.category == cat } }
+            .ifEmpty { ExerciseCategory.entries.toList() }
+    }
+
     // Body parts (muscle groups) present in this category, each with a count + photo.
     // With 1,300+ exercises we show these first so the user drills in by body part
     // instead of scrolling one giant flat list.
@@ -205,7 +211,7 @@ fun ExerciseCategoryScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ExerciseCategory.entries.forEach { cat ->
+            presentCategories.forEach { cat ->
                 val sel = selectedCategory == cat
                 Box(
                     modifier = Modifier

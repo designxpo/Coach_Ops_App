@@ -524,10 +524,53 @@ fun FitnessHubScreen(
 
                 val autoSteps = healthViewModel.isStepCounterAvailable && hasStepPermission
 
+                // Personalized daily goals derived from the body profile.
+                val targets = remember(viewModel.healthProfile) {
+                    com.example.data.HealthCalculator.dailyTargets(viewModel.healthProfile)
+                }
+
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // ── Personalized daily targets card ───────────────────────
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CyberBgCard)
+                            .border(1.dp, CyberAccent.copy(0.25f), RoundedCornerShape(16.dp))
+                            .clickable { onHealthMetricsClick() }
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Your Daily Targets", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                            Text(
+                                if (targets.hasProfile) "Personalized ›" else "Set up ›",
+                                fontSize = 11.sp, color = CyberAccent, fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (targets.hasProfile) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                TargetStat("${targets.calorieTarget}", "kcal", Color(0xFFF59E0B))
+                                TargetStat("${targets.proteinG}g", "protein", Color(0xFFEF4444))
+                                TargetStat("${targets.waterGlasses}", "glasses", Color(0xFF06B6D4))
+                                TargetStat("${targets.stepGoal / 1000}k", "steps", Color(0xFF3B82F6))
+                            }
+                        } else {
+                            Text(
+                                "Add your age, height, weight, activity & goal to get personal calorie, protein, water & step targets.",
+                                fontSize = 11.sp, color = CyberTextMuted, lineHeight = 15.sp
+                            )
+                        }
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("TODAY'S HEALTH", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
                             color = CyberAccent, letterSpacing = 1.sp)
@@ -590,13 +633,13 @@ fun FitnessHubScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (log.stepsCount == 0 && !autoSteps) CyberTextMuted else CyberTextPrimary
                                 )
-                                val stepProgress = animatedProgress((log.stepsCount / 10_000f))
+                                val stepProgress = animatedProgress((log.stepsCount.toFloat() / targets.stepGoal))
                                 LinearProgressIndicator(
                                     progress = { stepProgress },
                                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
                                     color = Color(0xFF3B82F6), trackColor = Color(0xFF3B82F6).copy(0.15f)
                                 )
-                                Text("Goal: 10,000", fontSize = 10.sp, color = CyberTextMuted)
+                                Text("Goal: ${"%,d".format(targets.stepGoal)}", fontSize = 10.sp, color = CyberTextMuted)
                             }
                         }
                         // Water card
@@ -624,7 +667,7 @@ fun FitnessHubScreen(
                                     Text("+", fontSize = 16.sp, color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text("${log.waterGlasses}/8 glasses", fontSize = 10.sp, color = CyberTextMuted)
+                            Text("${log.waterGlasses}/${targets.waterGlasses} glasses", fontSize = 10.sp, color = CyberTextMuted)
                         }
                     }
 
@@ -989,6 +1032,14 @@ private fun ActivityRing(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun TargetStat(value: String, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = color, maxLines = 1, softWrap = false)
+        Text(label, fontSize = 10.sp, color = CyberTextMuted)
+    }
+}
 
 @Composable
 private fun ActivityStatRow(label: String, value: String, goal: String, color: Color) {

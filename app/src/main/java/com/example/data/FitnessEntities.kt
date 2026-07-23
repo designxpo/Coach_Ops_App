@@ -123,6 +123,19 @@ data class HealthMetrics(
     val proteinPerKg: Float
 )
 
+// ─── Personalized daily targets (derived from the body profile) ───────────────
+// The single source of truth for the goals shown on Home / Fitness / Nutrition.
+
+data class DailyTargets(
+    val hasProfile: Boolean,     // false = profile not set, values are defaults
+    val stepGoal: Int,
+    val waterGlasses: Int,
+    val calorieTarget: Int,      // 0 when no profile
+    val proteinG: Int,           // 0 when no profile
+    val carbsG: Int = 0,
+    val fatG: Int = 0
+)
+
 // ─── Persisted health record (stored in Firestore member_health/) ─────────────
 
 data class HealthRecord(

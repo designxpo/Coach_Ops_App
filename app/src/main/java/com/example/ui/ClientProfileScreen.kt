@@ -72,10 +72,14 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ClientProfileScreen(
     viewModel: ClientViewModel,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onBodyDetailsClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
+
+    // Has the member filled in the body profile that drives personalized targets?
+    val bodyProfileSet = remember { viewModel.userPreferences.loadHealthProfile().isValid }
 
     var name by remember { mutableStateOf(viewModel.clientName) }
     var city by remember { mutableStateOf(viewModel.clientCity) }
@@ -460,6 +464,41 @@ fun ClientProfileScreen(
         }
 
         Spacer(Modifier.height(16.dp))
+
+        // Body details & personalized targets
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(CyberBgCard)
+                .border(1.dp, CyberAccent.copy(0.2f), RoundedCornerShape(16.dp))
+                .clickable { onBodyDetailsClick() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Body Details & Daily Targets", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = CyberTextPrimary)
+                Text(
+                    "Age, height, weight, activity & goal → your calorie, protein, water & step targets",
+                    fontSize = 11.sp, color = CyberTextMuted, lineHeight = 15.sp
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (bodyProfileSet) CyberAccent.copy(0.15f) else CyberAccent)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    if (bodyProfileSet) "Edit" else "Set up",
+                    fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                    color = if (bodyProfileSet) CyberAccent else CyberAccentDark
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         // Report a problem
         Box(

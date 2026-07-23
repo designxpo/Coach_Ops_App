@@ -191,6 +191,33 @@ object HealthCalculator {
         )
     }
 
+    // ─── Personalized daily targets (drives the whole app) ────────────────────
+    // Turns the body profile into the day's goals shown on Home / Fitness /
+    // Nutrition. Falls back to sensible defaults when the profile isn't set yet.
+
+    fun dailyTargets(profile: HealthProfile): DailyTargets {
+        val m = calculate(profile)   // null until the profile is filled in
+        // Step goal scales with self-reported activity level.
+        val stepGoal = when (profile.activityLevel) {
+            ActivityLevel.SEDENTARY -> 6_000
+            ActivityLevel.LIGHT     -> 8_000
+            ActivityLevel.MODERATE  -> 10_000
+            ActivityLevel.ACTIVE    -> 12_000
+            ActivityLevel.ATHLETE   -> 14_000
+        }
+        // 250 ml per glass; keep it in a sane range.
+        val glasses = m?.let { (it.dailyWaterL / 0.25f).roundToInt().coerceIn(6, 16) } ?: 8
+        return DailyTargets(
+            hasProfile    = m != null,
+            stepGoal      = if (m != null) stepGoal else 10_000,
+            waterGlasses  = glasses,
+            calorieTarget = m?.tdeeKcal ?: 0,
+            proteinG      = m?.dailyProteinG ?: 0,
+            carbsG        = m?.dailyCarbsG ?: 0,
+            fatG          = m?.dailyFatG ?: 0
+        )
+    }
+
     fun ageGroupFor(age: Int): AgeGroup = when {
         age < 18 -> AgeGroup.TEEN
         age < 36 -> AgeGroup.YOUNG_ADULT

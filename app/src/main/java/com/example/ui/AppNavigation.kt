@@ -1070,7 +1070,8 @@ fun ClientNavScreen(userPreferences: UserPreferences, onNavigateToLogin: () -> U
                         // Navigate only AFTER the session is torn down — navigating first
                         // let the relaunch see stale auth and bounce back into the app
                         viewModel.logout(context) { onNavigateToLogin() }
-                    }
+                    },
+                    onBodyDetailsClick = { navController.push("health_metrics") }
                 )
             }
         }

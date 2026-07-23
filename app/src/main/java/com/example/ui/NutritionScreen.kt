@@ -123,6 +123,10 @@ private fun foodImageUrl(name: String): String {
     }
 }
 
+// ─── Diet preference filter ─────────────────────────────────────────────────
+
+private enum class DietFilter(val label: String) { ALL("All"), VEG("Veg"), NONVEG("Non-Veg") }
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 @Composable
@@ -146,6 +150,27 @@ fun NutritionScreen(
     }
     // Local val enables smart casts throughout the rest of this composable
     val plan = planState!!
+
+    // Veg / Non-veg dietary filter over the plan's food items.
+    var dietFilter by remember { mutableStateOf(DietFilter.ALL) }
+    val filteredMeals = remember(plan, dietFilter) {
+        plan.meals
+            .map { meal ->
+                meal.copy(items = meal.items.filter { food ->
+                    when (dietFilter) {
+                        DietFilter.ALL    -> true
+                        DietFilter.VEG    -> food.isVegetarian
+                        DietFilter.NONVEG -> !food.isVegetarian
+                    }
+                })
+            }
+            .filter { it.items.isNotEmpty() }
+    }
+
+    // Personalized daily targets from the user's body profile (shown when set).
+    val targets = remember(viewModel.healthProfile) {
+        com.example.data.HealthCalculator.dailyTargets(viewModel.healthProfile)
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
@@ -263,6 +288,32 @@ fun NutritionScreen(
             }
         }
 
+        // ── Personalized target banner (from body profile) ───────────────────
+        if (targets.hasProfile && !isCoachMode) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CyberAccent.copy(0.10f))
+                        .border(1.dp, CyberAccent.copy(0.25f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Your body target", fontSize = 11.sp, color = CyberTextMuted, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "${targets.calorieTarget} kcal · ${targets.proteinG}g protein · ${targets.waterGlasses} glasses/day",
+                            fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = CyberAccent
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
         // ── Macro cards (3 in a row with colored backgrounds) ────────────────
         item {
             Row(
@@ -354,8 +405,68 @@ fun NutritionScreen(
             Spacer(Modifier.height(16.dp))
         }
 
+        // ── Veg / Non-veg filter ──────────────────────────────────────────────
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CyberBgCard)
+                    .border(1.dp, Color.White.copy(0.06f), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                DietFilter.entries.forEach { f ->
+                    val sel = dietFilter == f
+                    val dot = when (f) {
+                        DietFilter.VEG    -> Color(0xFF10B981)
+                        DietFilter.NONVEG -> Color(0xFFEF4444)
+                        DietFilter.ALL    -> null
+                    }
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(if (sel) CyberAccent else Color.Transparent)
+                            .clickable { dietFilter = f }
+                            .padding(vertical = 9.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (dot != null) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            f.label,
+                            fontSize = 13.sp,
+                            fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            color = if (sel) CyberAccentDark else CyberTextMuted
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
         // ── Meal cards ────────────────────────────────────────────────────────
-        items(plan.meals) { meal ->
+        if (filteredMeals.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No ${dietFilter.label.lowercase()} items in this plan",
+                        fontSize = 13.sp, color = CyberTextMuted
+                    )
+                }
+            }
+        }
+        items(filteredMeals) { meal ->
             MealCard(meal = meal)
             Spacer(Modifier.height(12.dp))
         }
